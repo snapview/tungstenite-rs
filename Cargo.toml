@@ -1,0 +1,24 @@
+[package]
+name = "ws2"
+version = "0.1.0"
+authors = ["Alexey Galakhov"]
+
+[features]
+default = []
+tls = ["native-tls"]
+
+[dependencies]
+base64 = "*"
+byteorder = "*"
+bytes = { git = "https://github.com/carllerche/bytes.git" }
+httparse = "*"
+env_logger = "*"
+log = "*"
+rand = "*"
+sha1 = "*"
+url = "*"
+utf-8 = "*"
+
+[dependencies.native-tls]
+optional = true
+version = "*"
