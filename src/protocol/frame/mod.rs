@@ -6,15 +6,13 @@ pub use self::frame::Frame;
 
 use std::io::{Read, Write};
 
-use input_buffer;
+use input_buffer::{InputBuffer, MIN_READ};
 use error::{Error, Result};
-
-const MIN_READ: usize = 4096;
 
 /// A reader and writer for WebSocket frames.
 pub struct FrameSocket<Stream> {
     stream: Stream,
-    in_buffer: input_buffer::InputBuffer,
+    in_buffer: InputBuffer,
     out_buffer: Vec<u8>,
 }
 
@@ -23,7 +21,7 @@ impl<Stream> FrameSocket<Stream> {
     pub fn new(stream: Stream) -> Self {
         FrameSocket {
             stream: stream,
-            in_buffer: input_buffer::InputBuffer::with_capacity(MIN_READ),
+            in_buffer: InputBuffer::with_capacity(MIN_READ),
             out_buffer: Vec::new(),
         }
     }
@@ -31,7 +29,7 @@ impl<Stream> FrameSocket<Stream> {
     pub fn from_partially_read(stream: Stream, part: Vec<u8>) -> Self {
         FrameSocket {
             stream: stream,
-            in_buffer: input_buffer::InputBuffer::from_partially_read(part),
+            in_buffer: InputBuffer::from_partially_read(part),
             out_buffer: Vec::new(),
         }
     }

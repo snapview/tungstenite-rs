@@ -7,7 +7,7 @@ use httparse;
 use httparse::Status;
 use url::Url;
 
-use input_buffer::InputBuffer;
+use input_buffer::{InputBuffer, MIN_READ};
 use error::{Error, Result};
 use super::{
     Headers,
@@ -19,8 +19,6 @@ use super::{
 use protocol::{
     WebSocket, Role,
 };
-
-const MIN_READ: usize = 4096;
 
 /// Client request.
 pub struct Request {

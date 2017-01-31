@@ -4,6 +4,9 @@ use bytes::{Buf, BufMut};
 /// A FIFO buffer for reading packets from network.
 pub struct InputBuffer(Cursor<Vec<u8>>);
 
+/// The minimum read size.
+pub const MIN_READ: usize = 4096;
+
 /// Size limit error.
 pub struct SizeLimit;
 
