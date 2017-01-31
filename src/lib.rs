@@ -22,6 +22,7 @@ extern crate utf8;
 pub mod error;
 pub mod protocol;
 pub mod client;
+pub mod server;
 pub mod handshake;
 
 mod input_buffer;
