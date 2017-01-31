@@ -5,7 +5,7 @@ extern crate env_logger;
 use url::Url;
 use ws2::protocol::Message;
 use ws2::client::connect;
-use ws2::protocol::handshake::Handshake;
+use ws2::handshake::Handshake;
 
 fn main() {
     env_logger::init().unwrap();
@@ -15,7 +15,7 @@ fn main() {
         .handshake_wait()
         .expect("Handshake error");
 
-    socket.write_message(Message::Text("Hello WebSocket".into()));
+    socket.write_message(Message::Text("Hello WebSocket".into())).unwrap();
     loop {
         let msg = socket.read_message().expect("Error reading message");
         println!("Received: {}", msg);
