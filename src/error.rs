@@ -16,6 +16,8 @@ pub type Result<T> = result::Result<T, Error>;
 /// Possible WebSocket errors
 #[derive(Debug)]
 pub enum Error {
+    /// WebSocket connection closed (normally)
+    ConnectionClosed,
     /// Input-output error
     Io(io::Error),
     /// Buffer capacity exhausted
@@ -33,6 +35,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            Error::ConnectionClosed => write!(f, "Connection closed"),
             Error::Io(ref err) => write!(f, "IO error: {}", err),
             Error::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
             Error::Protocol(ref msg) => write!(f, "WebSocket protocol error: {}", msg),
@@ -46,6 +49,7 @@ impl fmt::Display for Error {
 impl ErrorTrait for Error {
     fn description(&self) -> &str {
         match *self {
+            Error::ConnectionClosed => "",
             Error::Io(ref err) => err.description(),
             Error::Capacity(ref msg) => msg.borrow(),
             Error::Protocol(ref msg) => msg.borrow(),

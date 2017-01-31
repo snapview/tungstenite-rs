@@ -82,7 +82,8 @@ impl<Stream> WebSocket<Stream>
         match self.state {
             WebSocketState::Active => {
                 self.state = WebSocketState::ClosedByUs;
-                // TODO
+                let frame = Frame::close(None);
+                self.send_queue.push_back(frame);
             }
             _ => {
                 // already closed, nothing to do
@@ -220,7 +221,6 @@ impl<Stream> WebSocket<Stream>
             } // match opcode
 
         } else {
-            //Ok(None) // TODO handle EOF?
             Err(Error::Protocol("Connection reset without closing handshake".into()))
         }
     }
@@ -240,25 +240,26 @@ impl<Stream> WebSocket<Stream>
                     Frame::close(None)
                 };
                 self.send_queue.push_back(reply);
+                Ok(())
             }
             WebSocketState::ClosedByPeer => {
                 // It is already closed, just ignore.
+                Ok(())
             }
             WebSocketState::ClosedByUs => {
                 // We received a reply.
                 match self.role {
                     Role::Client => {
                         // Client waits for the server to close the connection.
+                        Ok(())
                     }
                     Role::Server => {
                         // Server closes the connection.
-                        // TODO
+                        Err(Error::ConnectionClosed)
                     }
                 }
             }
         }
-        //unimplemented!()
-        Ok(())
     }
 
     /// Received a ping frame.
@@ -294,7 +295,23 @@ impl<Stream> WebSocket<Stream>
         while let Some(data) = self.send_queue.pop_front() {
             self.send_one_frame(data)?;
         }
-        Ok(())
+
+        // If we're closing and there is nothing to send anymore, we should close the connection.
+        match self.state {
+            WebSocketState::ClosedByPeer if self.send_queue.is_empty() => {
+                // The underlying TCP connection, in most normal cases, SHOULD be closed
+                // first by the server, so that it holds the TIME_WAIT state and not the
+                // client (as this would prevent it from re-opening the connection for 2
+                // maximum segment lifetimes (2MSL), while there is no corresponding
+                // server impact as a TIME_WAIT connection is immediately reopened upon
+                // a new SYN with a higher seq number). (RFC 6455)
+                match self.role {
+                    Role::Client => Ok(()),
+                    Role::Server => Err(Error::ConnectionClosed),
+                }
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Send a single pending frame.
