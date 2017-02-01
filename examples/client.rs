@@ -1,11 +1,11 @@
-extern crate ws2;
+extern crate tungstenite;
 extern crate url;
 extern crate env_logger;
 
 use url::Url;
-use ws2::protocol::Message;
-use ws2::client::connect;
-use ws2::handshake::Handshake;
+use tungstenite::protocol::Message;
+use tungstenite::client::connect;
+use tungstenite::handshake::Handshake;
 
 fn main() {
     env_logger::init().unwrap();

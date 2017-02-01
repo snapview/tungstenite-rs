@@ -1,13 +1,13 @@
 #[macro_use] extern crate log;
 extern crate env_logger;
-extern crate ws2;
+extern crate tungstenite;
 
 use std::net::{TcpListener, TcpStream};
 use std::thread::spawn;
 
-use ws2::server::accept;
-use ws2::error::Result;
-use ws2::handshake::Handshake;
+use tungstenite::server::accept;
+use tungstenite::error::Result;
+use tungstenite::handshake::Handshake;
 
 fn handle_client(stream: TcpStream) -> Result<()> {
     let mut socket = accept(stream).handshake_wait()?;

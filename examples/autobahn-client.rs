@@ -1,14 +1,14 @@
 #[macro_use] extern crate log;
 extern crate env_logger;
-extern crate ws2;
+extern crate tungstenite;
 extern crate url;
 
 use url::Url;
 
-use ws2::protocol::Message;
-use ws2::client::connect;
-use ws2::handshake::Handshake;
-use ws2::error::{Error, Result};
+use tungstenite::protocol::Message;
+use tungstenite::client::connect;
+use tungstenite::handshake::Handshake;
+use tungstenite::error::{Error, Result};
 
 const AGENT: &'static str = "WS2-RS";
 
