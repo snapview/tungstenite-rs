@@ -10,7 +10,7 @@ use tungstenite::client::connect;
 use tungstenite::handshake::Handshake;
 use tungstenite::error::{Error, Result};
 
-const AGENT: &'static str = "WS2-RS";
+const AGENT: &'static str = "Tungstenite";
 
 fn get_case_count() -> Result<u32> {
     let mut socket = connect(
