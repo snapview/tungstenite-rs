@@ -25,7 +25,7 @@ pub enum Error {
     /// Protocol violation
     Protocol(Cow<'static, str>),
     /// UTF coding error
-    Utf8(str::Utf8Error),
+    Utf8,
     /// Invlid URL.
     Url(Cow<'static, str>),
     /// HTTP error.
@@ -39,7 +39,7 @@ impl fmt::Display for Error {
             Error::Io(ref err) => write!(f, "IO error: {}", err),
             Error::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
             Error::Protocol(ref msg) => write!(f, "WebSocket protocol error: {}", msg),
-            Error::Utf8(ref err) => write!(f, "UTF-8 encoding error: {}", err),
+            Error::Utf8 => write!(f, "UTF-8 encoding error"),
             Error::Url(ref msg) => write!(f, "URL error: {}", msg),
             Error::Http(code) => write!(f, "HTTP code: {}", code),
         }
@@ -53,7 +53,7 @@ impl ErrorTrait for Error {
             Error::Io(ref err) => err.description(),
             Error::Capacity(ref msg) => msg.borrow(),
             Error::Protocol(ref msg) => msg.borrow(),
-            Error::Utf8(ref err) => err.description(),
+            Error::Utf8 => "",
             Error::Url(ref msg) => msg.borrow(),
             Error::Http(_) => "",
         }
@@ -67,14 +67,14 @@ impl From<io::Error> for Error {
 }
 
 impl From<str::Utf8Error> for Error {
-    fn from(err: str::Utf8Error) -> Self {
-        Error::Utf8(err)
+    fn from(_: str::Utf8Error) -> Self {
+        Error::Utf8
     }
 }
 
 impl From<string::FromUtf8Error> for Error {
-    fn from(err: string::FromUtf8Error) -> Self {
-        Error::Utf8(err.utf8_error())
+    fn from(_: string::FromUtf8Error) -> Self {
+        Error::Utf8
     }
 }
 

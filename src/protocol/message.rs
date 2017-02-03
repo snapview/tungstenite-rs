@@ -31,12 +31,12 @@ mod string_collect {
                 utf8::Result::Ok | utf8::Result::Incomplete =>
                     Ok(()),
                 utf8::Result::Error { remaining_input_after_error: _ } =>
-                    Err(Error::Protocol("Invalid UTF8".into())), // FIXME
+                    Err(Error::Utf8),
             }
         }
         pub fn into_string(self) -> Result<String> {
             if self.decoder.has_incomplete_sequence() {
-                Err(Error::Protocol("Invalid UTF8".into())) // FIXME
+                Err(Error::Utf8)
             } else {
                 Ok(self.data)
             }
