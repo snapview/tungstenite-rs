@@ -365,7 +365,7 @@ trait NonBlockingError: Sized {
 impl NonBlockingError for IoError {
     fn into_non_blocking(self) -> Option<Self> {
         match self.kind() {
-            IoErrorKind::Interrupted => None,
+            IoErrorKind::WouldBlock => None,
             _ => Some(self),
         }
     }
