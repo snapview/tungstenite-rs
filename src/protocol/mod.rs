@@ -6,14 +6,14 @@ mod message;
 pub use self::message::Message;
 
 use std::collections::VecDeque;
-use std::io::{Read, Write, Error as IoError, ErrorKind as IoErrorKind};
+use std::io::{Read, Write};
 use std::mem::replace;
-use std::result::Result as StdResult;
 
 use error::{Error, Result};
 use self::message::{IncompleteMessage, IncompleteMessageType};
 use self::frame::{Frame, FrameSocket};
 use self::frame::coding::{OpCode, Data as OpData, Control as OpCtl, CloseCode};
+use util::NonBlockingResult;
 
 /// Indicates a Client or Server role of the websocket
 #[derive(Debug, Clone, Copy)]
@@ -353,50 +353,6 @@ impl WebSocketState {
         match *self {
             WebSocketState::Active => true,
             _ => false,
-        }
-    }
-}
-
-/// Non-blocking IO handling.
-trait NonBlockingError: Sized {
-    fn into_non_blocking(self) -> Option<Self>;
-}
-
-impl NonBlockingError for IoError {
-    fn into_non_blocking(self) -> Option<Self> {
-        match self.kind() {
-            IoErrorKind::WouldBlock => None,
-            _ => Some(self),
-        }
-    }
-}
-
-impl NonBlockingError for Error {
-    fn into_non_blocking(self) -> Option<Self> {
-        match self {
-            Error::Io(e) => e.into_non_blocking().map(|e| e.into()),
-            x => Some(x),
-        }
-    }
-}
-
-/// Non-blocking IO wrapper.
-trait NonBlockingResult {
-    type Result;
-    fn no_block(self) -> Self::Result;
-}
-
-impl<T, E> NonBlockingResult for StdResult<T, E>
-where E : NonBlockingError
-{
-    type Result = StdResult<Option<T>, E>;
-    fn no_block(self) -> Self::Result {
-        match self {
-            Ok(x) => Ok(Some(x)),
-            Err(e) => match e.into_non_blocking() {
-                Some(e) => Err(e),
-                None => Ok(None),
-            }
         }
     }
 }
