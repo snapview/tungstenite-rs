@@ -5,6 +5,7 @@ use httparse::Status;
 
 use input_buffer::{InputBuffer, MIN_READ};
 use error::{Error, Result};
+use protocol::{WebSocket, Role};
 use super::{
     Handshake,
     HandshakeResult,
@@ -14,7 +15,7 @@ use super::{
     convert_key,
     MAX_HEADERS
 };
-use protocol::{WebSocket, Role};
+use util::NonBlockingResult;
 
 /// Request from the client.
 pub struct Request {
@@ -91,7 +92,7 @@ impl<Stream: Read + Write> Handshake for ServerHandshake<Stream> {
             HandshakeState::ReceivingRequest(mut req_buf) => {
                 req_buf.reserve(MIN_READ, usize::max_value())
                     .map_err(|_| Error::Capacity("Header too long".into()))?;
-                req_buf.read_from(&mut self.stream)?;
+                req_buf.read_from(&mut self.stream).no_block()?;
                 let state = if let Some(req) = Request::parse(&mut req_buf)? {
                     let resp = req.reply()?;
                     HandshakeState::SendingResponse(Cursor::new(resp))
@@ -104,7 +105,7 @@ impl<Stream: Read + Write> Handshake for ServerHandshake<Stream> {
                 }))
             }
             HandshakeState::SendingResponse(mut resp) => {
-                let size = self.stream.write(Buf::bytes(&resp))?;
+                let size = self.stream.write(Buf::bytes(&resp)).no_block()?.unwrap_or(0);
                 Buf::advance(&mut resp, size);
                 if resp.has_remaining() {
                     Ok(HandshakeResult::Incomplete(ServerHandshake {

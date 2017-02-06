@@ -9,6 +9,9 @@ use url::Url;
 
 use input_buffer::{InputBuffer, MIN_READ};
 use error::{Error, Result};
+use protocol::{
+    WebSocket, Role,
+};
 use super::{
     Headers,
     Httparse, FromHttparse,
@@ -16,9 +19,7 @@ use super::{
     convert_key,
     MAX_HEADERS,
 };
-use protocol::{
-    WebSocket, Role,
-};
+use util::NonBlockingResult;
 
 /// Client request.
 pub struct Request {
@@ -87,7 +88,7 @@ impl<Stream: Read + Write> Handshake for ClientHandshake<Stream> {
         debug!("Performing client handshake...");
         match self.state {
             HandshakeState::SendingRequest(mut req) => {
-                let size = self.stream.write(Buf::bytes(&req))?;
+                let size = self.stream.write(Buf::bytes(&req)).no_block()?.unwrap_or(0);
                 Buf::advance(&mut req, size);
                 let state = if req.has_remaining() {
                     HandshakeState::SendingRequest(req)
@@ -102,7 +103,7 @@ impl<Stream: Read + Write> Handshake for ClientHandshake<Stream> {
             HandshakeState::ReceivingResponse(mut resp_buf) => {
                 resp_buf.reserve(MIN_READ, usize::max_value())
                     .map_err(|_| Error::Capacity("Header too long".into()))?;
-                resp_buf.read_from(&mut self.stream)?;
+                resp_buf.read_from(&mut self.stream).no_block()?;
                 if let Some(resp) = Response::parse(&mut resp_buf)? {
                     self.verify_data.verify_response(&resp)?;
                     let ws = WebSocket::from_partially_read(self.stream,
