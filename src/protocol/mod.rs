@@ -57,14 +57,10 @@ impl<Stream> WebSocket<Stream>
     /// Read a message from stream, if possible.
     pub fn read_message(&mut self) -> Result<Message> {
         loop {
-            let write_blocks = self.send_pending().no_block()?.is_none();
-            let read = self.read_message_frame();
-            let frame = if write_blocks {
-                Some(read?)
-            } else {
-                read.no_block()?
-            };
-            if let Some(Some(message)) = frame {
+            self.send_pending().no_block()?;
+            // If we get here, either write blocks or we have nothing to write.
+            // Thus if read blocks, just let it return WouldBlock.
+            if let Some(message) = self.read_message_frame()? {
                 debug!("Received message {}", message);
                 return Ok(message)
             }
