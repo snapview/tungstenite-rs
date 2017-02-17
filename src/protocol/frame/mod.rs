@@ -66,12 +66,22 @@ impl<Stream> FrameSocket<Stream>
     where Stream: Write
 {
     /// Write a frame to stream.
+    ///
+    /// This function guarantees that the frame is queued regardless of any errors.
+    /// There is no need to resend the frame. In order to handle WouldBlock or Incomplete,
+    /// call write_pending() afterwards.
     pub fn write_frame(&mut self, frame: Frame) -> Result<()> {
         debug!("writing frame {}", frame);
         self.out_buffer.reserve(frame.len());
-        frame.format(&mut self.out_buffer)?;
-        let len = self.stream.write(&self.out_buffer)?;
-        self.out_buffer.drain(0..len);
+        frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
+        self.write_pending()
+    }
+    /// Complete pending write, if any.
+    pub fn write_pending(&mut self) -> Result<()> {
+        while !self.out_buffer.is_empty() {
+            let len = self.stream.write(&self.out_buffer)?;
+            self.out_buffer.drain(0..len);
+        }
         Ok(())
     }
 }
