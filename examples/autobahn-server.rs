@@ -6,11 +6,18 @@ use std::net::{TcpListener, TcpStream};
 use std::thread::spawn;
 
 use tungstenite::server::accept;
-use tungstenite::error::Result;
-use tungstenite::handshake::Handshake;
+use tungstenite::handshake::HandshakeError;
+use tungstenite::error::{Error, Result};
+
+fn must_not_block<Stream, Role>(err: HandshakeError<Stream, Role>) -> Error {
+    match err {
+        HandshakeError::Interrupted(_) => panic!("Bug: blocking socket would block"),
+        HandshakeError::Failure(f) => f,
+    }
+}
 
 fn handle_client(stream: TcpStream) -> Result<()> {
-    let mut socket = accept(stream).handshake_wait()?;
+    let mut socket = accept(stream).map_err(must_not_block)?;
     loop {
         let msg = socket.read_message()?;
         socket.write_message(msg)?;

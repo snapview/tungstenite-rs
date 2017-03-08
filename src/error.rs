@@ -11,6 +11,9 @@ use std::string;
 
 use httparse;
 
+#[cfg(feature="tls")]
+use native_tls;
+
 pub type Result<T> = result::Result<T, Error>;
 
 /// Possible WebSocket errors
@@ -20,6 +23,9 @@ pub enum Error {
     ConnectionClosed,
     /// Input-output error
     Io(io::Error),
+    #[cfg(feature="tls")]
+    /// TLS error
+    Tls(native_tls::Error),
     /// Buffer capacity exhausted
     Capacity(Cow<'static, str>),
     /// Protocol violation
@@ -37,6 +43,8 @@ impl fmt::Display for Error {
         match *self {
             Error::ConnectionClosed => write!(f, "Connection closed"),
             Error::Io(ref err) => write!(f, "IO error: {}", err),
+            #[cfg(feature="tls")]
+            Error::Tls(ref err) => write!(f, "TLS error: {}", err),
             Error::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
             Error::Protocol(ref msg) => write!(f, "WebSocket protocol error: {}", msg),
             Error::Utf8 => write!(f, "UTF-8 encoding error"),
@@ -51,6 +59,8 @@ impl ErrorTrait for Error {
         match *self {
             Error::ConnectionClosed => "",
             Error::Io(ref err) => err.description(),
+            #[cfg(feature="tls")]
+            Error::Tls(ref err) => err.description(),
             Error::Capacity(ref msg) => msg.borrow(),
             Error::Protocol(ref msg) => msg.borrow(),
             Error::Utf8 => "",
@@ -75,6 +85,13 @@ impl From<str::Utf8Error> for Error {
 impl From<string::FromUtf8Error> for Error {
     fn from(_: string::FromUtf8Error) -> Self {
         Error::Utf8
+    }
+}
+
+#[cfg(feature="tls")]
+impl From<native_tls::Error> for Error {
+    fn from(err: native_tls::Error) -> Self {
+        Error::Tls(err)
     }
 }
 
