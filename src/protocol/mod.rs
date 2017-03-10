@@ -40,10 +40,7 @@ pub struct WebSocket<Stream> {
     pong: Option<Frame>,
 }
 
-impl<Stream> WebSocket<Stream>
-    where Stream: Read + Write
-{
-
+impl<Stream> WebSocket<Stream> {
     /// Convert a raw socket into a WebSocket without performing a handshake.
     pub fn from_raw_socket(stream: Stream, role: Role) -> Self {
         WebSocket::from_frame_socket(FrameSocket::new(stream), role)
@@ -54,6 +51,20 @@ impl<Stream> WebSocket<Stream>
         WebSocket::from_frame_socket(FrameSocket::from_partially_read(stream, part), role)
     }
 
+    /// Convert a frame socket into a WebSocket.
+    fn from_frame_socket(socket: FrameSocket<Stream>, role: Role) -> Self {
+        WebSocket {
+            role: role,
+            socket: socket,
+            state: WebSocketState::Active,
+            incomplete: None,
+            send_queue: VecDeque::new(),
+            pong: None,
+        }
+    }
+}
+
+impl<Stream: Read + Write> WebSocket<Stream> {
     /// Read a message from stream, if possible.
     ///
     /// This function sends pong and close responses automatically.
@@ -138,18 +149,6 @@ impl<Stream> WebSocket<Stream>
                 }
             }
             _ => Ok(()),
-        }
-    }
-
-    /// Convert a frame socket into a WebSocket.
-    fn from_frame_socket(socket: FrameSocket<Stream>, role: Role) -> Self {
-        WebSocket {
-            role: role,
-            socket: socket,
-            state: WebSocketState::Active,
-            incomplete: None,
-            send_queue: VecDeque::new(),
-            pong: None,
         }
     }
 
