@@ -3,8 +3,10 @@ use std::str::from_utf8;
 use std::slice;
 
 use httparse;
+use httparse::Status;
 
 use error::Result;
+use super::machine::TryParse;
 
 // Limit the number of header lines.
 pub const MAX_HEADERS: usize = 124;
@@ -71,16 +73,15 @@ pub trait FromHttparse<T>: Sized {
     fn from_httparse(raw: T) -> Result<Self>;
 }
 
-/*
 impl TryParse for Headers {
-    fn httparse(buf: &[u8]) -> Result<Option<(usize, Self)>> {
+    fn try_parse(buf: &[u8]) -> Result<Option<(usize, Self)>> {
         let mut hbuffer = [httparse::EMPTY_HEADER; MAX_HEADERS];
         Ok(match httparse::parse_headers(buf, &mut hbuffer)? {
             Status::Partial => None,
             Status::Complete((size, hdr)) => Some((size, Headers::from_httparse(hdr)?)),
         })
     }
-}*/
+}
 
 impl<'b: 'h, 'h> FromHttparse<&'b [httparse::Header<'h>]> for Headers {
     fn from_httparse(raw: &'b [httparse::Header<'h>]) -> Result<Self> {
@@ -96,8 +97,7 @@ impl<'b: 'h, 'h> FromHttparse<&'b [httparse::Header<'h>]> for Headers {
 mod tests {
 
     use super::Headers;
-
-    use std::io::Cursor;
+    use super::super::machine::TryParse;
 
     #[test]
     fn headers() {
@@ -106,8 +106,7 @@ mod tests {
              Connection: Upgrade\r\n\
              Upgrade: websocket\r\n\
              \r\n";
-        let mut inp = Cursor::new(data);
-        let hdr = Headers::parse(&mut inp).unwrap().unwrap();
+        let (_, hdr) = Headers::try_parse(data).unwrap().unwrap();
         assert_eq!(hdr.find_first("Host"), Some(&b"foo.com"[..]));
         assert_eq!(hdr.find_first("Upgrade"), Some(&b"websocket"[..]));
         assert_eq!(hdr.find_first("Connection"), Some(&b"Upgrade"[..]));
@@ -126,8 +125,7 @@ mod tests {
               Sec-WebSocket-ExtenSIONS: permessage-unknown\r\n\
               Upgrade: websocket\r\n\
               \r\n";
-        let mut inp = Cursor::new(data);
-        let hdr = Headers::parse(&mut inp).unwrap().unwrap();
+        let (_, hdr) = Headers::try_parse(data).unwrap().unwrap();
         let mut iter = hdr.find("Sec-WebSocket-Extensions");
         assert_eq!(iter.next(), Some(&b"permessage-deflate"[..]));
         assert_eq!(iter.next(), Some(&b"permessage-unknown"[..]));
@@ -140,8 +138,7 @@ mod tests {
             b"Host: foo.com\r\n\
               Connection: Upgrade\r\n\
               Upgrade: websocket\r\n";
-        let mut inp = Cursor::new(data);
-        let hdr = Headers::parse(&mut inp).unwrap();
+        let hdr = Headers::try_parse(data).unwrap();
         assert!(hdr.is_none());
     }
 

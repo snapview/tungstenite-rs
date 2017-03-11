@@ -187,8 +187,7 @@ fn generate_key() -> String {
 mod tests {
 
     use super::{Response, generate_key};
-
-    use std::io::Cursor;
+    use super::super::machine::TryParse;
 
     #[test]
     fn random_keys() {
@@ -209,10 +208,9 @@ mod tests {
     #[test]
     fn response_parsing() {
         const data: &'static [u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
-        let mut inp = Cursor::new(data);
-        let req = Response::parse(&mut inp).unwrap().unwrap();
-        assert_eq!(req.code, 200);
-        assert_eq!(req.headers.find_first("Content-Type"), Some(&b"text/html"[..]));
+        let (_, resp) = Response::try_parse(data).unwrap().unwrap();
+        assert_eq!(resp.code, 200);
+        assert_eq!(resp.headers.find_first("Content-Type"), Some(&b"text/html"[..]));
     }
 
 }
