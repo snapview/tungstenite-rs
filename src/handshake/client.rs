@@ -1,25 +1,16 @@
-use std::io::{Read, Write, Cursor};
-
 use base64;
 use rand;
-use bytes::Buf;
 use httparse;
 use httparse::Status;
+use std::io::Write;
 use url::Url;
 
-use input_buffer::{InputBuffer, MIN_READ};
 use error::{Error, Result};
-use protocol::{
-    WebSocket, Role,
-};
-use super::{
-    Headers,
-    Httparse, FromHttparse,
-    Handshake, HandshakeResult,
-    convert_key,
-    MAX_HEADERS,
-};
-use util::NonBlockingResult;
+use protocol::{WebSocket, Role};
+
+use super::headers::{Headers, FromHttparse, MAX_HEADERS};
+use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
+use super::machine::{HandshakeMachine, StageResult, TryParse};
 
 /// Client request.
 pub struct Request {
@@ -47,77 +38,59 @@ impl Request {
     }
 }
 
-/// Client handshake.
-pub struct ClientHandshake<Stream> {
-    stream: Stream,
-    state: HandshakeState,
+/// Client handshake role.
+pub struct ClientHandshake {
     verify_data: VerifyData,
 }
 
-impl<Stream: Read + Write> ClientHandshake<Stream> {
-    /// Initiate a WebSocket handshake over the given stream.
-    pub fn new(stream: Stream, request: Request) -> Self {
+impl ClientHandshake {
+    /// Initiate a client handshake.
+    pub fn start<Stream>(stream: Stream, request: Request) -> MidHandshake<Stream, Self> {
         let key = generate_key();
 
-        let mut req = Vec::new();
-        write!(req, "\
-            GET {path} HTTP/1.1\r\n\
-            Host: {host}\r\n\
-            Connection: upgrade\r\n\
-            Upgrade: websocket\r\n\
-            Sec-WebSocket-Version: 13\r\n\
-            Sec-WebSocket-Key: {key}\r\n\
-            \r\n", host = request.get_host(), path = request.get_path(), key = key)
-            .unwrap();
+        let machine = {
+            let mut req = Vec::new();
+            write!(req, "\
+                GET {path} HTTP/1.1\r\n\
+                Host: {host}\r\n\
+                Connection: upgrade\r\n\
+                Upgrade: websocket\r\n\
+                Sec-WebSocket-Version: 13\r\n\
+                Sec-WebSocket-Key: {key}\r\n\
+                \r\n", host = request.get_host(), path = request.get_path(), key = key)
+                .unwrap();
+            HandshakeMachine::start_write(stream, req)
+        };
 
-        let accept_key = convert_key(key.as_ref()).unwrap();
+        let client = {
+            let accept_key = convert_key(key.as_ref()).unwrap();
+            ClientHandshake {
+                verify_data: VerifyData {
+                    accept_key: accept_key,
+                },
+            }
+        };
 
-        ClientHandshake {
-            stream: stream,
-            state: HandshakeState::SendingRequest(Cursor::new(req)),
-            verify_data: VerifyData {
-                accept_key: accept_key,
-            },
-        }
+        debug!("Client handshake initiated.");
+        MidHandshake { role: client, machine: machine }
     }
 }
 
-impl<Stream: Read + Write> Handshake for ClientHandshake<Stream> {
-    type Stream = WebSocket<Stream>;
-    fn handshake(mut self) -> Result<HandshakeResult<Self>> {
-        debug!("Performing client handshake...");
-        match self.state {
-            HandshakeState::SendingRequest(mut req) => {
-                let size = self.stream.write(Buf::bytes(&req)).no_block()?.unwrap_or(0);
-                Buf::advance(&mut req, size);
-                let state = if req.has_remaining() {
-                    HandshakeState::SendingRequest(req)
-                } else {
-                    HandshakeState::ReceivingResponse(InputBuffer::with_capacity(MIN_READ))
-                };
-                Ok(HandshakeResult::Incomplete(ClientHandshake {
-                    state: state,
-                    ..self
-                }))
+impl HandshakeRole for ClientHandshake {
+    type IncomingData = Response;
+    fn stage_finished<Stream>(&self, finish: StageResult<Self::IncomingData, Stream>)
+        -> Result<ProcessingResult<Stream>>
+    {
+        Ok(match finish {
+            StageResult::DoneWriting(stream) => {
+                ProcessingResult::Continue(HandshakeMachine::start_read(stream))
             }
-            HandshakeState::ReceivingResponse(mut resp_buf) => {
-                resp_buf.reserve(MIN_READ, usize::max_value())
-                    .map_err(|_| Error::Capacity("Header too long".into()))?;
-                resp_buf.read_from(&mut self.stream).no_block()?;
-                if let Some(resp) = Response::parse(&mut resp_buf)? {
-                    self.verify_data.verify_response(&resp)?;
-                    let ws = WebSocket::from_partially_read(self.stream,
-                        resp_buf.into_vec(), Role::Client);
-                    debug!("Client handshake done.");
-                    Ok(HandshakeResult::Done(ws))
-                } else {
-                    Ok(HandshakeResult::Incomplete(ClientHandshake {
-                        state: HandshakeState::ReceivingResponse(resp_buf),
-                        ..self
-                    }))
-                }
+            StageResult::DoneReading { stream, result, tail, } => {
+                self.verify_data.verify_response(&result)?;
+                debug!("Client handshake done.");
+                ProcessingResult::Done(WebSocket::from_partially_read(stream, tail, Role::Client))
             }
-        }
+        })
     }
 }
 
@@ -173,27 +146,14 @@ impl VerifyData {
     }
 }
 
-/// Internal state of the client handshake.
-enum HandshakeState {
-    SendingRequest(Cursor<Vec<u8>>),
-    ReceivingResponse(InputBuffer),
-}
-
 /// Server response.
 pub struct Response {
     code: u16,
     headers: Headers,
 }
 
-impl Response {
-    /// Parse the response from a stream.
-    pub fn parse<B: Buf>(input: &mut B) -> Result<Option<Self>> {
-        Response::parse_http(input)
-    }
-}
-
-impl Httparse for Response {
-    fn httparse(buf: &[u8]) -> Result<Option<(usize, Self)>> {
+impl TryParse for Response {
+    fn try_parse(buf: &[u8]) -> Result<Option<(usize, Self)>> {
         let mut hbuffer = [httparse::EMPTY_HEADER; MAX_HEADERS];
         let mut req = httparse::Response::new(&mut hbuffer);
         Ok(match req.parse(buf)? {
@@ -227,8 +187,7 @@ fn generate_key() -> String {
 mod tests {
 
     use super::{Response, generate_key};
-
-    use std::io::Cursor;
+    use super::super::machine::TryParse;
 
     #[test]
     fn random_keys() {
@@ -249,10 +208,9 @@ mod tests {
     #[test]
     fn response_parsing() {
         const data: &'static [u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
-        let mut inp = Cursor::new(data);
-        let req = Response::parse(&mut inp).unwrap().unwrap();
-        assert_eq!(req.code, 200);
-        assert_eq!(req.headers.find_first("Content-Type"), Some(&b"text/html"[..]));
+        let (_, resp) = Response::try_parse(data).unwrap().unwrap();
+        assert_eq!(resp.code, 200);
+        assert_eq!(resp.headers.find_first("Content-Type"), Some(&b"text/html"[..]));
     }
 
 }

@@ -1,63 +1,89 @@
+pub mod headers;
 pub mod client;
 pub mod server;
-#[cfg(feature="tls")]
-pub mod tls;
 
-use std::ascii::AsciiExt;
-use std::str::from_utf8;
-use std::slice;
+mod machine;
+
+use std::io::{Read, Write};
 
 use base64;
-use bytes::Buf;
-use httparse;
-use httparse::Status;
 use sha1::Sha1;
 
-use error::Result;
+use error::Error;
+use protocol::WebSocket;
 
-// Limit the number of header lines.
-const MAX_HEADERS: usize = 124;
+use self::machine::{HandshakeMachine, RoundResult, StageResult, TryParse};
 
-/// A handshake state.
-pub trait Handshake: Sized {
-    /// Resulting stream of this handshake.
-    type Stream;
-    /// Perform a single handshake round.
-    fn handshake(self) -> Result<HandshakeResult<Self>>;
-    /// Perform handshake to the end in a blocking mode.
-    fn handshake_wait(self) -> Result<Self::Stream> {
-        let mut hs = self;
+/// A WebSocket handshake.
+pub struct MidHandshake<Stream, Role> {
+    role: Role,
+    machine: HandshakeMachine<Stream>,
+}
+
+impl<Stream, Role> MidHandshake<Stream, Role> {
+    /// Returns a shared reference to the inner stream.
+    pub fn get_ref(&self) -> &Stream {
+        self.machine.get_ref()
+    }
+    /// Returns a mutable reference to the inner stream.
+    pub fn get_mut(&mut self) -> &mut Stream {
+        self.machine.get_mut()
+    }
+}
+
+impl<Stream: Read + Write, Role: HandshakeRole> MidHandshake<Stream, Role> {
+    /// Restarts the handshake process.
+    pub fn handshake(self) -> Result<WebSocket<Stream>, HandshakeError<Stream, Role>> {
+        let mut mach = self.machine;
         loop {
-            hs = match hs.handshake()? {
-                HandshakeResult::Done(stream) => return Ok(stream),
-                HandshakeResult::Incomplete(s) => s,
+            mach = match mach.single_round()? {
+                RoundResult::WouldBlock(m) => {
+                    return Err(HandshakeError::Interrupted(MidHandshake { machine: m, ..self }))
+                }
+                RoundResult::Incomplete(m) => m,
+                RoundResult::StageFinished(s) => {
+                    match self.role.stage_finished(s)? {
+                        ProcessingResult::Continue(m) => m,
+                        ProcessingResult::Done(ws) => return Ok(ws),
+                    }
+                }
             }
         }
     }
 }
 
 /// A handshake result.
-pub enum HandshakeResult<H: Handshake> {
-    /// Handshake is done, a WebSocket stream is ready.
-    Done(H::Stream),
-    /// Handshake is not done, call handshake() again.
-    Incomplete(H),
+pub enum HandshakeError<Stream, Role> {
+    /// Handshake was interrupted (would block).
+    Interrupted(MidHandshake<Stream, Role>),
+    /// Handshake failed.
+    Failure(Error),
 }
 
-impl<H: Handshake> HandshakeResult<H> {
-    pub fn map<R, F>(self, func: F) -> HandshakeResult<R>
-    where R: Handshake<Stream = H::Stream>,
-          F: FnOnce(H) -> R,
-    {
-        match self {
-            HandshakeResult::Done(s) => HandshakeResult::Done(s),
-            HandshakeResult::Incomplete(h) => HandshakeResult::Incomplete(func(h)),
-        }
+impl<Stream, Role> From<Error> for HandshakeError<Stream, Role> {
+    fn from(err: Error) -> Self {
+        HandshakeError::Failure(err)
     }
 }
 
+/// Handshake role.
+pub trait HandshakeRole {
+    #[doc(hidden)]
+    type IncomingData: TryParse;
+    #[doc(hidden)]
+    fn stage_finished<Stream>(&self, finish: StageResult<Self::IncomingData, Stream>)
+        -> Result<ProcessingResult<Stream>, Error>;
+}
+
+/// Stage processing result.
+#[doc(hidden)]
+pub enum ProcessingResult<Stream> {
+    Continue(HandshakeMachine<Stream>),
+    Done(WebSocket<Stream>),
+}
+
 /// Turns a Sec-WebSocket-Key into a Sec-WebSocket-Accept.
-fn convert_key(input: &[u8]) -> Result<String> {
+fn convert_key(input: &[u8]) -> Result<String, Error> {
     // ... field is constructed by concatenating /key/ ...
     // ... with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" (RFC 6455)
     const WS_GUID: &'static [u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -67,165 +93,16 @@ fn convert_key(input: &[u8]) -> Result<String> {
     Ok(base64::encode(&sha1.digest().bytes()))
 }
 
-/// HTTP request or response headers.
-#[derive(Debug)]
-pub struct Headers {
-    data: Vec<(String, Box<[u8]>)>,
-}
-
-impl Headers {
-
-    /// Get first header with the given name, if any.
-    pub fn find_first(&self, name: &str) -> Option<&[u8]> {
-        self.find(name).next()
-    }
-
-    /// Iterate over all headers with the given name.
-    pub fn find<'headers, 'name>(&'headers self, name: &'name str) -> HeadersIter<'name, 'headers> {
-        HeadersIter {
-            name: name,
-            iter: self.data.iter()
-        }
-    }
-
-    /// Check if the given header has the given value.
-    pub fn header_is(&self, name: &str, value: &str) -> bool {
-        self.find_first(name)
-            .map(|v| v == value.as_bytes())
-            .unwrap_or(false)
-    }
-
-    /// Check if the given header has the given value (case-insensitive).
-    pub fn header_is_ignore_case(&self, name: &str, value: &str) -> bool {
-        self.find_first(name).ok_or(())
-            .and_then(|val_raw| from_utf8(val_raw).map_err(|_| ()))
-            .map(|val| val.eq_ignore_ascii_case(value))
-            .unwrap_or(false)
-    }
-
-    /// Try to parse data and return headers, if any.
-    fn parse<B: Buf>(input: &mut B) -> Result<Option<Headers>> {
-        Headers::parse_http(input)
-    }
-
-}
-
-/// The iterator over headers.
-pub struct HeadersIter<'name, 'headers> {
-    name: &'name str,
-    iter: slice::Iter<'headers, (String, Box<[u8]>)>,
-}
-
-impl<'name, 'headers> Iterator for HeadersIter<'name, 'headers> {
-    type Item = &'headers [u8];
-    fn next(&mut self) -> Option<Self::Item> {
-        while let Some(&(ref name, ref value)) = self.iter.next() {
-            if name.eq_ignore_ascii_case(self.name) {
-                return Some(value)
-            }
-        }
-        None
-    }
-}
-
-
-/// Trait to read HTTP parseable objects.
-trait Httparse: Sized {
-    fn httparse(buf: &[u8]) -> Result<Option<(usize, Self)>>;
-    fn parse_http<B: Buf>(input: &mut B) -> Result<Option<Self>> {
-        Ok(match Self::httparse(input.bytes())? {
-            Some((size, obj)) => {
-                input.advance(size);
-                Some(obj)
-            },
-            None => None,
-        })
-    }
-}
-
-/// Trait to convert raw objects into HTTP parseables.
-trait FromHttparse<T>: Sized {
-    fn from_httparse(raw: T) -> Result<Self>;
-}
-
-impl Httparse for Headers {
-    fn httparse(buf: &[u8]) -> Result<Option<(usize, Self)>> {
-        let mut hbuffer = [httparse::EMPTY_HEADER; MAX_HEADERS];
-        Ok(match httparse::parse_headers(buf, &mut hbuffer)? {
-            Status::Partial => None,
-            Status::Complete((size, hdr)) => Some((size, Headers::from_httparse(hdr)?)),
-        })
-    }
-}
-
-impl<'b: 'h, 'h> FromHttparse<&'b [httparse::Header<'h>]> for Headers {
-    fn from_httparse(raw: &'b [httparse::Header<'h>]) -> Result<Self> {
-        Ok(Headers {
-            data: raw.iter()
-                     .map(|h| (h.name.into(), Vec::from(h.value).into_boxed_slice()))
-                     .collect(),
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
-    use super::{Headers, convert_key};
-
-    use std::io::Cursor;
+    use super::convert_key;
 
     #[test]
     fn key_conversion() {
         // example from RFC 6455
         assert_eq!(convert_key(b"dGhlIHNhbXBsZSBub25jZQ==").unwrap(),
                                "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=");
-    }
-
-    #[test]
-    fn headers() {
-        const data: &'static [u8] =
-            b"Host: foo.com\r\n\
-             Connection: Upgrade\r\n\
-             Upgrade: websocket\r\n\
-             \r\n";
-        let mut inp = Cursor::new(data);
-        let hdr = Headers::parse(&mut inp).unwrap().unwrap();
-        assert_eq!(hdr.find_first("Host"), Some(&b"foo.com"[..]));
-        assert_eq!(hdr.find_first("Upgrade"), Some(&b"websocket"[..]));
-        assert_eq!(hdr.find_first("Connection"), Some(&b"Upgrade"[..]));
-
-        assert!(hdr.header_is("upgrade", "websocket"));
-        assert!(!hdr.header_is("upgrade", "Websocket"));
-        assert!(hdr.header_is_ignore_case("upgrade", "Websocket"));
-    }
-
-    #[test]
-    fn headers_iter() {
-        const data: &'static [u8] =
-            b"Host: foo.com\r\n\
-              Sec-WebSocket-Extensions: permessage-deflate\r\n\
-              Connection: Upgrade\r\n\
-              Sec-WebSocket-ExtenSIONS: permessage-unknown\r\n\
-              Upgrade: websocket\r\n\
-              \r\n";
-        let mut inp = Cursor::new(data);
-        let hdr = Headers::parse(&mut inp).unwrap().unwrap();
-        let mut iter = hdr.find("Sec-WebSocket-Extensions");
-        assert_eq!(iter.next(), Some(&b"permessage-deflate"[..]));
-        assert_eq!(iter.next(), Some(&b"permessage-unknown"[..]));
-        assert_eq!(iter.next(), None);
-    }
-
-    #[test]
-    fn headers_incomplete() {
-        const data: &'static [u8] =
-            b"Host: foo.com\r\n\
-              Connection: Upgrade\r\n\
-              Upgrade: websocket\r\n";
-        let mut inp = Cursor::new(data);
-        let hdr = Headers::parse(&mut inp).unwrap();
-        assert!(hdr.is_none());
     }
 
 }
