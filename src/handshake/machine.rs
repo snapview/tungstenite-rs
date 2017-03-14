@@ -39,6 +39,7 @@ impl<Stream> HandshakeMachine<Stream> {
 impl<Stream: Read + Write> HandshakeMachine<Stream> {
     /// Perform a single handshake round.
     pub fn single_round<Obj: TryParse>(mut self) -> Result<RoundResult<Obj, Stream>> {
+        trace!("Doing handshake round.");
         Ok(match self.state {
             HandshakeState::Reading(mut buf) => {
                 buf.reserve(MIN_READ, usize::max_value()) // TODO limit size

@@ -46,7 +46,7 @@ impl<Stream> FrameSocket<Stream>
     pub fn read_frame(&mut self) -> Result<Option<Frame>> {
         loop {
             if let Some(frame) = Frame::parse(&mut self.in_buffer.out_mut())? {
-                debug!("received frame {}", frame);
+                trace!("received frame {}", frame);
                 return Ok(Some(frame));
             }
             // No full frames in buffer.
@@ -54,7 +54,7 @@ impl<Stream> FrameSocket<Stream>
                 .map_err(|_| Error::Capacity("Incoming TCP buffer is full".into()))?;
             let size = self.in_buffer.read_from(&mut self.stream)?;
             if size == 0 {
-                debug!("no frame received");
+                trace!("no frame received");
                 return Ok(None)
             }
         }
@@ -71,7 +71,7 @@ impl<Stream> FrameSocket<Stream>
     /// There is no need to resend the frame. In order to handle WouldBlock or Incomplete,
     /// call write_pending() afterwards.
     pub fn write_frame(&mut self, frame: Frame) -> Result<()> {
-        debug!("writing frame {}", frame);
+        trace!("writing frame {}", frame);
         self.out_buffer.reserve(frame.len());
         frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
         self.write_pending()

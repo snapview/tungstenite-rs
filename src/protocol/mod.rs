@@ -77,7 +77,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
             // If we get here, either write blocks or we have nothing to write.
             // Thus if read blocks, just let it return WouldBlock.
             if let Some(message) = self.read_message_frame()? {
-                debug!("Received message {}", message);
+                trace!("Received message {}", message);
                 return Ok(message)
             }
         }

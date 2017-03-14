@@ -71,7 +71,7 @@ impl ClientHandshake {
             }
         };
 
-        debug!("Client handshake initiated.");
+        trace!("Client handshake initiated.");
         MidHandshake { role: client, machine: machine }
     }
 }

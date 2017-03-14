@@ -62,6 +62,7 @@ pub struct ServerHandshake;
 impl ServerHandshake {
     /// Start server handshake.
     pub fn start<Stream>(stream: Stream) -> MidHandshake<Stream, Self> {
+        trace!("Server handshake initiated.");
         MidHandshake {
             machine: HandshakeMachine::start_read(stream),
             role: ServerHandshake,
@@ -83,6 +84,7 @@ impl HandshakeRole for ServerHandshake {
                 ProcessingResult::Continue(HandshakeMachine::start_write(stream, response))
             }
             StageResult::DoneWriting(stream) => {
+                debug!("Server handshake done.");
                 ProcessingResult::Done(WebSocket::from_raw_socket(stream, Role::Server))
             }
         })
