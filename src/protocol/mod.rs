@@ -51,6 +51,15 @@ impl<Stream> WebSocket<Stream> {
         WebSocket::from_frame_socket(FrameSocket::from_partially_read(stream, part), role)
     }
 
+    /// Returns a shared reference to the inner stream.
+    pub fn get_ref(&self) -> &Stream {
+        self.socket.get_ref()
+    }
+    /// Returns a mutable reference to the inner stream.
+    pub fn get_mut(&mut self) -> &mut Stream {
+        self.socket.get_mut()
+    }
+
     /// Convert a frame socket into a WebSocket.
     fn from_frame_socket(socket: FrameSocket<Stream>, role: Role) -> Self {
         WebSocket {

@@ -37,6 +37,14 @@ impl<Stream> FrameSocket<Stream> {
     pub fn into_inner(self) -> (Stream, Vec<u8>) {
         (self.stream, self.in_buffer.into_vec())
     }
+    /// Returns a shared reference to the inner stream.
+    pub fn get_ref(&self) -> &Stream {
+        &self.stream
+    }
+    /// Returns a mutable reference to the inner stream.
+    pub fn get_mut(&mut self) -> &mut Stream {
+        &mut self.stream
+    }
 }
 
 impl<Stream> FrameSocket<Stream>
