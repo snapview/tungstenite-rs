@@ -1,6 +1,7 @@
 //! Generic WebSocket protocol implementation
 
-mod frame;
+pub mod frame;
+
 mod message;
 
 pub use self::message::Message;

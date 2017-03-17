@@ -207,8 +207,8 @@ mod tests {
 
     #[test]
     fn response_parsing() {
-        const data: &'static [u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
-        let (_, resp) = Response::try_parse(data).unwrap().unwrap();
+        const DATA: &'static [u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
+        let (_, resp) = Response::try_parse(DATA).unwrap().unwrap();
         assert_eq!(resp.code, 200);
         assert_eq!(resp.headers.find_first("Content-Type"), Some(&b"text/html"[..]));
     }

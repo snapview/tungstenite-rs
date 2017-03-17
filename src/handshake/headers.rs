@@ -101,12 +101,12 @@ mod tests {
 
     #[test]
     fn headers() {
-        const data: &'static [u8] =
+        const DATA: &'static [u8] =
             b"Host: foo.com\r\n\
              Connection: Upgrade\r\n\
              Upgrade: websocket\r\n\
              \r\n";
-        let (_, hdr) = Headers::try_parse(data).unwrap().unwrap();
+        let (_, hdr) = Headers::try_parse(DATA).unwrap().unwrap();
         assert_eq!(hdr.find_first("Host"), Some(&b"foo.com"[..]));
         assert_eq!(hdr.find_first("Upgrade"), Some(&b"websocket"[..]));
         assert_eq!(hdr.find_first("Connection"), Some(&b"Upgrade"[..]));
@@ -118,14 +118,14 @@ mod tests {
 
     #[test]
     fn headers_iter() {
-        const data: &'static [u8] =
+        const DATA: &'static [u8] =
             b"Host: foo.com\r\n\
               Sec-WebSocket-Extensions: permessage-deflate\r\n\
               Connection: Upgrade\r\n\
               Sec-WebSocket-ExtenSIONS: permessage-unknown\r\n\
               Upgrade: websocket\r\n\
               \r\n";
-        let (_, hdr) = Headers::try_parse(data).unwrap().unwrap();
+        let (_, hdr) = Headers::try_parse(DATA).unwrap().unwrap();
         let mut iter = hdr.find("Sec-WebSocket-Extensions");
         assert_eq!(iter.next(), Some(&b"permessage-deflate"[..]));
         assert_eq!(iter.next(), Some(&b"permessage-unknown"[..]));
@@ -134,11 +134,11 @@ mod tests {
 
     #[test]
     fn headers_incomplete() {
-        const data: &'static [u8] =
+        const DATA: &'static [u8] =
             b"Host: foo.com\r\n\
               Connection: Upgrade\r\n\
               Upgrade: websocket\r\n";
-        let hdr = Headers::try_parse(data).unwrap();
+        let hdr = Headers::try_parse(DATA).unwrap();
         assert!(hdr.is_none());
     }
 

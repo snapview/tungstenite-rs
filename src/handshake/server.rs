@@ -99,15 +99,15 @@ mod tests {
 
     #[test]
     fn request_parsing() {
-        const data: &'static [u8] = b"GET /script.ws HTTP/1.1\r\nHost: foo.com\r\n\r\n";
-        let (_, req) = Request::try_parse(data).unwrap().unwrap();
+        const DATA: &'static [u8] = b"GET /script.ws HTTP/1.1\r\nHost: foo.com\r\n\r\n";
+        let (_, req) = Request::try_parse(DATA).unwrap().unwrap();
         assert_eq!(req.path, "/script.ws");
         assert_eq!(req.headers.find_first("Host"), Some(&b"foo.com"[..]));
     }
 
     #[test]
     fn request_replying() {
-        const data: &'static [u8] = b"\
+        const DATA: &'static [u8] = b"\
             GET /script.ws HTTP/1.1\r\n\
             Host: foo.com\r\n\
             Connection: upgrade\r\n\
@@ -115,7 +115,7 @@ mod tests {
             Sec-WebSocket-Version: 13\r\n\
             Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
             \r\n";
-        let (_, req) = Request::try_parse(data).unwrap().unwrap();
+        let (_, req) = Request::try_parse(DATA).unwrap().unwrap();
         let _ = req.reply().unwrap();
     }
 
