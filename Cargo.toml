@@ -1,7 +1,7 @@
 [package]
 name = "tungstenite"
 description = "Lightweight stream-based WebSocket implementation"
-categories = ["Web programming", "Network programming"]
+categories = ["web-programming:websocket", "network-programming"]
 keywords = ["websocket", "io", "web"]
 authors = ["Alexey Galakhov"]
 license = "MIT"
