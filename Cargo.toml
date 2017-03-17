@@ -1,7 +1,13 @@
 [package]
 name = "tungstenite"
-version = "0.1.0"
+description = "Lightweight stream-based WebSocket implementation"
+categories = ["Web programming", "Network programming"]
+keywords = ["websocket", "io", "web"]
 authors = ["Alexey Galakhov"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/snapview/tungstenite-rs"
+version = "0.1.0"
 
 [features]
 default = ["tls"]
