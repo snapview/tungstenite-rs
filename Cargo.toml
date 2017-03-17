@@ -16,7 +16,7 @@ tls = ["native-tls"]
 [dependencies]
 base64 = "*"
 byteorder = "*"
-bytes = { git = "https://github.com/carllerche/bytes.git" }
+bytes = "*"
 httparse = "*"
 env_logger = "*"
 log = "*"
