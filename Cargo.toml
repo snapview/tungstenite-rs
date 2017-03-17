@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Alexey Galakhov"]
 
 [features]
-default = []
+default = ["tls"]
 tls = ["native-tls"]
 
 [dependencies]
