@@ -109,6 +109,12 @@ impl<Stream: Read + Write> WebSocket<Stream> {
         self.write_pending()
     }
 
+    /// Send ping.
+    pub fn send_ping(&mut self, payload: Vec<u8>) -> Result<()> {
+        self.send_queue.push_back(Frame::ping(payload));
+        self.write_pending()
+    }
+
     /// Close the connection.
     ///
     /// This function guarantees that the close frame will be queued.
