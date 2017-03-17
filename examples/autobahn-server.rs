@@ -5,9 +5,7 @@ extern crate tungstenite;
 use std::net::{TcpListener, TcpStream};
 use std::thread::spawn;
 
-use tungstenite::server::accept;
-use tungstenite::handshake::HandshakeError;
-use tungstenite::error::{Error, Result};
+use tungstenite::{accept, HandshakeError, Error, Result};
 
 fn must_not_block<Stream, Role>(err: HandshakeError<Stream, Role>) -> Error {
     match err {

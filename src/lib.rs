@@ -24,7 +24,15 @@ pub mod protocol;
 pub mod client;
 pub mod server;
 pub mod handshake;
+pub mod stream;
+pub mod util;
 
 mod input_buffer;
-mod stream;
-mod util;
+
+pub use client::{connect, client};
+pub use server::accept;
+pub use error::{Error, Result};
+pub use protocol::{WebSocket, Message};
+pub use handshake::HandshakeError;
+pub use handshake::client::ClientHandshake;
+pub use handshake::server::ServerHandshake;

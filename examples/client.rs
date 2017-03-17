@@ -3,8 +3,7 @@ extern crate url;
 extern crate env_logger;
 
 use url::Url;
-use tungstenite::protocol::Message;
-use tungstenite::client::connect;
+use tungstenite::{Message, connect};
 
 fn main() {
     env_logger::init().unwrap();

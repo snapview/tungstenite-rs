@@ -5,8 +5,7 @@ extern crate url;
 
 use url::Url;
 
-use tungstenite::client::connect;
-use tungstenite::error::{Error, Result};
+use tungstenite::{connect, Error, Result};
 
 const AGENT: &'static str = "Tungstenite";
 
