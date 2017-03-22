@@ -1,4 +1,4 @@
-//! Generic WebSocket protocol implementation
+//! Generic WebSocket message stream.
 
 pub mod frame;
 
@@ -25,7 +25,10 @@ pub enum Role {
     Client,
 }
 
-/// WebSocket input-output stream
+/// WebSocket input-output stream.
+///
+/// This is THE structure you want to create to me able to talk the WebSocket protocol.
+/// It may be created by calling `connect`, `accept` or `client` functions.
 pub struct WebSocket<Stream> {
     /// Server or client?
     role: Role,

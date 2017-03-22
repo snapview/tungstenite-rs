@@ -1,3 +1,5 @@
+//! WebSocket handshake control.
+
 pub mod headers;
 pub mod client;
 pub mod server;
