@@ -1,3 +1,5 @@
+//! Methods to connect to an WebSocket as a client.
+
 use std::net::{TcpStream, SocketAddr, ToSocketAddrs};
 use std::result::Result as StdResult;
 use std::io::{Read, Write};
@@ -25,6 +27,14 @@ pub type AutoStream = TcpStream;
 ///
 /// The URL may be either ws:// or wss://.
 /// To support wss:// URLs, feature "tls" must be turned on.
+///
+/// This function "just works" for those who wants a simple blocking solution
+/// similar to `std::net::TcpStream`. If you want a non-blocking or other
+/// custom stream, call `client` instead.
+///
+/// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
+/// use `client` instead. There is no need to enable the "tls" feature if you don't call
+/// `connect` since it's the only function that uses native_tls.
 pub fn connect(url: Url) -> Result<WebSocket<AutoStream>> {
     let mode = url_mode(&url)?;
     let addrs = url.to_socket_addrs()?;
@@ -77,7 +87,8 @@ fn connect_to_some<A>(addrs: A, url: &Url, mode: Mode) -> Result<AutoStream>
 
 /// Get the mode of the given URL.
 ///
-/// This function may be used in non-blocking implementations.
+/// This function may be used to ease the creation of custom TLS streams
+/// in non-blocking algorithmss or for use with TLS libraries other than `native_tls`.
 pub fn url_mode(url: &Url) -> Result<Mode> {
     match url.scheme() {
         "ws" => Ok(Mode::Plain),
@@ -88,7 +99,9 @@ pub fn url_mode(url: &Url) -> Result<Mode> {
 
 /// Do the client handshake over the given stream.
 ///
-/// Use this function if you need a nonblocking handshake support.
+/// Use this function if you need a nonblocking handshake support or if you
+/// want to use a custom stream like `mio::tcp::TcpStream` or `openssl::ssl::SslStream`.
+/// Any stream supporting `Read + Write` will do.
 pub fn client<Stream: Read + Write>(url: Url, stream: Stream)
     -> StdResult<WebSocket<Stream>, HandshakeError<Stream, ClientHandshake>>
 {

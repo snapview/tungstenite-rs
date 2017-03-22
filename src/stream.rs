@@ -1,3 +1,9 @@
+//! Convenience wrapper for streams to switch between plain TCP and TLS at runtime.
+//!
+//!  There is no dependency on actual TLS implementations. Everything like
+//! `native_tls` or `openssl` will work as long as there is a TLS stream supporting standard
+//! `Read + Write` traits.
+
 use std::io::{Read, Write, Result as IoResult};
 
 /// Stream mode, either plain TCP or TLS.

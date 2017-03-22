@@ -1,3 +1,5 @@
+//! Helper traits to ease non-blocking handling.
+
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::result::Result as StdResult;
 

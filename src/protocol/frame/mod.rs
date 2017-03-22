@@ -1,3 +1,5 @@
+//! Utilities to work with raw WebSocket frames.
+
 pub mod coding;
 
 mod frame;

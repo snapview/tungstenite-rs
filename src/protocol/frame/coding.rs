@@ -1,3 +1,5 @@
+//! Various codes defined in RFC 6455.
+
 use std::fmt;
 use std::convert::{Into, From};
 

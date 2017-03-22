@@ -8,34 +8,67 @@ use error::Result;
 mod string_collect {
 
     use utf8;
+    use utf8::DecodeError;
 
     use error::{Error, Result};
 
     pub struct StringCollector {
         data: String,
-        decoder: utf8::Decoder,
+        incomplete: Option<utf8::Incomplete>,
     }
 
     impl StringCollector {
         pub fn new() -> Self {
             StringCollector {
                 data: String::new(),
-                decoder: utf8::Decoder::new(),
+                incomplete: None,
             }
         }
+
         pub fn extend<T: AsRef<[u8]>>(&mut self, tail: T) -> Result<()> {
-            let (sym, text, result) = self.decoder.decode(tail.as_ref());
-            self.data.push_str(&sym);
-            self.data.push_str(text);
-            match result {
-                utf8::Result::Ok | utf8::Result::Incomplete =>
-                    Ok(()),
-                utf8::Result::Error { remaining_input_after_error: _ } =>
-                    Err(Error::Utf8),
+            let mut input: &[u8] = tail.as_ref();
+
+            if let Some(mut incomplete) = self.incomplete.take() {
+                let fin = if let Some((result, rest)) = incomplete.try_complete(input) {
+                    input = rest;
+                    if let Ok(text) = result {
+                        self.data.push_str(text);
+                    } else {
+                        return Err(Error::Utf8)
+                    }
+                    true
+                } else {
+                    input = &[];
+                    false
+                };
+                if !fin {
+                    self.incomplete = Some(incomplete)
+                }
+            }
+
+            if !input.is_empty() {
+                match utf8::decode(input) {
+                    Ok(text) => {
+                        self.data.push_str(text);
+                        Ok(())
+                    }
+                    Err(DecodeError::Incomplete { valid_prefix, incomplete_suffix }) => {
+                        self.data.push_str(valid_prefix);
+                        self.incomplete = Some(incomplete_suffix);
+                        Ok(())
+                    }
+                    Err(DecodeError::Invalid { valid_prefix, .. }) => {
+                        self.data.push_str(valid_prefix);
+                        Err(Error::Utf8)
+                    }
+                }
+            } else {
+                Ok(())
             }
         }
+
         pub fn into_string(self) -> Result<String> {
-            if self.decoder.has_incomplete_sequence() {
+            if self.incomplete.is_some() {
                 Err(Error::Utf8)
             } else {
                 Ok(self.data)
