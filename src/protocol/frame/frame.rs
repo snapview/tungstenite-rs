@@ -22,7 +22,7 @@ fn apply_mask(buf: &mut [u8], mask: &[u8; 4]) {
 
 #[inline]
 fn generate_mask() -> [u8; 4] {
-    unsafe { transmute(rand::random::<u32>()) }
+    rand::random()
 }
 
 /// A struct representing a WebSocket frame.
