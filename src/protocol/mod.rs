@@ -124,15 +124,12 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// This function guarantees that the close frame will be queued.
     /// There is no need to call it again, just like write_message().
     pub fn close(&mut self) -> Result<()> {
-        match self.state {
-            WebSocketState::Active => {
-                self.state = WebSocketState::ClosedByUs;
-                let frame = Frame::close(None);
-                self.send_queue.push_back(frame);
-            }
-            _ => {
-                // already closed, nothing to do
-            }
+        if let WebSocketState::Active = self.state {
+            self.state = WebSocketState::ClosedByUs;
+            let frame = Frame::close(None);
+            self.send_queue.push_back(frame);
+        } else {
+            // Already closed, nothing to do.
         }
         self.write_pending()
     }

@@ -57,7 +57,7 @@ fn wrap_stream(stream: TcpStream, domain: &str, mode: Mode) -> Result<AutoStream
                     TlsHandshakeError::Failure(f) => f.into(),
                     TlsHandshakeError::Interrupted(_) => panic!("Bug: TLS handshake not blocked"),
                 })
-                .map(|s| StreamSwitcher::Tls(s))
+                .map(StreamSwitcher::Tls)
         }
     }
 }
