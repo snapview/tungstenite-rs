@@ -18,7 +18,7 @@ impl Request {
     /// Reply to the response.
     pub fn reply(&self) -> Result<Vec<u8>> {
         let key = self.headers.find_first("Sec-WebSocket-Key")
-            .ok_or(Error::Protocol("Missing Sec-WebSocket-Key".into()))?;
+            .ok_or_else(|| Error::Protocol("Missing Sec-WebSocket-Key".into()))?;
         let reply = format!("\
         HTTP/1.1 101 Switching Protocols\r\n\
         Connection: Upgrade\r\n\
