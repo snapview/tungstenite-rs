@@ -14,9 +14,8 @@ use error::{Error, Result};
 use super::coding::{OpCode, Control, Data, CloseCode};
 
 fn apply_mask(buf: &mut [u8], mask: &[u8; 4]) {
-    let iter = buf.iter_mut().zip(mask.iter().cycle());
-    for (byte, &key) in iter {
-        *byte ^= key
+    for (i, byte) in buf.iter_mut().enumerate() {
+        *byte ^= mask[i & 3];
     }
 }
 
