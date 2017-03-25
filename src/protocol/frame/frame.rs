@@ -2,7 +2,6 @@ use std::fmt;
 use std::mem::transmute;
 use std::io::{Cursor, Read, Write};
 use std::default::Default;
-use std::iter::FromIterator;
 use std::string::{String, FromUtf8Error};
 use std::result::Result as StdResult;
 use byteorder::{ByteOrder, NetworkEndian};
@@ -274,10 +273,7 @@ impl Frame {
                 let u: u16 = code.into();
                 transmute(u.to_be())
             };
-            Vec::from_iter(
-                raw[..].iter()
-                       .chain(reason.as_bytes().iter())
-                       .map(|&b| b))
+            [&raw[..], reason.as_bytes()].concat()
         } else {
             Vec::new()
         };
