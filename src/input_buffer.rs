@@ -23,7 +23,8 @@ impl InputBuffer {
 
     /// Reserve the given amount of space.
     pub fn reserve(&mut self, space: usize, limit: usize) -> Result<(), SizeLimit>{
-        if self.inp_mut().remaining_mut() >= space {
+        let remaining = self.inp_mut().capacity() - self.inp_mut().len();
+        if remaining >= space {
             // We have enough space right now.
             Ok(())
         } else {
