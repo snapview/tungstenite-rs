@@ -12,7 +12,9 @@ use std::string;
 use httparse;
 
 #[cfg(feature="tls")]
-use native_tls;
+pub mod tls {
+    pub use native_tls::Error;
+}
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -25,7 +27,7 @@ pub enum Error {
     Io(io::Error),
     #[cfg(feature="tls")]
     /// TLS error
-    Tls(native_tls::Error),
+    Tls(tls::Error),
     /// Buffer capacity exhausted
     Capacity(Cow<'static, str>),
     /// Protocol violation
@@ -89,8 +91,8 @@ impl From<string::FromUtf8Error> for Error {
 }
 
 #[cfg(feature="tls")]
-impl From<native_tls::Error> for Error {
-    fn from(err: native_tls::Error) -> Self {
+impl From<tls::Error> for Error {
+    fn from(err: tls::Error) -> Self {
         Error::Tls(err)
     }
 }

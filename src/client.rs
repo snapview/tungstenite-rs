@@ -7,7 +7,52 @@ use std::io::{Read, Write};
 use url::Url;
 
 #[cfg(feature="tls")]
-use native_tls::{TlsStream, TlsConnector, HandshakeError as TlsHandshakeError};
+mod encryption {
+    use std::net::TcpStream;
+    use native_tls::{TlsConnector, HandshakeError as TlsHandshakeError};
+    pub use native_tls::TlsStream;
+
+    pub use stream::Stream as StreamSwitcher;
+    pub type AutoStream = StreamSwitcher<TcpStream, TlsStream<TcpStream>>;
+
+    use stream::Mode;
+    use error::Result;
+
+    pub fn wrap_stream(stream: TcpStream, domain: &str, mode: Mode) -> Result<AutoStream> {
+        match mode {
+            Mode::Plain => Ok(StreamSwitcher::Plain(stream)),
+            Mode::Tls => {
+                let connector = TlsConnector::builder()?.build()?;
+                connector.connect(domain, stream)
+                    .map_err(|e| match e {
+                        TlsHandshakeError::Failure(f) => f.into(),
+                        TlsHandshakeError::Interrupted(_) => panic!("Bug: TLS handshake not blocked"),
+                    })
+                    .map(StreamSwitcher::Tls)
+            }
+        }
+    }
+}
+
+#[cfg(not(feature="tls"))]
+mod encryption {
+    use std::net::TcpStream;
+
+    use stream::Mode;
+    use error::{Error, Result};
+
+    pub type AutoStream = TcpStream;
+
+    pub fn wrap_stream(stream: TcpStream, _domain: &str, mode: Mode) -> Result<AutoStream> {
+        match mode {
+            Mode::Plain => Ok(stream),
+            Mode::Tls => Err(Error::Url("TLS support not compiled in.".into())),
+        }
+    }
+}
+
+pub use self::encryption::AutoStream;
+use self::encryption::wrap_stream;
 
 use protocol::WebSocket;
 use handshake::HandshakeError;
@@ -15,13 +60,6 @@ use handshake::client::{ClientHandshake, Request};
 use stream::Mode;
 use error::{Error, Result};
 
-#[cfg(feature="tls")]
-use stream::Stream as StreamSwitcher;
-
-#[cfg(feature="tls")]
-pub type AutoStream = StreamSwitcher<TcpStream, TlsStream<TcpStream>>;
-#[cfg(not(feature="tls"))]
-pub type AutoStream = TcpStream;
 
 /// Connect to the given WebSocket in blocking mode.
 ///
@@ -44,30 +82,6 @@ pub fn connect(url: Url) -> Result<WebSocket<AutoStream>> {
             HandshakeError::Failure(f) => f,
             HandshakeError::Interrupted(_) => panic!("Bug: blocking handshake not blocked"),
         })
-}
-
-#[cfg(feature="tls")]
-fn wrap_stream(stream: TcpStream, domain: &str, mode: Mode) -> Result<AutoStream> {
-    match mode {
-        Mode::Plain => Ok(StreamSwitcher::Plain(stream)),
-        Mode::Tls => {
-            let connector = TlsConnector::builder()?.build()?;
-            connector.connect(domain, stream)
-                .map_err(|e| match e {
-                    TlsHandshakeError::Failure(f) => f.into(),
-                    TlsHandshakeError::Interrupted(_) => panic!("Bug: TLS handshake not blocked"),
-                })
-                .map(StreamSwitcher::Tls)
-        }
-    }
-}
-
-#[cfg(not(feature="tls"))]
-fn wrap_stream(stream: TcpStream, _domain: &str, mode: Mode) -> Result<AutoStream> {
-    match mode {
-        Mode::Plain => Ok(stream),
-        Mode::Tls => Err(Error::Url("TLS support not compiled in.".into())),
-    }
 }
 
 fn connect_to_some<A>(addrs: A, url: &Url, mode: Mode) -> Result<AutoStream>
