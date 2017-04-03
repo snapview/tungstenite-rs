@@ -20,7 +20,6 @@ base64 = "0.4.0"
 byteorder = "1.0.0"
 bytes = "0.4.1"
 httparse = "1.2.1"
-env_logger = "0.4.2"
 log = "0.3.7"
 rand = "0.3.15"
 sha1 = "0.2.0"
@@ -30,3 +29,6 @@ utf-8 = "0.7.0"
 [dependencies.native-tls]
 optional = true
 version = "0.1.1"
+
+[dev-dependencies]
+env_logger = "0.4.2"

@@ -57,7 +57,7 @@ fn wrap_stream(stream: TcpStream, domain: &str, mode: Mode) -> Result<AutoStream
                     TlsHandshakeError::Failure(f) => f.into(),
                     TlsHandshakeError::Interrupted(_) => panic!("Bug: TLS handshake not blocked"),
                 })
-                .map(|s| StreamSwitcher::Tls(s))
+                .map(StreamSwitcher::Tls)
         }
     }
 }
@@ -73,7 +73,7 @@ fn wrap_stream(stream: TcpStream, _domain: &str, mode: Mode) -> Result<AutoStrea
 fn connect_to_some<A>(addrs: A, url: &Url, mode: Mode) -> Result<AutoStream>
     where A: Iterator<Item=SocketAddr>
 {
-    let domain = url.host_str().ok_or(Error::Url("No host name in the URL".into()))?;
+    let domain = url.host_str().ok_or_else(|| Error::Url("No host name in the URL".into()))?;
     for addr in addrs {
         debug!("Trying to contact {} at {}...", url, addr);
         if let Ok(raw_stream) = TcpStream::connect(addr) {
