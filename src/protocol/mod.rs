@@ -5,6 +5,7 @@ pub mod frame;
 mod message;
 
 pub use self::message::Message;
+pub use self::frame::CloseFrame;
 
 use std::collections::VecDeque;
 use std::io::{Read, Write};
@@ -293,15 +294,21 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     }
 
     /// Received a close frame.
-    fn do_close(&mut self, close: Option<(CloseCode, String)>) -> Result<()> {
+    fn do_close(&mut self, close: Option<CloseFrame>) -> Result<()> {
         match self.state {
             WebSocketState::Active => {
                 self.state = WebSocketState::ClosedByPeer;
-                let reply = if let Some((code, _)) = close {
+                let reply = if let Some(CloseFrame { code, .. }) = close {
                     if code.is_allowed() {
-                        Frame::close(Some((CloseCode::Normal, "")))
+                        Frame::close(Some(CloseFrame {
+                            code: CloseCode::Normal,
+                            reason: "".into(),
+                        }))
                     } else {
-                        Frame::close(Some((CloseCode::Protocol, "Protocol violation")))
+                        Frame::close(Some(CloseFrame {
+                            code: CloseCode::Protocol,
+                            reason: "Protocol violation".into()
+                        }))
                     }
                 } else {
                     Frame::close(None)

@@ -5,6 +5,7 @@ pub mod coding;
 mod frame;
 
 pub use self::frame::Frame;
+pub use self::frame::CloseFrame;
 
 use std::io::{Read, Write};
 
