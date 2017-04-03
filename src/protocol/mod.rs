@@ -8,7 +8,7 @@ pub use self::message::Message;
 pub use self::frame::CloseFrame;
 
 use std::collections::VecDeque;
-use std::io::{Read, Write};
+use std::io::{Read, Write, ErrorKind as IoErrorKind};
 use std::mem::replace;
 
 use error::{Error, Result};
@@ -90,7 +90,8 @@ impl<Stream: Read + Write> WebSocket<Stream> {
             self.write_pending().no_block()?;
             // If we get here, either write blocks or we have nothing to write.
             // Thus if read blocks, just let it return WouldBlock.
-            if let Some(message) = self.read_message_frame()? {
+            let res = self.read_message_frame();
+            if let Some(message) = self.translate_close(res)? {
                 trace!("Received message {}", message);
                 return Ok(message)
             }
@@ -124,11 +125,11 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     ///
     /// This function guarantees that the close frame will be queued.
     /// There is no need to call it again, just like write_message().
-    pub fn close(&mut self) -> Result<()> {
+    pub fn close(&mut self, code: Option<CloseFrame>) -> Result<()> {
         match self.state {
             WebSocketState::Active => {
                 self.state = WebSocketState::ClosedByUs;
-                let frame = Frame::close(None);
+                let frame = Frame::close(code);
                 self.send_queue.push_back(frame);
             }
             _ => {
@@ -141,7 +142,10 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// Flush the pending send queue.
     pub fn write_pending(&mut self) -> Result<()> {
         // First, make sure we have no pending frame sending.
-        self.socket.write_pending()?;
+        {
+            let res = self.socket.write_pending();
+            self.translate_close(res)?;
+        }
 
         // Upon receipt of a Ping frame, an endpoint MUST send a Pong frame in
         // response, unless it already received a Close frame. It SHOULD
@@ -155,8 +159,8 @@ impl<Stream: Read + Write> WebSocket<Stream> {
         }
 
         // If we're closing and there is nothing to send anymore, we should close the connection.
-        match self.state {
-            WebSocketState::ClosedByPeer if self.send_queue.is_empty() => {
+        if self.send_queue.is_empty() {
+            if let WebSocketState::ClosedByPeer(ref mut frame) = self.state {
                 // The underlying TCP connection, in most normal cases, SHOULD be closed
                 // first by the server, so that it holds the TIME_WAIT state and not the
                 // client (as this would prevent it from re-opening the connection for 2
@@ -165,10 +169,13 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 // a new SYN with a higher seq number). (RFC 6455)
                 match self.role {
                     Role::Client => Ok(()),
-                    Role::Server => Err(Error::ConnectionClosed),
+                    Role::Server => Err(Error::ConnectionClosed(replace(frame, None))),
                 }
+            } else {
+                Ok(())
             }
-            _ => Ok(()),
+        } else {
+            Ok(())
         }
     }
 
@@ -295,10 +302,12 @@ impl<Stream: Read + Write> WebSocket<Stream> {
 
     /// Received a close frame.
     fn do_close(&mut self, close: Option<CloseFrame>) -> Result<()> {
+        debug!("Received close frame: {:?}", close);
         match self.state {
             WebSocketState::Active => {
-                self.state = WebSocketState::ClosedByPeer;
-                let reply = if let Some(CloseFrame { code, .. }) = close {
+                let close_code = close.as_ref().map(|f| f.code);
+                self.state = WebSocketState::ClosedByPeer(close.map(CloseFrame::into_owned));
+                let reply = if let Some(code) = close_code {
                     if code.is_allowed() {
                         Frame::close(Some(CloseFrame {
                             code: CloseCode::Normal,
@@ -313,23 +322,26 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 } else {
                     Frame::close(None)
                 };
+                debug!("Replying to close with {:?}", reply);
                 self.send_queue.push_back(reply);
                 Ok(())
             }
-            WebSocketState::ClosedByPeer => {
+            WebSocketState::ClosedByPeer(_) | WebSocketState::CloseAcknowledged(_) => {
                 // It is already closed, just ignore.
                 Ok(())
             }
             WebSocketState::ClosedByUs => {
                 // We received a reply.
+                let close = close.map(CloseFrame::into_owned);
                 match self.role {
                     Role::Client => {
                         // Client waits for the server to close the connection.
+                        self.state = WebSocketState::CloseAcknowledged(close);
                         Ok(())
                     }
                     Role::Server => {
                         // Server closes the connection.
-                        Err(Error::ConnectionClosed)
+                        Err(Error::ConnectionClosed(close))
                     }
                 }
             }
@@ -368,16 +380,42 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 frame.set_mask();
             }
         }
-        self.socket.write_frame(frame)
+        let res = self.socket.write_frame(frame);
+        self.translate_close(res)
+    }
+
+    /// Translate a "Connection reset by peer" into ConnectionClosed as needed.
+    fn translate_close<T>(&mut self, res: Result<T>) -> Result<T> {
+        match res {
+            Err(Error::Io(err)) => Err({
+                if err.kind() == IoErrorKind::ConnectionReset {
+                    match self.state {
+                        WebSocketState::ClosedByPeer(ref mut frame) =>
+                            Error::ConnectionClosed(replace(frame, None)),
+                        WebSocketState::CloseAcknowledged(ref mut frame) =>
+                            Error::ConnectionClosed(replace(frame, None)),
+                        _ => Error::Io(err),
+                    }
+                } else {
+                    Error::Io(err)
+                }
+            }),
+            x => x,
+        }
     }
 
 }
 
 /// The current connection state.
 enum WebSocketState {
+    /// The connection is active.
     Active,
+    /// We initiated a close handshake.
     ClosedByUs,
-    ClosedByPeer,
+    /// The peer initiated a close handshake.
+    ClosedByPeer(Option<CloseFrame<'static>>),
+    /// The peer replied to our close handshake.
+    CloseAcknowledged(Option<CloseFrame<'static>>),
 }
 
 impl WebSocketState {
