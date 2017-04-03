@@ -35,6 +35,22 @@ pub struct CloseFrame<'t> {
     pub reason: Cow<'t, str>,
 }
 
+impl<'t> CloseFrame<'t> {
+    /// Convert into a owned string.
+    pub fn into_owned(self) -> CloseFrame<'static> {
+        CloseFrame {
+            code: self.code,
+            reason: self.reason.into_owned().into(),
+        }
+    }
+}
+
+impl<'t> fmt::Display for CloseFrame<'t> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} ({})", self.reason, self.code)
+    }
+}
+
 /// A struct representing a WebSocket frame.
 #[derive(Debug, Clone)]
 pub struct Frame {
