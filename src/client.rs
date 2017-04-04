@@ -119,6 +119,6 @@ pub fn url_mode(url: &Url) -> Result<Mode> {
 pub fn client<Stream: Read + Write>(url: Url, stream: Stream)
     -> StdResult<WebSocket<Stream>, HandshakeError<Stream, ClientHandshake>>
 {
-    let request = Request { url: url };
+    let request = Request { url: url, extra_headers: None };
     ClientHandshake::start(stream, request).handshake()
 }

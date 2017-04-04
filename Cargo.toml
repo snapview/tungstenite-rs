@@ -7,28 +7,28 @@ authors = ["Alexey Galakhov"]
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/snapview/tungstenite-rs"
-documentation = "https://docs.rs/tungstenite/0.1.1"
+documentation = "https://docs.rs/tungstenite/"
 repository = "https://github.com/snapview/tungstenite-rs"
-version = "0.1.2"
+version = "0.2.0"
 
 [features]
 default = ["tls"]
 tls = ["native-tls"]
 
 [dependencies]
-base64 = "0.4.0"
-byteorder = "1.0.0"
-bytes = "0.4.1"
-httparse = "1.2.1"
-log = "0.3.7"
-rand = "0.3.15"
-sha1 = "0.2.0"
-url = "1.4.0"
-utf-8 = "0.7.0"
+base64 = "*"
+byteorder = "*"
+bytes = "*"
+httparse = "*"
+log = "*"
+rand = "*"
+sha1 = "*"
+url = "*"
+utf-8 = "*"
 
 [dependencies.native-tls]
 optional = true
-version = "0.1.1"
+version = "*"
 
 [dev-dependencies]
-env_logger = "0.4.2"
+env_logger = "*"

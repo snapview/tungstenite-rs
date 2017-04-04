@@ -193,9 +193,16 @@ impl CloseCode {
     }
 }
 
-impl Into<u16> for CloseCode {
+impl fmt::Display for CloseCode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let code: u16 = self.into();
+        write!(f, "{}", code)
+    }
+}
+
+impl<'t> Into<u16> for &'t CloseCode {
     fn into(self) -> u16 {
-        match self {
+        match *self {
            Normal         =>  1000,
            Away           =>  1001,
            Protocol       =>  1002,
@@ -215,6 +222,12 @@ impl Into<u16> for CloseCode {
            Library(code)  =>  code,
            Bad(code)      =>  code,
         }
+    }
+}
+
+impl Into<u16> for CloseCode {
+    fn into(self) -> u16 {
+        (&self).into()
     }
 }
 

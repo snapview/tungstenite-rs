@@ -14,7 +14,7 @@ fn get_case_count() -> Result<u32> {
         Url::parse("ws://localhost:9001/getCaseCount").unwrap()
     )?;
     let msg = socket.read_message()?;
-    socket.close()?;
+    socket.close(None)?;
     Ok(msg.into_text()?.parse::<u32>().unwrap())
 }
 
@@ -22,7 +22,7 @@ fn update_reports() -> Result<()> {
     let mut socket = connect(
         Url::parse(&format!("ws://localhost:9001/updateReports?agent={}", AGENT)).unwrap()
     )?;
-    socket.close()?;
+    socket.close(None)?;
     Ok(())
 }
 

@@ -11,6 +11,8 @@ use std::string;
 
 use httparse;
 
+use protocol::frame::CloseFrame;
+
 #[cfg(feature="tls")]
 pub mod tls {
     pub use native_tls::Error;
@@ -22,7 +24,7 @@ pub type Result<T> = result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     /// WebSocket connection closed (normally)
-    ConnectionClosed,
+    ConnectionClosed(Option<CloseFrame<'static>>),
     /// Input-output error
     Io(io::Error),
     #[cfg(feature="tls")]
@@ -43,7 +45,13 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Error::ConnectionClosed => write!(f, "Connection closed"),
+            Error::ConnectionClosed(ref frame) => {
+                if let Some(ref cf) = *frame {
+                    write!(f, "Connection closed: {}", cf)
+                } else {
+                    write!(f, "Connection closed (empty close frame)")
+                }
+            }
             Error::Io(ref err) => write!(f, "IO error: {}", err),
             #[cfg(feature="tls")]
             Error::Tls(ref err) => write!(f, "TLS error: {}", err),
@@ -59,7 +67,7 @@ impl fmt::Display for Error {
 impl ErrorTrait for Error {
     fn description(&self) -> &str {
         match *self {
-            Error::ConnectionClosed => "",
+            Error::ConnectionClosed(_) => "A close handshake is performed",
             Error::Io(ref err) => err.description(),
             #[cfg(feature="tls")]
             Error::Tls(ref err) => err.description(),

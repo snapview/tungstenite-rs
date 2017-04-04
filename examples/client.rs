@@ -16,6 +16,6 @@ fn main() {
         let msg = socket.read_message().expect("Error reading message");
         println!("Received: {}", msg);
     }
-    // socket.close();
+    // socket.close(None);
 
 }
