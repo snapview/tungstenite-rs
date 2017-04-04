@@ -6,6 +6,8 @@ pub mod server;
 
 mod machine;
 
+use std::error::Error as ErrorTrait;
+use std::fmt;
 use std::io::{Read, Write};
 
 use base64;
@@ -60,6 +62,33 @@ pub enum HandshakeError<Stream, Role> {
     Interrupted(MidHandshake<Stream, Role>),
     /// Handshake failed.
     Failure(Error),
+}
+
+impl<Stream, Role> fmt::Debug for HandshakeError<Stream, Role> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            HandshakeError::Interrupted(_) => write!(f, "HandshakeError::Interrupted(...)"),
+            HandshakeError::Failure(ref e) => write!(f, "HandshakeError::Failure({:?})", e),
+        }
+    }
+}
+
+impl<Stream, Role> fmt::Display for HandshakeError<Stream, Role> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            HandshakeError::Interrupted(_) => write!(f, "Interrupted handshake (WouldBlock)"),
+            HandshakeError::Failure(ref e) => write!(f, "{}", e),
+        }
+    }
+}
+
+impl<Stream, Role> ErrorTrait for HandshakeError<Stream, Role> {
+    fn description(&self) -> &str {
+        match *self {
+            HandshakeError::Interrupted(_) => "Interrupted handshake",
+            HandshakeError::Failure(ref e) => e.description(),
+        }
+    }
 }
 
 impl<Stream, Role> From<Error> for HandshakeError<Stream, Role> {
