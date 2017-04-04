@@ -1,4 +1,5 @@
 use std::fmt;
+use std::borrow::Cow;
 use std::mem::transmute;
 use std::io::{Cursor, Read, Write, ErrorKind};
 use std::default::Default;
@@ -41,6 +42,31 @@ unsafe fn apply_mask_aligned32(buf: &mut [u8], mask: &[u8; 4]) {
 #[inline]
 fn generate_mask() -> [u8; 4] {
     rand::random()
+}
+
+/// A struct representing the close command.
+#[derive(Debug, Clone)]
+pub struct CloseFrame<'t> {
+    /// The reason as a code.
+    pub code: CloseCode,
+    /// The reason as text string.
+    pub reason: Cow<'t, str>,
+}
+
+impl<'t> CloseFrame<'t> {
+    /// Convert into a owned string.
+    pub fn into_owned(self) -> CloseFrame<'static> {
+        CloseFrame {
+            code: self.code,
+            reason: self.reason.into_owned().into(),
+        }
+    }
+}
+
+impl<'t> fmt::Display for CloseFrame<'t> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} ({})", self.reason, self.code)
+    }
 }
 
 /// A struct representing a WebSocket frame.
@@ -215,7 +241,7 @@ impl Frame {
 
      /// Consume the frame into a closing frame.
     #[inline]
-    pub fn into_close(self) -> Result<Option<(CloseCode, String)>> {
+    pub fn into_close(self) -> Result<Option<CloseFrame<'static>>> {
         match self.payload.len() {
             0 => Ok(None),
             1 => Err(Error::Protocol("Invalid close sequence".into())),
@@ -224,7 +250,7 @@ impl Frame {
                 let code = NetworkEndian::read_u16(&data[0..2]).into();
                 data.drain(0..2);
                 let text = String::from_utf8(data)?;
-                Ok(Some((code, text)))
+                Ok(Some(CloseFrame { code: code, reason: text.into() }))
             }
         }
     }
@@ -267,8 +293,8 @@ impl Frame {
 
     /// Create a new Close control frame.
     #[inline]
-    pub fn close(msg: Option<(CloseCode, &str)>) -> Frame {
-        let payload = if let Some((code, reason)) = msg {
+    pub fn close(msg: Option<CloseFrame>) -> Frame {
+        let payload = if let Some(CloseFrame { code, reason }) = msg {
             let raw: [u8; 2] = unsafe {
                 let u: u16 = code.into();
                 transmute(u.to_be())
