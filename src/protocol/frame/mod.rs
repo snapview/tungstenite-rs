@@ -3,6 +3,7 @@
 pub mod coding;
 
 mod frame;
+mod mask;
 
 pub use self::frame::Frame;
 pub use self::frame::CloseFrame;
