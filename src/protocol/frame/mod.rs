@@ -94,6 +94,7 @@ impl<Stream> FrameSocket<Stream>
             let len = self.stream.write(&self.out_buffer)?;
             self.out_buffer.drain(0..len);
         }
+        self.stream.flush()?;
         Ok(())
     }
 }
