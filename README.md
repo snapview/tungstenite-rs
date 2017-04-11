@@ -19,7 +19,8 @@ for stream in server.incoming() {
 
 Introduction
 ------------
-[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![MIT licensed](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE-MIT)
+[![Apache-2.0 licensed](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE-APACHE)
 
 This library provides an implementation of WebSockets,
 [RFC6455](https://tools.ietf.org/html/rfc6455). It allows for both synchronous (like TcpStream)
