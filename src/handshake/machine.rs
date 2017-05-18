@@ -40,50 +40,58 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
     /// Perform a single handshake round.
     pub fn single_round<Obj: TryParse>(mut self) -> Result<RoundResult<Obj, Stream>> {
         trace!("Doing handshake round.");
-        Ok(match self.state {
+        match self.state {
             HandshakeState::Reading(mut buf) => {
                 buf.reserve(MIN_READ, usize::max_value()) // TODO limit size
                     .map_err(|_| Error::Capacity("Header too long".into()))?;
-                if let Some(_) = buf.read_from(&mut self.stream).no_block()? {
-                    if let Some((size, obj)) = Obj::try_parse(Buf::bytes(&buf))? {
-                        buf.advance(size);
-                        RoundResult::StageFinished(StageResult::DoneReading {
-                            result: obj,
-                            stream: self.stream,
-                            tail: buf.into_vec(),
-                        })
-                    } else {
-                        RoundResult::Incomplete(HandshakeMachine {
-                            state: HandshakeState::Reading(buf),
-                            ..self
+                match buf.read_from(&mut self.stream).no_block()? {
+                    Some(0) => {
+                        Err(Error::Protocol("Handshake not finished".into()))
+                    }
+                    Some(_) => {
+                        Ok(if let Some((size, obj)) = Obj::try_parse(Buf::bytes(&buf))? {
+                            buf.advance(size);
+                            RoundResult::StageFinished(StageResult::DoneReading {
+                                result: obj,
+                                stream: self.stream,
+                                tail: buf.into_vec(),
+                            })
+                        } else {
+                            RoundResult::Incomplete(HandshakeMachine {
+                                state: HandshakeState::Reading(buf),
+                                ..self
+                            })
                         })
                     }
-                } else {
-                    RoundResult::WouldBlock(HandshakeMachine {
-                        state: HandshakeState::Reading(buf),
-                        ..self
-                    })
+                    None => {
+                        Ok(RoundResult::WouldBlock(HandshakeMachine {
+                            state: HandshakeState::Reading(buf),
+                            ..self
+                        }))
+                    }
                 }
             }
             HandshakeState::Writing(mut buf) => {
+                assert!(buf.has_remaining());
                 if let Some(size) = self.stream.write(Buf::bytes(&buf)).no_block()? {
+                    assert!(size > 0);
                     buf.advance(size);
-                    if buf.has_remaining() {
+                    Ok(if buf.has_remaining() {
                         RoundResult::Incomplete(HandshakeMachine {
                             state: HandshakeState::Writing(buf),
                             ..self
                         })
                     } else {
                         RoundResult::StageFinished(StageResult::DoneWriting(self.stream))
-                    }
+                    })
                 } else {
-                    RoundResult::WouldBlock(HandshakeMachine {
+                    Ok(RoundResult::WouldBlock(HandshakeMachine {
                         state: HandshakeState::Writing(buf),
                         ..self
-                    })
+                    }))
                 }
             }
-        })
+        }
     }
 }
 

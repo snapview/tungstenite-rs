@@ -28,7 +28,7 @@ pub enum Role {
 
 /// WebSocket input-output stream.
 ///
-/// This is THE structure you want to create to me able to talk the WebSocket protocol.
+/// This is THE structure you want to create to be able to speak the WebSocket protocol.
 /// It may be created by calling `connect`, `accept` or `client` functions.
 pub struct WebSocket<Stream> {
     /// Server or client?
