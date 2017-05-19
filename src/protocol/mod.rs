@@ -293,7 +293,14 @@ impl<Stream: Read + Write> WebSocket<Stream> {
             } // match opcode
 
         } else {
-            Err(Error::Protocol("Connection reset without closing handshake".into()))
+            match replace(&mut self.state, WebSocketState::Terminated) {
+                WebSocketState::CloseAcknowledged(close) | WebSocketState::ClosedByPeer(close) => {
+                    Err(Error::ConnectionClosed(close))
+                }
+                _ => {
+                    Err(Error::Protocol("Connection reset without closing handshake".into()))
+                }
+            }
         }
     }
 
@@ -342,6 +349,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                     }
                 }
             }
+            WebSocketState::Terminated => unreachable!(),
         }
     }
 
@@ -413,6 +421,8 @@ enum WebSocketState {
     ClosedByPeer(Option<CloseFrame<'static>>),
     /// The peer replied to our close handshake.
     CloseAcknowledged(Option<CloseFrame<'static>>),
+    /// The connection does not exist anymore.
+    Terminated,
 }
 
 impl WebSocketState {
