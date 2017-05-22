@@ -38,6 +38,15 @@ impl<'t> Request<'t> {
     }
 }
 
+impl From<Url> for Request<'static> {
+    fn from(value: Url) -> Self {
+        Request {
+            url: value,
+            extra_headers: None,
+        }
+    }
+}
+
 /// Client handshake role.
 pub struct ClientHandshake {
     verify_data: VerifyData,
