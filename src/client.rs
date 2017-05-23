@@ -57,7 +57,7 @@ use self::encryption::wrap_stream;
 use protocol::WebSocket;
 use handshake::HandshakeError;
 use handshake::client::{ClientHandshake, Request};
-use stream::Mode;
+use stream::{NoDelay, Mode};
 use error::{Error, Result};
 
 
@@ -77,7 +77,8 @@ pub fn connect<'t, Req: Into<Request<'t>>>(request: Req) -> Result<WebSocket<Aut
     let request: Request = request.into();
     let mode = url_mode(&request.url)?;
     let addrs = request.url.to_socket_addrs()?;
-    let stream = connect_to_some(addrs, &request.url, mode)?;
+    let mut stream = connect_to_some(addrs, &request.url, mode)?;
+    stream.set_nodelay(true)?;
     client(request, stream)
         .map_err(|e| match e {
             HandshakeError::Failure(f) => f,
