@@ -1,3 +1,5 @@
+//! HTTP Request and response header handling.
+
 use std::ascii::AsciiExt;
 use std::str::from_utf8;
 use std::slice;
@@ -8,7 +10,7 @@ use httparse::Status;
 use error::Result;
 use super::machine::TryParse;
 
-// Limit the number of header lines.
+/// Limit for the number of header lines.
 pub const MAX_HEADERS: usize = 124;
 
 /// HTTP request or response headers.
@@ -70,6 +72,7 @@ impl<'name, 'headers> Iterator for HeadersIter<'name, 'headers> {
 
 /// Trait to convert raw objects into HTTP parseables.
 pub trait FromHttparse<T>: Sized {
+    /// Convert raw object into parsed HTTP headers.
     fn from_httparse(raw: T) -> Result<Self>;
 }
 

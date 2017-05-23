@@ -14,12 +14,15 @@ use native_tls::TlsStream;
 /// Stream mode, either plain TCP or TLS.
 #[derive(Clone, Copy)]
 pub enum Mode {
+    /// Plain mode (`ws://` URL).
     Plain,
+    /// TLS mode (`wss://` URL).
     Tls,
 }
 
 /// Trait to switch TCP_NODELAY.
 pub trait NoDelay {
+    /// Set the TCP_NODELAY option to the given value.
     fn set_nodelay(&mut self, nodelay: bool) -> IoResult<()>;
 }
 
@@ -38,7 +41,9 @@ impl<S: Read + Write + NoDelay> NoDelay for TlsStream<S> {
 
 /// Stream, either plain TCP or TLS.
 pub enum Stream<S, T> {
+    /// Unencrypted socket stream.
     Plain(S),
+    /// Encrypted socket stream.
     Tls(T),
 }
 

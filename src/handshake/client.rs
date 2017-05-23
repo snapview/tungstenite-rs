@@ -1,3 +1,5 @@
+//! Client handshake machine.
+
 use base64;
 use rand;
 use httparse;
@@ -14,7 +16,9 @@ use super::machine::{HandshakeMachine, StageResult, TryParse};
 
 /// Client request.
 pub struct Request<'t> {
+    /// `ws://` or `wss://` URL to connect to.
     pub url: Url,
+    /// Extra HTTP headers to append to the request.
     pub extra_headers: Option<&'t [(&'t str, &'t str)]>,
 }
 

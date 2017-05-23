@@ -13,6 +13,7 @@ mod encryption {
     pub use native_tls::TlsStream;
 
     pub use stream::Stream as StreamSwitcher;
+    /// TCP stream switcher (plain/TLS).
     pub type AutoStream = StreamSwitcher<TcpStream, TlsStream<TcpStream>>;
 
     use stream::Mode;
@@ -41,6 +42,7 @@ mod encryption {
     use stream::Mode;
     use error::{Error, Result};
 
+    /// TLS support is nod compiled in, this is just standard `TcpStream`.
     pub type AutoStream = TcpStream;
 
     pub fn wrap_stream(stream: TcpStream, _domain: &str, mode: Mode) -> Result<AutoStream> {
@@ -78,7 +80,7 @@ pub fn connect<'t, Req: Into<Request<'t>>>(request: Req) -> Result<WebSocket<Aut
     let mode = url_mode(&request.url)?;
     let addrs = request.url.to_socket_addrs()?;
     let mut stream = connect_to_some(addrs, &request.url, mode)?;
-    stream.set_nodelay(true)?;
+    NoDelay::set_nodelay(&mut stream, true)?;
     client(request, stream)
         .map_err(|e| match e {
             HandshakeError::Failure(f) => f,
