@@ -3,7 +3,6 @@
 use httparse;
 use httparse::Status;
 
-//use input_buffer::{InputBuffer, MIN_READ};
 use error::{Error, Result};
 use protocol::{WebSocket, Role};
 use super::headers::{Headers, FromHttparse, MAX_HEADERS};
