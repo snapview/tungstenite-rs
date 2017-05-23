@@ -1,7 +1,8 @@
+//! Server handshake machine.
+
 use httparse;
 use httparse::Status;
 
-//use input_buffer::{InputBuffer, MIN_READ};
 use error::{Error, Result};
 use protocol::{WebSocket, Role};
 use super::headers::{Headers, FromHttparse, MAX_HEADERS};
@@ -10,7 +11,9 @@ use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
 
 /// Request from the client.
 pub struct Request {
+    /// Path part of the URL.
     pub path: String,
+    /// HTTP headers.
     pub headers: Headers,
 }
 

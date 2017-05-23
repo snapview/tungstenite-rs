@@ -7,6 +7,7 @@ use error::Error;
 
 /// Non-blocking IO handling.
 pub trait NonBlockingError: Sized {
+    /// Convert WouldBlock to None and don't touch other errors.
     fn into_non_blocking(self) -> Option<Self>;
 }
 
@@ -29,8 +30,12 @@ impl NonBlockingError for Error {
 }
 
 /// Non-blocking IO wrapper.
+///
+/// This trait is implemented for `Result<T, E: NonBlockingError>`.
 pub trait NonBlockingResult {
+    /// Type of the converted result: `Result<Option<T>, E>`
     type Result;
+    /// Perform the non-block conversion.
     fn no_block(self) -> Self::Result;
 }
 

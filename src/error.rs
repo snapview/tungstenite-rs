@@ -15,9 +15,11 @@ use protocol::frame::CloseFrame;
 
 #[cfg(feature="tls")]
 pub mod tls {
+    //! TLS error wrapper module, feature-gated.
     pub use native_tls::Error;
 }
 
+/// Result type of all Tungstenite library calls.
 pub type Result<T> = result::Result<T, Error>;
 
 /// Possible WebSocket errors

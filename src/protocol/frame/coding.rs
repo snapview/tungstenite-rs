@@ -6,7 +6,9 @@ use std::convert::{Into, From};
 /// WebSocket message opcode as in RFC 6455.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum OpCode {
+    /// Data (text or binary).
     Data(Data),
+    /// Control message (close, ping, pong).
     Control(Control),
 }
 

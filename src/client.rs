@@ -13,6 +13,7 @@ mod encryption {
     pub use native_tls::TlsStream;
 
     pub use stream::Stream as StreamSwitcher;
+    /// TCP stream switcher (plain/TLS).
     pub type AutoStream = StreamSwitcher<TcpStream, TlsStream<TcpStream>>;
 
     use stream::Mode;
@@ -41,6 +42,7 @@ mod encryption {
     use stream::Mode;
     use error::{Error, Result};
 
+    /// TLS support is nod compiled in, this is just standard `TcpStream`.
     pub type AutoStream = TcpStream;
 
     pub fn wrap_stream(stream: TcpStream, _domain: &str, mode: Mode) -> Result<AutoStream> {
@@ -57,7 +59,7 @@ use self::encryption::wrap_stream;
 use protocol::WebSocket;
 use handshake::HandshakeError;
 use handshake::client::{ClientHandshake, Request};
-use stream::Mode;
+use stream::{NoDelay, Mode};
 use error::{Error, Result};
 
 
@@ -73,11 +75,13 @@ use error::{Error, Result};
 /// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
 /// use `client` instead. There is no need to enable the "tls" feature if you don't call
 /// `connect` since it's the only function that uses native_tls.
-pub fn connect(url: Url) -> Result<WebSocket<AutoStream>> {
-    let mode = url_mode(&url)?;
-    let addrs = url.to_socket_addrs()?;
-    let stream = connect_to_some(addrs, &url, mode)?;
-    client(url.clone(), stream)
+pub fn connect<'t, Req: Into<Request<'t>>>(request: Req) -> Result<WebSocket<AutoStream>> {
+    let request: Request = request.into();
+    let mode = url_mode(&request.url)?;
+    let addrs = request.url.to_socket_addrs()?;
+    let mut stream = connect_to_some(addrs, &request.url, mode)?;
+    NoDelay::set_nodelay(&mut stream, true)?;
+    client(request, stream)
         .map_err(|e| match e {
             HandshakeError::Failure(f) => f,
             HandshakeError::Interrupted(_) => panic!("Bug: blocking handshake not blocked"),
@@ -116,9 +120,10 @@ pub fn url_mode(url: &Url) -> Result<Mode> {
 /// Use this function if you need a nonblocking handshake support or if you
 /// want to use a custom stream like `mio::tcp::TcpStream` or `openssl::ssl::SslStream`.
 /// Any stream supporting `Read + Write` will do.
-pub fn client<Stream: Read + Write>(url: Url, stream: Stream)
+pub fn client<'t, Stream, Req>(request: Req, stream: Stream)
     -> StdResult<WebSocket<Stream>, HandshakeError<Stream, ClientHandshake>>
+where Stream: Read + Write,
+      Req: Into<Request<'t>>,
 {
-    let request = Request { url: url, extra_headers: None };
-    ClientHandshake::start(stream, request).handshake()
+    ClientHandshake::start(stream, request.into()).handshake()
 }
