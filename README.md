@@ -17,11 +17,14 @@ for stream in server.incoming() {
 }
 ```
 
-Introduction
-------------
 [![MIT licensed](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE-MIT)
 [![Apache-2.0 licensed](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE-APACHE)
+[![Crates.io](https://img.shields.io/crates/v/tungstenite.svg?maxAge=2592000)](https://crates.io/crates/tungstenite)
 
+[Documentation](https://docs.rs/tungstenite)
+
+Introduction
+------------
 This library provides an implementation of WebSockets,
 [RFC6455](https://tools.ietf.org/html/rfc6455). It allows for both synchronous (like TcpStream)
 and asynchronous usage and is easy to integrate into any third-party event loops including
