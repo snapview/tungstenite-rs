@@ -16,6 +16,7 @@ use sha1::Sha1;
 use error::Error;
 use protocol::WebSocket;
 
+use self::headers::Headers;
 use self::machine::{HandshakeMachine, RoundResult, StageResult, TryParse};
 
 /// A WebSocket handshake.
@@ -37,7 +38,7 @@ impl<Stream, Role> MidHandshake<Stream, Role> {
 
 impl<Stream: Read + Write, Role: HandshakeRole> MidHandshake<Stream, Role> {
     /// Restarts the handshake process.
-    pub fn handshake(self) -> Result<WebSocket<Stream>, HandshakeError<Stream, Role>> {
+    pub fn handshake(mut self) -> Result<(WebSocket<Stream>, Headers), HandshakeError<Stream, Role>> {
         let mut mach = self.machine;
         loop {
             mach = match mach.single_round()? {
@@ -48,7 +49,7 @@ impl<Stream: Read + Write, Role: HandshakeRole> MidHandshake<Stream, Role> {
                 RoundResult::StageFinished(s) => {
                     match self.role.stage_finished(s)? {
                         ProcessingResult::Continue(m) => m,
-                        ProcessingResult::Done(ws) => return Ok(ws),
+                        ProcessingResult::Done(ws, headers) => return Ok((ws, headers)),
                     }
                 }
             }
@@ -102,7 +103,7 @@ pub trait HandshakeRole {
     #[doc(hidden)]
     type IncomingData: TryParse;
     #[doc(hidden)]
-    fn stage_finished<Stream>(&self, finish: StageResult<Self::IncomingData, Stream>)
+    fn stage_finished<Stream>(&mut self, finish: StageResult<Self::IncomingData, Stream>)
         -> Result<ProcessingResult<Stream>, Error>;
 }
 
@@ -110,7 +111,7 @@ pub trait HandshakeRole {
 #[doc(hidden)]
 pub enum ProcessingResult<Stream> {
     Continue(HandshakeMachine<Stream>),
-    Done(WebSocket<Stream>),
+    Done(WebSocket<Stream>, Headers),
 }
 
 /// Turns a Sec-WebSocket-Key into a Sec-WebSocket-Accept.

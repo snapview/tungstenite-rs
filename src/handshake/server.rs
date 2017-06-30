@@ -60,7 +60,10 @@ impl<'h, 'b: 'h> FromHttparse<httparse::Request<'h, 'b>> for Request {
 
 /// Server handshake role.
 #[allow(missing_copy_implementations)]
-pub struct ServerHandshake;
+pub struct ServerHandshake {
+    /// Incoming headers, received from the client.
+    headers: Option<Headers>,
+}
 
 impl ServerHandshake {
     /// Start server handshake.
@@ -68,14 +71,14 @@ impl ServerHandshake {
         trace!("Server handshake initiated.");
         MidHandshake {
             machine: HandshakeMachine::start_read(stream),
-            role: ServerHandshake,
+            role: ServerHandshake { headers: None },
         }
     }
 }
 
 impl HandshakeRole for ServerHandshake {
     type IncomingData = Request;
-    fn stage_finished<Stream>(&self, finish: StageResult<Self::IncomingData, Stream>)
+    fn stage_finished<Stream>(&mut self, finish: StageResult<Self::IncomingData, Stream>)
         -> Result<ProcessingResult<Stream>>
     {
         Ok(match finish {
@@ -84,11 +87,13 @@ impl HandshakeRole for ServerHandshake {
                     return Err(Error::Protocol("Junk after client request".into()))
                 }
                 let response = result.reply()?;
+                self.headers = Some(result.headers);
                 ProcessingResult::Continue(HandshakeMachine::start_write(stream, response))
             }
             StageResult::DoneWriting(stream) => {
                 debug!("Server handshake done.");
-                ProcessingResult::Done(WebSocket::from_raw_socket(stream, Role::Server))
+                let headers = self.headers.take().expect("Bug: accepted client without headers");
+                ProcessingResult::Done(WebSocket::from_raw_socket(stream, Role::Server), headers)
             }
         })
     }

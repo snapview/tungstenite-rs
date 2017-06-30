@@ -96,7 +96,7 @@ impl ClientHandshake {
 
 impl HandshakeRole for ClientHandshake {
     type IncomingData = Response;
-    fn stage_finished<Stream>(&self, finish: StageResult<Self::IncomingData, Stream>)
+    fn stage_finished<Stream>(&mut self, finish: StageResult<Self::IncomingData, Stream>)
         -> Result<ProcessingResult<Stream>>
     {
         Ok(match finish {
@@ -106,7 +106,8 @@ impl HandshakeRole for ClientHandshake {
             StageResult::DoneReading { stream, result, tail, } => {
                 self.verify_data.verify_response(&result)?;
                 debug!("Client handshake done.");
-                ProcessingResult::Done(WebSocket::from_partially_read(stream, tail, Role::Client))
+                ProcessingResult::Done(WebSocket::from_partially_read(stream, tail, Role::Client),
+                                       result.headers)
             }
         })
     }

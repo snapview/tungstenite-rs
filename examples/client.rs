@@ -8,7 +8,7 @@ use tungstenite::{Message, connect};
 fn main() {
     env_logger::init().unwrap();
 
-    let mut socket = connect(Url::parse("ws://localhost:3012/socket").unwrap())
+    let (mut socket, _) = connect(Url::parse("ws://localhost:3012/socket").unwrap())
         .expect("Can't connect");
 
     socket.write_message(Message::Text("Hello WebSocket".into())).unwrap();

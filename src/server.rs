@@ -3,6 +3,7 @@
 pub use handshake::server::ServerHandshake;
 
 use handshake::HandshakeError;
+use handshake::headers::Headers;
 use protocol::WebSocket;
 
 use std::io::{Read, Write};
@@ -14,7 +15,7 @@ use std::io::{Read, Write};
 /// for the stream here. Any `Read + Write` streams are supported, including
 /// those from `Mio` and others.
 pub fn accept<Stream: Read + Write>(stream: Stream)
-    -> Result<WebSocket<Stream>, HandshakeError<Stream, ServerHandshake>>
+    -> Result<(WebSocket<Stream>, Headers), HandshakeError<Stream, ServerHandshake>>
 {
     ServerHandshake::start(stream).handshake()
 }

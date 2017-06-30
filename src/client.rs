@@ -6,6 +6,8 @@ use std::io::{Read, Write};
 
 use url::Url;
 
+use handshake::headers::Headers;
+
 #[cfg(feature="tls")]
 mod encryption {
     use std::net::TcpStream;
@@ -75,7 +77,9 @@ use error::{Error, Result};
 /// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
 /// use `client` instead. There is no need to enable the "tls" feature if you don't call
 /// `connect` since it's the only function that uses native_tls.
-pub fn connect<'t, Req: Into<Request<'t>>>(request: Req) -> Result<WebSocket<AutoStream>> {
+pub fn connect<'t, Req: Into<Request<'t>>>(request: Req)
+    -> Result<(WebSocket<AutoStream>, Headers)>
+{
     let request: Request = request.into();
     let mode = url_mode(&request.url)?;
     let addrs = request.url.to_socket_addrs()?;
@@ -121,7 +125,7 @@ pub fn url_mode(url: &Url) -> Result<Mode> {
 /// want to use a custom stream like `mio::tcp::TcpStream` or `openssl::ssl::SslStream`.
 /// Any stream supporting `Read + Write` will do.
 pub fn client<'t, Stream, Req>(request: Req, stream: Stream)
-    -> StdResult<WebSocket<Stream>, HandshakeError<Stream, ClientHandshake>>
+    -> StdResult<(WebSocket<Stream>, Headers), HandshakeError<Stream, ClientHandshake>>
 where Stream: Read + Write,
       Req: Into<Request<'t>>,
 {
