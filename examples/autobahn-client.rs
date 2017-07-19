@@ -5,7 +5,7 @@ extern crate url;
 
 use url::Url;
 
-use tungstenite::{connect, Error, Result};
+use tungstenite::{connect, Error, Result, Message};
 
 const AGENT: &'static str = "Tungstenite";
 
@@ -33,8 +33,14 @@ fn run_test(case: u32) -> Result<()> {
     ).unwrap();
     let mut socket = connect(case_url)?;
     loop {
-        let msg = socket.read_message()?;
-        socket.write_message(msg)?;
+        match socket.read_message()? {
+            msg @ Message::Text(_) |
+            msg @ Message::Binary(_) => {
+                socket.write_message(msg)?;
+            }
+            Message::Ping(_) |
+            Message::Pong(_) => {}
+        }
     }
 }
 

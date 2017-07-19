@@ -141,6 +141,14 @@ pub enum Message {
     Text(String),
     /// A binary WebSocket message
     Binary(Vec<u8>),
+    /// A ping message with the specified payload
+    ///
+    /// The payload here must have a length less than 125 bytes
+    Ping(Vec<u8>),
+    /// A pong message with the specified payload
+    ///
+    /// The payload here must have a length less than 125 bytes
+    Pong(Vec<u8>),
 }
 
 impl Message {
@@ -163,15 +171,31 @@ impl Message {
     pub fn is_text(&self) -> bool {
         match *self {
             Message::Text(_) => true,
-            Message::Binary(_) => false,
+            _ => false,
         }
     }
 
     /// Indicates whether a message is a binary message.
     pub fn is_binary(&self) -> bool {
         match *self {
-            Message::Text(_) => false,
             Message::Binary(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Indicates whether a message is a ping message.
+    pub fn is_ping(&self) -> bool {
+        match *self {
+            Message::Ping(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Indicates whether a message is a pong message.
+    pub fn is_pong(&self) -> bool {
+        match *self {
+            Message::Pong(_) => true,
+            _ => false,
         }
     }
 
@@ -179,24 +203,25 @@ impl Message {
     pub fn len(&self) -> usize {
         match *self {
             Message::Text(ref string) => string.len(),
-            Message::Binary(ref data) => data.len(),
+            Message::Binary(ref data) |
+            Message::Ping(ref data) |
+            Message::Pong(ref data) => data.len(),
         }
     }
 
     /// Returns true if the WebSocket message has no content.
     /// For example, if the other side of the connection sent an empty string.
     pub fn is_empty(&self) -> bool {
-        match *self {
-            Message::Text(ref string) => string.is_empty(),
-            Message::Binary(ref data) => data.is_empty(),
-        }
+        self.len() == 0
     }
 
     /// Consume the WebSocket and return it as binary data.
     pub fn into_data(self) -> Vec<u8> {
         match self {
             Message::Text(string) => string.into_bytes(),
-            Message::Binary(data) => data,
+            Message::Binary(data) |
+            Message::Ping(data) |
+            Message::Pong(data) => data,
         }
     }
 
@@ -204,7 +229,9 @@ impl Message {
     pub fn into_text(self) -> Result<String> {
         match self {
             Message::Text(string) => Ok(string),
-            Message::Binary(data) => Ok(try!(
+            Message::Binary(data) |
+            Message::Ping(data) |
+            Message::Pong(data) => Ok(try!(
                 String::from_utf8(data).map_err(|err| err.utf8_error()))),
         }
     }
@@ -214,7 +241,9 @@ impl Message {
     pub fn to_text(&self) -> Result<&str> {
         match *self {
             Message::Text(ref string) => Ok(string),
-            Message::Binary(ref data) => Ok(try!(str::from_utf8(data))),
+            Message::Binary(ref data) |
+            Message::Ping(ref data) |
+            Message::Pong(ref data) => Ok(try!(str::from_utf8(data))),
         }
     }
 
