@@ -3,7 +3,7 @@
 pub use handshake::server::ServerHandshake;
 
 use handshake::HandshakeError;
-use handshake::headers::Headers;
+use handshake::server::Callback;
 use protocol::WebSocket;
 
 use std::io::{Read, Write};
@@ -13,9 +13,10 @@ use std::io::{Read, Write};
 /// This function starts a server WebSocket handshake over the given stream.
 /// If you want TLS support, use `native_tls::TlsStream` or `openssl::ssl::SslStream`
 /// for the stream here. Any `Read + Write` streams are supported, including
-/// those from `Mio` and others.
-pub fn accept<Stream: Read + Write>(stream: Stream)
-    -> Result<(WebSocket<Stream>, Headers), HandshakeError<Stream, ServerHandshake>>
+/// those from `Mio` and others. You can also pass an optional `callback` which will
+/// be called when the websocket request is received from an incoming client.
+pub fn accept<S: Read + Write>(stream: S, callback: Option<Callback>)
+    -> Result<WebSocket<S>, HandshakeError<ServerHandshake<S>>>
 {
-    ServerHandshake::start(stream).handshake()
+    ServerHandshake::start(stream, callback).handshake()
 }

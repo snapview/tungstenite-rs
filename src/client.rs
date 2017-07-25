@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 
 use url::Url;
 
-use handshake::headers::Headers;
+use handshake::client::Response;
 
 #[cfg(feature="tls")]
 mod encryption {
@@ -78,7 +78,7 @@ use error::{Error, Result};
 /// use `client` instead. There is no need to enable the "tls" feature if you don't call
 /// `connect` since it's the only function that uses native_tls.
 pub fn connect<'t, Req: Into<Request<'t>>>(request: Req)
-    -> Result<(WebSocket<AutoStream>, Headers)>
+    -> Result<(WebSocket<AutoStream>, Response)>
 {
     let request: Request = request.into();
     let mode = url_mode(&request.url)?;
@@ -124,10 +124,13 @@ pub fn url_mode(url: &Url) -> Result<Mode> {
 /// Use this function if you need a nonblocking handshake support or if you
 /// want to use a custom stream like `mio::tcp::TcpStream` or `openssl::ssl::SslStream`.
 /// Any stream supporting `Read + Write` will do.
-pub fn client<'t, Stream, Req>(request: Req, stream: Stream)
-    -> StdResult<(WebSocket<Stream>, Headers), HandshakeError<Stream, ClientHandshake>>
-where Stream: Read + Write,
-      Req: Into<Request<'t>>,
+pub fn client<'t, Stream, Req>(
+    request: Req,
+    stream: Stream
+    ) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
+where
+    Stream: Read + Write,
+    Req: Into<Request<'t>>,
 {
     ClientHandshake::start(stream, request.into()).handshake()
 }

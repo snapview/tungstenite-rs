@@ -14,31 +14,17 @@ use base64;
 use sha1::Sha1;
 
 use error::Error;
-use protocol::WebSocket;
-
-use self::headers::Headers;
 use self::machine::{HandshakeMachine, RoundResult, StageResult, TryParse};
 
 /// A WebSocket handshake.
-pub struct MidHandshake<Stream, Role> {
+pub struct MidHandshake<Role: HandshakeRole> {
     role: Role,
-    machine: HandshakeMachine<Stream>,
+    machine: HandshakeMachine<Role::InternalStream>,
 }
 
-impl<Stream, Role> MidHandshake<Stream, Role> {
-    /// Returns a shared reference to the inner stream.
-    pub fn get_ref(&self) -> &Stream {
-        self.machine.get_ref()
-    }
-    /// Returns a mutable reference to the inner stream.
-    pub fn get_mut(&mut self) -> &mut Stream {
-        self.machine.get_mut()
-    }
-}
-
-impl<Stream: Read + Write, Role: HandshakeRole> MidHandshake<Stream, Role> {
+impl<Role: HandshakeRole> MidHandshake<Role> {
     /// Restarts the handshake process.
-    pub fn handshake(mut self) -> Result<(WebSocket<Stream>, Headers), HandshakeError<Stream, Role>> {
+    pub fn handshake(mut self) -> Result<Role::FinalResult, HandshakeError<Role>> {
         let mut mach = self.machine;
         loop {
             mach = match mach.single_round()? {
@@ -49,7 +35,7 @@ impl<Stream: Read + Write, Role: HandshakeRole> MidHandshake<Stream, Role> {
                 RoundResult::StageFinished(s) => {
                     match self.role.stage_finished(s)? {
                         ProcessingResult::Continue(m) => m,
-                        ProcessingResult::Done(ws, headers) => return Ok((ws, headers)),
+                        ProcessingResult::Done(result) => return Ok(result),
                     }
                 }
             }
@@ -58,14 +44,14 @@ impl<Stream: Read + Write, Role: HandshakeRole> MidHandshake<Stream, Role> {
 }
 
 /// A handshake result.
-pub enum HandshakeError<Stream, Role> {
+pub enum HandshakeError<Role: HandshakeRole> {
     /// Handshake was interrupted (would block).
-    Interrupted(MidHandshake<Stream, Role>),
+    Interrupted(MidHandshake<Role>),
     /// Handshake failed.
     Failure(Error),
 }
 
-impl<Stream, Role> fmt::Debug for HandshakeError<Stream, Role> {
+impl<Role: HandshakeRole> fmt::Debug for HandshakeError<Role> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             HandshakeError::Interrupted(_) => write!(f, "HandshakeError::Interrupted(...)"),
@@ -74,7 +60,7 @@ impl<Stream, Role> fmt::Debug for HandshakeError<Stream, Role> {
     }
 }
 
-impl<Stream, Role> fmt::Display for HandshakeError<Stream, Role> {
+impl<Role: HandshakeRole> fmt::Display for HandshakeError<Role> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             HandshakeError::Interrupted(_) => write!(f, "Interrupted handshake (WouldBlock)"),
@@ -83,7 +69,7 @@ impl<Stream, Role> fmt::Display for HandshakeError<Stream, Role> {
     }
 }
 
-impl<Stream, Role> ErrorTrait for HandshakeError<Stream, Role> {
+impl<Role: HandshakeRole> ErrorTrait for HandshakeError<Role> {
     fn description(&self) -> &str {
         match *self {
             HandshakeError::Interrupted(_) => "Interrupted handshake",
@@ -92,7 +78,7 @@ impl<Stream, Role> ErrorTrait for HandshakeError<Stream, Role> {
     }
 }
 
-impl<Stream, Role> From<Error> for HandshakeError<Stream, Role> {
+impl<Role: HandshakeRole> From<Error> for HandshakeError<Role> {
     fn from(err: Error) -> Self {
         HandshakeError::Failure(err)
     }
@@ -103,15 +89,19 @@ pub trait HandshakeRole {
     #[doc(hidden)]
     type IncomingData: TryParse;
     #[doc(hidden)]
-    fn stage_finished<Stream>(&mut self, finish: StageResult<Self::IncomingData, Stream>)
-        -> Result<ProcessingResult<Stream>, Error>;
+    type InternalStream: Read + Write;
+    #[doc(hidden)]
+    type FinalResult;
+    #[doc(hidden)]
+    fn stage_finished(&mut self, finish: StageResult<Self::IncomingData, Self::InternalStream>)
+        -> Result<ProcessingResult<Self::InternalStream, Self::FinalResult>, Error>;
 }
 
 /// Stage processing result.
 #[doc(hidden)]
-pub enum ProcessingResult<Stream> {
+pub enum ProcessingResult<Stream, FinalResult> {
     Continue(HandshakeMachine<Stream>),
-    Done(WebSocket<Stream>, Headers),
+    Done(FinalResult),
 }
 
 /// Turns a Sec-WebSocket-Key into a Sec-WebSocket-Accept.
@@ -127,7 +117,6 @@ fn convert_key(input: &[u8]) -> Result<String, Error> {
 
 #[cfg(test)]
 mod tests {
-
     use super::convert_key;
 
     #[test]

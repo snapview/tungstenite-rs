@@ -1,18 +1,19 @@
 //! Client handshake machine.
 
+use std::io::{Read, Write};
+use std::marker::PhantomData;
+
 use base64;
-use rand;
-use httparse;
 use httparse::Status;
-use std::io::Write;
+use httparse;
+use rand;
 use url::Url;
 
 use error::{Error, Result};
 use protocol::{WebSocket, Role};
-
 use super::headers::{Headers, FromHttparse, MAX_HEADERS};
-use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
+use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
 
 /// Client request.
 pub struct Request<'t> {
@@ -52,13 +53,14 @@ impl From<Url> for Request<'static> {
 }
 
 /// Client handshake role.
-pub struct ClientHandshake {
+pub struct ClientHandshake<S> {
     verify_data: VerifyData,
+    _marker: PhantomData<S>,
 }
 
-impl ClientHandshake {
+impl<S: Read + Write> ClientHandshake<S> {
     /// Initiate a client handshake.
-    pub fn start<Stream>(stream: Stream, request: Request) -> MidHandshake<Stream, Self> {
+    pub fn start(stream: S, request: Request) -> MidHandshake<Self> {
         let key = generate_key();
 
         let machine = {
@@ -83,9 +85,8 @@ impl ClientHandshake {
         let client = {
             let accept_key = convert_key(key.as_ref()).unwrap();
             ClientHandshake {
-                verify_data: VerifyData {
-                    accept_key: accept_key,
-                },
+                verify_data: VerifyData { accept_key },
+                _marker: PhantomData,
             }
         };
 
@@ -94,10 +95,12 @@ impl ClientHandshake {
     }
 }
 
-impl HandshakeRole for ClientHandshake {
+impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
     type IncomingData = Response;
-    fn stage_finished<Stream>(&mut self, finish: StageResult<Self::IncomingData, Stream>)
-        -> Result<ProcessingResult<Stream>>
+    type InternalStream = S;
+    type FinalResult = (WebSocket<S>, Response);
+    fn stage_finished(&mut self, finish: StageResult<Self::IncomingData, Self::InternalStream>)
+        -> Result<ProcessingResult<Self::InternalStream, Self::FinalResult>>
     {
         Ok(match finish {
             StageResult::DoneWriting(stream) => {
@@ -106,8 +109,8 @@ impl HandshakeRole for ClientHandshake {
             StageResult::DoneReading { stream, result, tail, } => {
                 self.verify_data.verify_response(&result)?;
                 debug!("Client handshake done.");
-                ProcessingResult::Done(WebSocket::from_partially_read(stream, tail, Role::Client),
-                                       result.headers)
+                ProcessingResult::Done((WebSocket::from_partially_read(stream, tail, Role::Client),
+                                       result))
             }
         })
     }
@@ -167,8 +170,10 @@ impl VerifyData {
 
 /// Server response.
 pub struct Response {
-    code: u16,
-    headers: Headers,
+    /// HTTP response code of the response.
+    pub code: u16,
+    /// Received headers.
+    pub headers: Headers,
 }
 
 impl TryParse for Response {
@@ -204,7 +209,6 @@ fn generate_key() -> String {
 
 #[cfg(test)]
 mod tests {
-
     use super::{Response, generate_key};
     use super::super::machine::TryParse;
 
@@ -231,5 +235,4 @@ mod tests {
         assert_eq!(resp.code, 200);
         assert_eq!(resp.headers.find_first("Content-Type"), Some(&b"text/html"[..]));
     }
-
 }
