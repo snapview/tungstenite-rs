@@ -103,21 +103,24 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// This function guarantees that the frame is queued regardless of any errors.
     /// There is no need to resend the frame. In order to handle WouldBlock or Incomplete,
     /// call write_pending() afterwards.
+    ///
+    /// Note that only the last pong frame is stored to be sent, and only the
+    /// most recent pong frame is sent if multiple pong frames are queued up.
     pub fn write_message(&mut self, message: Message) -> Result<()> {
-        let frame = {
-            let opcode = match message {
-                Message::Text(_) => OpData::Text,
-                Message::Binary(_) => OpData::Binary,
-            };
-            Frame::message(message.into_data(), OpCode::Data(opcode), true)
+        let frame = match message {
+            Message::Text(data) => {
+                Frame::message(data.into(), OpCode::Data(OpData::Text), true)
+            }
+            Message::Binary(data) => {
+                Frame::message(data, OpCode::Data(OpData::Binary), true)
+            }
+            Message::Ping(data) => Frame::ping(data),
+            Message::Pong(data) => {
+                self.pong = Some(Frame::pong(data));
+                return self.write_pending()
+            }
         };
         self.send_queue.push_back(frame);
-        self.write_pending()
-    }
-
-    /// Send ping.
-    pub fn send_ping(&mut self, payload: Vec<u8>) -> Result<()> {
-        self.send_queue.push_back(Frame::ping(payload));
         self.write_pending()
     }
 
@@ -212,7 +215,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
             match frame.opcode() {
 
                 OpCode::Control(ctl) => {
-                    (match ctl {
+                    match ctl {
                         // All control frames MUST have a payload length of 125 bytes or less
                         // and MUST NOT be fragmented. (RFC 6455)
                         _ if !frame.is_final() => {
@@ -222,22 +225,24 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                             Err(Error::Protocol("Control frame too big".into()))
                         }
                         OpCtl::Close => {
-                            self.do_close(frame.into_close()?)
+                            self.do_close(frame.into_close()?).map(|_| None)
                         }
                         OpCtl::Reserved(i) => {
                             Err(Error::Protocol(format!("Unknown control frame type {}", i).into()))
                         }
                         OpCtl::Ping | OpCtl::Pong if !self.state.is_active() => {
                             // No ping processing while closing.
-                            Ok(())
+                            Ok(None)
                         }
                         OpCtl::Ping => {
-                            self.do_ping(frame.into_data())
+                            let data = frame.into_data();
+                            self.pong = Some(Frame::pong(data.clone()));
+                            Ok(Some(Message::Ping(data)))
                         }
                         OpCtl::Pong => {
-                            self.do_pong(frame.into_data())
+                            Ok(Some(Message::Pong(frame.into_data())))
                         }
-                    }).map(|_| None)
+                    }
                 }
 
                 OpCode::Data(_) if !self.state.is_active() => {
@@ -353,27 +358,6 @@ impl<Stream: Read + Write> WebSocket<Stream> {
         }
     }
 
-    /// Received a ping frame.
-    fn do_ping(&mut self, ping: Vec<u8>) -> Result<()> {
-        // If an endpoint receives a Ping frame and has not yet sent Pong
-        // frame(s) in response to previous Ping frame(s), the endpoint MAY
-        // elect to send a Pong frame for only the most recently processed Ping
-        // frame. (RFC 6455)
-        // We do exactly that, keeping a "queue" from one and only Pong frame.
-        self.pong = Some(Frame::pong(ping));
-        Ok(())
-    }
-
-    /// Received a pong frame.
-    fn do_pong(&mut self, _: Vec<u8>) -> Result<()> {
-        // A Pong frame MAY be sent unsolicited.  This serves as a
-        // unidirectional heartbeat.  A response to an unsolicited Pong frame is
-        // not expected. (RFC 6455)
-        // Due to this, we just don't check pongs right now.
-        // TODO: check if there was a reply to our ping at all...
-        Ok(())
-    }
-
     /// Send a single pending frame.
     fn send_one_frame(&mut self, mut frame: Frame) -> Result<()> {
         match self.role {
@@ -463,6 +447,8 @@ mod tests {
     #[test]
     fn receive_messages() {
         let incoming = Cursor::new(vec![
+            0x89, 0x02, 0x01, 0x02,
+            0x8a, 0x01, 0x03,
             0x01, 0x07,
             0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20,
             0x80, 0x06,
@@ -471,6 +457,8 @@ mod tests {
             0x01, 0x02, 0x03,
         ]);
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client);
+        assert_eq!(socket.read_message().unwrap(), Message::Ping(vec![1, 2]));
+        assert_eq!(socket.read_message().unwrap(), Message::Pong(vec![3]));
         assert_eq!(socket.read_message().unwrap(), Message::Text("Hello, World!".into()));
         assert_eq!(socket.read_message().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03]));
     }

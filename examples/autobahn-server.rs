@@ -5,7 +5,7 @@ extern crate tungstenite;
 use std::net::{TcpListener, TcpStream};
 use std::thread::spawn;
 
-use tungstenite::{accept, HandshakeError, Error, Result};
+use tungstenite::{accept, HandshakeError, Error, Result, Message};
 
 fn must_not_block<Stream, Role>(err: HandshakeError<Stream, Role>) -> Error {
     match err {
@@ -17,8 +17,14 @@ fn must_not_block<Stream, Role>(err: HandshakeError<Stream, Role>) -> Error {
 fn handle_client(stream: TcpStream) -> Result<()> {
     let mut socket = accept(stream).map_err(must_not_block)?;
     loop {
-        let msg = socket.read_message()?;
-        socket.write_message(msg)?;
+        match socket.read_message()? {
+            msg @ Message::Text(_) |
+            msg @ Message::Binary(_) => {
+                socket.write_message(msg)?;
+            }
+            Message::Ping(_) |
+            Message::Pong(_) => {}
+        }
     }
 }
 
