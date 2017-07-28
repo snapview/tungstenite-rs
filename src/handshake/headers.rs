@@ -49,6 +49,11 @@ impl Headers {
             .unwrap_or(false)
     }
 
+    /// Allows to iterate over available headers.
+    pub fn iter(&self) -> slice::Iter<(String, Box<[u8]>)> {
+        self.data.iter()
+    }
+
 }
 
 /// The iterator over headers.
