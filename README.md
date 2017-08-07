@@ -8,14 +8,20 @@ Lightweight stream-based WebSocket implementation for [Rust](http://www.rust-lan
 let server = TcpListener::bind("127.0.0.1:9001").unwrap();
 for stream in server.incoming() {
     spawn (move || {
-        let mut websocket = accept(stream.unwrap()).unwrap();
+        let mut websocket = accept(stream.unwrap(), None).unwrap();
         loop {
             let msg = websocket.read_message().unwrap();
-            websocket.write_message(msg).unwrap();
+
+            // We do not want to send back ping/pong messages.
+            if msg.is_binary() || msg.is_text() {
+                websocket.write_message(msg).unwrap();
+            }
         }
     });
 }
 ```
+
+Take a look at the examples section to see how to write a simple client/server.
 
 [![MIT licensed](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE-MIT)
 [![Apache-2.0 licensed](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE-APACHE)
