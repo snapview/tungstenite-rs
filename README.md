@@ -3,6 +3,9 @@
 Lightweight stream-based WebSocket implementation for [Rust](http://www.rust-lang.org).
 
 ```rust
+use std::net::TcpListener;
+use std::thread::spawn;
+use tungstenite::server::accept;
 
 /// A WebSocket echo server
 let server = TcpListener::bind("127.0.0.1:9001").unwrap();
