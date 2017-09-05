@@ -3,7 +3,6 @@
 use std::fmt::Write as FmtWrite;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
-use std::mem::replace;
 
 use httparse;
 use httparse::Status;
@@ -71,43 +70,61 @@ impl<'h, 'b: 'h> FromHttparse<httparse::Request<'h, 'b>> for Request {
     }
 }
 
-/// The callback type, the callback is called when the server receives an incoming WebSocket
-/// handshake request from the client, specifying a callback allows you to analyze incoming headers
-/// and add additional headers to the response that server sends to the client and/or reject the
-/// connection based on the incoming headers. Due to usability problems which are caused by a
-/// static dispatch when using callbacks in such places, the callback is boxed.
+/// The callback trait.
 ///
-/// The type uses `FnMut` instead of `FnOnce` as it is impossible to box `FnOnce` in the current
-/// Rust version, `FnBox` is still unstable, this code has to be updated for `FnBox` when it gets
-/// stable.
-pub type Callback = Box<FnMut(&Request) -> Result<Option<Vec<(String, String)>>>>;
+/// The callback is called when the server receives an incoming WebSocket
+/// handshake request from the client. Specifying a callback allows you to analyze incoming headers
+/// and add additional headers to the response that server sends to the client and/or reject the
+/// connection based on the incoming headers.
+pub trait Callback: Sized {
+    /// Called whenever the server read the request from the client and is ready to reply to it.
+    /// May return additional reply headers.
+    /// Returning an error resulting in rejecting the incoming connection.
+    fn on_request(self, request: &Request) -> Result<Option<Vec<(String, String)>>>;
+}
+
+impl<F> Callback for F where F: FnOnce(&Request) -> Result<Option<Vec<(String, String)>>> {
+    fn on_request(self, request: &Request) -> Result<Option<Vec<(String, String)>>> {
+        self(request)
+    }
+}
+
+/// Stub for callback that does nothing.
+#[derive(Clone, Copy)]
+pub struct NoCallback;
+
+impl Callback for NoCallback {
+    fn on_request(self, _request: &Request) -> Result<Option<Vec<(String, String)>>> {
+        Ok(None)
+    }
+}
 
 /// Server handshake role.
 #[allow(missing_copy_implementations)]
-pub struct ServerHandshake<S> {
+pub struct ServerHandshake<S, C> {
     /// Callback which is called whenever the server read the request from the client and is ready
     /// to reply to it. The callback returns an optional headers which will be added to the reply
     /// which the server sends to the user.
-    callback: Option<Callback>,
+    callback: Option<C>,
     /// Internal stream type.
     _marker: PhantomData<S>,
 }
 
-impl<S: Read + Write> ServerHandshake<S> {
+impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
     /// Start server handshake. `callback` specifies a custom callback which the user can pass to
     /// the handshake, this callback will be called when the a websocket client connnects to the
     /// server, you can specify the callback if you want to add additional header to the client
     /// upon join based on the incoming headers.
-    pub fn start(stream: S, callback: Option<Callback>) -> MidHandshake<Self> {
+    pub fn start(stream: S, callback: C) -> MidHandshake<Self> {
         trace!("Server handshake initiated.");
         MidHandshake {
             machine: HandshakeMachine::start_read(stream),
-            role: ServerHandshake { callback, _marker: PhantomData },
+            role: ServerHandshake { callback: Some(callback), _marker: PhantomData },
         }
     }
 }
 
-impl<S: Read + Write> HandshakeRole for ServerHandshake<S> {
+impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
     type IncomingData = Request;
     type InternalStream = S;
     type FinalResult = WebSocket<S>;
@@ -121,8 +138,8 @@ impl<S: Read + Write> HandshakeRole for ServerHandshake<S> {
                     return Err(Error::Protocol("Junk after client request".into()))
                 }
                 let extra_headers = {
-                    if let Some(mut callback) = replace(&mut self.callback, None) {
-                        callback(&result)?
+                    if let Some(callback) = self.callback.take() {
+                        callback.on_request(&result)?
                     } else {
                         None
                     }

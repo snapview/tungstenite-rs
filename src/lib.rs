@@ -31,7 +31,7 @@ pub mod util;
 mod input_buffer;
 
 pub use client::{connect, client};
-pub use server::accept;
+pub use server::{accept, accept_hdr};
 pub use error::{Error, Result};
 pub use protocol::{WebSocket, Message};
 pub use handshake::HandshakeError;

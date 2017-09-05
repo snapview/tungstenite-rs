@@ -16,7 +16,7 @@ fn must_not_block<Role: HandshakeRole>(err: HandshakeError<Role>) -> Error {
 }
 
 fn handle_client(stream: TcpStream) -> Result<()> {
-    let mut socket = accept(stream, None).map_err(must_not_block)?;
+    let mut socket = accept(stream).map_err(must_not_block)?;
     loop {
         match socket.read_message()? {
             msg @ Message::Text(_) |

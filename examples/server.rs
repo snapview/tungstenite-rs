@@ -3,7 +3,7 @@ extern crate tungstenite;
 use std::thread::spawn;
 use std::net::TcpListener;
 
-use tungstenite::accept;
+use tungstenite::accept_hdr;
 use tungstenite::handshake::server::Request;
 
 fn main() {
@@ -25,7 +25,7 @@ fn main() {
                 ];
                 Ok(Some(extra_headers))
             };
-            let mut websocket = accept(stream.unwrap(), Some(Box::new(callback))).unwrap();
+            let mut websocket = accept_hdr(stream.unwrap(), callback).unwrap();
 
             loop {
                 let msg = websocket.read_message().unwrap();
