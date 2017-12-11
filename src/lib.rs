@@ -14,6 +14,7 @@ extern crate base64;
 extern crate byteorder;
 extern crate bytes;
 extern crate httparse;
+extern crate input_buffer;
 extern crate rand;
 extern crate sha1;
 extern crate url;
@@ -27,8 +28,6 @@ pub mod server;
 pub mod handshake;
 pub mod stream;
 pub mod util;
-
-mod input_buffer;
 
 pub use client::{connect, client};
 pub use server::{accept, accept_hdr};

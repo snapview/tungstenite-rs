@@ -42,9 +42,11 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
         trace!("Doing handshake round.");
         match self.state {
             HandshakeState::Reading(mut buf) => {
-                buf.reserve(MIN_READ, usize::max_value()) // TODO limit size
-                    .map_err(|_| Error::Capacity("Header too long".into()))?;
-                match buf.read_from(&mut self.stream).no_block()? {
+                let read = buf.prepare_reserve(MIN_READ)
+                    .with_limit(usize::max_value()) // TODO limit size
+                    .map_err(|_| Error::Capacity("Header too long".into()))?
+                    .read_from(&mut self.stream).no_block()?;
+                match read {
                     Some(0) => {
                         Err(Error::Protocol("Handshake not finished".into()))
                     }

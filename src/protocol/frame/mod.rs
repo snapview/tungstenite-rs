@@ -57,14 +57,15 @@ impl<Stream> FrameSocket<Stream>
     /// Read a frame from stream.
     pub fn read_frame(&mut self) -> Result<Option<Frame>> {
         loop {
-            if let Some(frame) = Frame::parse(&mut self.in_buffer.out_mut())? {
+            if let Some(frame) = Frame::parse(&mut self.in_buffer.as_cursor_mut())? {
                 trace!("received frame {}", frame);
                 return Ok(Some(frame));
             }
             // No full frames in buffer.
-            self.in_buffer.reserve(MIN_READ, usize::max_value())
-                .map_err(|_| Error::Capacity("Incoming TCP buffer is full".into()))?;
-            let size = self.in_buffer.read_from(&mut self.stream)?;
+            let size = self.in_buffer.prepare_reserve(MIN_READ)
+                .with_limit(usize::max_value())
+                .map_err(|_| Error::Capacity("Incoming TCP buffer is full".into()))?
+                .read_from(&mut self.stream)?;
             if size == 0 {
                 trace!("no frame received");
                 return Ok(None)
