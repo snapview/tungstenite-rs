@@ -1,6 +1,5 @@
 //! HTTP Request and response header handling.
 
-use std::ascii::AsciiExt;
 use std::str::from_utf8;
 use std::slice;
 
