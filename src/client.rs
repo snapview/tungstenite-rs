@@ -1,6 +1,6 @@
 //! Methods to connect to an WebSocket as a client.
 
-use std::net::{TcpStream, SocketAddr, ToSocketAddrs};
+use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::result::Result as StdResult;
 use std::io::{Read, Write};
 
@@ -8,10 +8,10 @@ use url::Url;
 
 use handshake::client::Response;
 
-#[cfg(feature="tls")]
+#[cfg(feature = "tls")]
 mod encryption {
     use std::net::TcpStream;
-    use native_tls::{TlsConnector, HandshakeError as TlsHandshakeError};
+    use native_tls::{HandshakeError as TlsHandshakeError, TlsConnector};
     pub use native_tls::TlsStream;
 
     pub use stream::Stream as StreamSwitcher;
@@ -26,10 +26,13 @@ mod encryption {
             Mode::Plain => Ok(StreamSwitcher::Plain(stream)),
             Mode::Tls => {
                 let connector = TlsConnector::builder()?.build()?;
-                connector.connect(domain, stream)
+                connector
+                    .connect(domain, stream)
                     .map_err(|e| match e {
                         TlsHandshakeError::Failure(f) => f.into(),
-                        TlsHandshakeError::Interrupted(_) => panic!("Bug: TLS handshake not blocked"),
+                        TlsHandshakeError::Interrupted(_) => {
+                            panic!("Bug: TLS handshake not blocked")
+                        }
                     })
                     .map(StreamSwitcher::Tls)
             }
@@ -37,7 +40,7 @@ mod encryption {
     }
 }
 
-#[cfg(not(feature="tls"))]
+#[cfg(not(feature = "tls"))]
 mod encryption {
     use std::net::TcpStream;
 
@@ -61,9 +64,8 @@ use self::encryption::wrap_stream;
 use protocol::WebSocket;
 use handshake::HandshakeError;
 use handshake::client::{ClientHandshake, Request};
-use stream::{NoDelay, Mode};
+use stream::{Mode, NoDelay};
 use error::{Error, Result};
-
 
 /// Connect to the given WebSocket in blocking mode.
 ///
@@ -77,30 +79,31 @@ use error::{Error, Result};
 /// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
 /// use `client` instead. There is no need to enable the "tls" feature if you don't call
 /// `connect` since it's the only function that uses native_tls.
-pub fn connect<'t, Req: Into<Request<'t>>>(request: Req)
-    -> Result<(WebSocket<AutoStream>, Response)>
-{
+pub fn connect<'t, Req: Into<Request<'t>>>(
+    request: Req,
+) -> Result<(WebSocket<AutoStream>, Response)> {
     let request: Request = request.into();
     let mode = url_mode(&request.url)?;
     let addrs = request.url.to_socket_addrs()?;
     let mut stream = connect_to_some(addrs, &request.url, mode)?;
     NoDelay::set_nodelay(&mut stream, true)?;
-    client(request, stream)
-        .map_err(|e| match e {
-            HandshakeError::Failure(f) => f,
-            HandshakeError::Interrupted(_) => panic!("Bug: blocking handshake not blocked"),
-        })
+    client(request, stream).map_err(|e| match e {
+        HandshakeError::Failure(f) => f,
+        HandshakeError::Interrupted(_) => panic!("Bug: blocking handshake not blocked"),
+    })
 }
 
 fn connect_to_some<A>(addrs: A, url: &Url, mode: Mode) -> Result<AutoStream>
-    where A: Iterator<Item=SocketAddr>
+where
+    A: Iterator<Item = SocketAddr>,
 {
-    let domain = url.host_str().ok_or_else(|| Error::Url("No host name in the URL".into()))?;
+    let domain = url.host_str()
+        .ok_or_else(|| Error::Url("No host name in the URL".into()))?;
     for addr in addrs {
         debug!("Trying to contact {} at {}...", url, addr);
         if let Ok(raw_stream) = TcpStream::connect(addr) {
             if let Ok(stream) = wrap_stream(raw_stream, domain, mode) {
-                return Ok(stream)
+                return Ok(stream);
             }
         }
     }
@@ -115,7 +118,7 @@ pub fn url_mode(url: &Url) -> Result<Mode> {
     match url.scheme() {
         "ws" => Ok(Mode::Plain),
         "wss" => Ok(Mode::Tls),
-        _ => Err(Error::Url("URL scheme not supported".into()))
+        _ => Err(Error::Url("URL scheme not supported".into())),
     }
 }
 
@@ -126,8 +129,8 @@ pub fn url_mode(url: &Url) -> Result<Mode> {
 /// Any stream supporting `Read + Write` will do.
 pub fn client<'t, Stream, Req>(
     request: Req,
-    stream: Stream
-    ) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
+    stream: Stream,
+) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
 where
     Stream: Read + Write,
     Req: Into<Request<'t>>,

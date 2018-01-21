@@ -4,15 +4,15 @@
 //! `native_tls` or `openssl` will work as long as there is a TLS stream supporting standard
 //! `Read + Write` traits.
 
-use std::io::{Read, Write, Result as IoResult};
+use std::io::{Read, Result as IoResult, Write};
 
 use std::net::TcpStream;
 
-#[cfg(feature="tls")]
+#[cfg(feature = "tls")]
 use native_tls::TlsStream;
 
 /// Stream mode, either plain TCP or TLS.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Mode {
     /// Plain mode (`ws://` URL).
     Plain,
@@ -32,7 +32,7 @@ impl NoDelay for TcpStream {
     }
 }
 
-#[cfg(feature="tls")]
+#[cfg(feature = "tls")]
 impl<S: Read + Write + NoDelay> NoDelay for TlsStream<S> {
     fn set_nodelay(&mut self, nodelay: bool) -> IoResult<()> {
         self.get_mut().set_nodelay(nodelay)
@@ -40,6 +40,7 @@ impl<S: Read + Write + NoDelay> NoDelay for TlsStream<S> {
 }
 
 /// Stream, either plain TCP or TLS.
+#[derive(Debug)]
 pub enum Stream<S, T> {
     /// Unencrypted socket stream.
     Plain(S),

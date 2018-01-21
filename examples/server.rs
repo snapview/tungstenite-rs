@@ -21,7 +21,10 @@ fn main() {
                 // Let's add an additional header to our response to the client.
                 let extra_headers = vec![
                     (String::from("MyCustomHeader"), String::from(":)")),
-                    (String::from("SOME_TUNGSTENITE_HEADER"), String::from("header_value")),
+                    (
+                        String::from("SOME_TUNGSTENITE_HEADER"),
+                        String::from("header_value"),
+                    ),
                 ];
                 Ok(Some(extra_headers))
             };
