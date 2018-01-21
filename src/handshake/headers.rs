@@ -19,7 +19,6 @@ pub struct Headers {
 }
 
 impl Headers {
-
     /// Get first header with the given name, if any.
     pub fn find_first(&self, name: &str) -> Option<&[u8]> {
         self.find(name).next()
@@ -29,7 +28,7 @@ impl Headers {
     pub fn find<'headers, 'name>(&'headers self, name: &'name str) -> HeadersIter<'name, 'headers> {
         HeadersIter {
             name: name,
-            iter: self.data.iter()
+            iter: self.data.iter(),
         }
     }
 
@@ -42,7 +41,8 @@ impl Headers {
 
     /// Check if the given header has the given value (case-insensitive).
     pub fn header_is_ignore_case(&self, name: &str, value: &str) -> bool {
-        self.find_first(name).ok_or(())
+        self.find_first(name)
+            .ok_or(())
             .and_then(|val_raw| from_utf8(val_raw).map_err(|_| ()))
             .map(|val| val.eq_ignore_ascii_case(value))
             .unwrap_or(false)
@@ -52,10 +52,10 @@ impl Headers {
     pub fn iter(&self) -> slice::Iter<(String, Box<[u8]>)> {
         self.data.iter()
     }
-
 }
 
 /// The iterator over headers.
+#[derive(Debug)]
 pub struct HeadersIter<'name, 'headers> {
     name: &'name str,
     iter: slice::Iter<'headers, (String, Box<[u8]>)>,
@@ -66,13 +66,12 @@ impl<'name, 'headers> Iterator for HeadersIter<'name, 'headers> {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(&(ref name, ref value)) = self.iter.next() {
             if name.eq_ignore_ascii_case(self.name) {
-                return Some(value)
+                return Some(value);
             }
         }
         None
     }
 }
-
 
 /// Trait to convert raw objects into HTTP parseables.
 pub trait FromHttparse<T>: Sized {
@@ -94,8 +93,8 @@ impl<'b: 'h, 'h> FromHttparse<&'b [httparse::Header<'h>]> for Headers {
     fn from_httparse(raw: &'b [httparse::Header<'h>]) -> Result<Self> {
         Ok(Headers {
             data: raw.iter()
-                     .map(|h| (h.name.into(), Vec::from(h.value).into_boxed_slice()))
-                     .collect(),
+                .map(|h| (h.name.into(), Vec::from(h.value).into_boxed_slice()))
+                .collect(),
         })
     }
 }
@@ -108,8 +107,7 @@ mod tests {
 
     #[test]
     fn headers() {
-        const DATA: &'static [u8] =
-            b"Host: foo.com\r\n\
+        const DATA: &'static [u8] = b"Host: foo.com\r\n\
              Connection: Upgrade\r\n\
              Upgrade: websocket\r\n\
              \r\n";
@@ -125,8 +123,7 @@ mod tests {
 
     #[test]
     fn headers_iter() {
-        const DATA: &'static [u8] =
-            b"Host: foo.com\r\n\
+        const DATA: &'static [u8] = b"Host: foo.com\r\n\
               Sec-WebSocket-Extensions: permessage-deflate\r\n\
               Connection: Upgrade\r\n\
               Sec-WebSocket-ExtenSIONS: permessage-unknown\r\n\
@@ -141,8 +138,7 @@ mod tests {
 
     #[test]
     fn headers_incomplete() {
-        const DATA: &'static [u8] =
-            b"Host: foo.com\r\n\
+        const DATA: &'static [u8] = b"Host: foo.com\r\n\
               Connection: Upgrade\r\n\
               Upgrade: websocket\r\n";
         let hdr = Headers::try_parse(DATA).unwrap();

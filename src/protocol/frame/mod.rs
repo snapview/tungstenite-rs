@@ -14,6 +14,7 @@ use input_buffer::{InputBuffer, MIN_READ};
 use error::{Error, Result};
 
 /// A reader and writer for WebSocket frames.
+#[derive(Debug)]
 pub struct FrameSocket<Stream> {
     stream: Stream,
     in_buffer: InputBuffer,
@@ -52,7 +53,8 @@ impl<Stream> FrameSocket<Stream> {
 }
 
 impl<Stream> FrameSocket<Stream>
-    where Stream: Read
+where
+    Stream: Read,
 {
     /// Read a frame from stream.
     pub fn read_frame(&mut self) -> Result<Option<Frame>> {
@@ -62,21 +64,22 @@ impl<Stream> FrameSocket<Stream>
                 return Ok(Some(frame));
             }
             // No full frames in buffer.
-            let size = self.in_buffer.prepare_reserve(MIN_READ)
+            let size = self.in_buffer
+                .prepare_reserve(MIN_READ)
                 .with_limit(usize::max_value())
                 .map_err(|_| Error::Capacity("Incoming TCP buffer is full".into()))?
                 .read_from(&mut self.stream)?;
             if size == 0 {
                 trace!("no frame received");
-                return Ok(None)
+                return Ok(None);
             }
         }
     }
-
 }
 
 impl<Stream> FrameSocket<Stream>
-    where Stream: Write
+where
+    Stream: Write,
 {
     /// Write a frame to stream.
     ///
@@ -86,7 +89,9 @@ impl<Stream> FrameSocket<Stream>
     pub fn write_frame(&mut self, frame: Frame) -> Result<()> {
         trace!("writing frame {}", frame);
         self.out_buffer.reserve(frame.len());
-        frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
+        frame
+            .format(&mut self.out_buffer)
+            .expect("Bug: can't write to vector");
         self.write_pending()
     }
     /// Complete pending write, if any.
@@ -100,7 +105,6 @@ impl<Stream> FrameSocket<Stream>
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
@@ -111,16 +115,19 @@ mod tests {
     #[test]
     fn read_frames() {
         let raw = Cursor::new(vec![
-            0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-            0x82, 0x03, 0x03, 0x02, 0x01,
+            0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x82, 0x03, 0x03, 0x02, 0x01,
             0x99,
         ]);
         let mut sock = FrameSocket::new(raw);
 
-        assert_eq!(sock.read_frame().unwrap().unwrap().into_data(),
-            vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
-        assert_eq!(sock.read_frame().unwrap().unwrap().into_data(),
-            vec![0x03, 0x02, 0x01]);
+        assert_eq!(
+            sock.read_frame().unwrap().unwrap().into_data(),
+            vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
+        );
+        assert_eq!(
+            sock.read_frame().unwrap().unwrap().into_data(),
+            vec![0x03, 0x02, 0x01]
+        );
         assert!(sock.read_frame().unwrap().is_none());
 
         let (_, rest) = sock.into_inner();
@@ -129,12 +136,12 @@ mod tests {
 
     #[test]
     fn from_partially_read() {
-        let raw = Cursor::new(vec![
-            0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-        ]);
+        let raw = Cursor::new(vec![0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let mut sock = FrameSocket::from_partially_read(raw, vec![0x82, 0x07, 0x01]);
-        assert_eq!(sock.read_frame().unwrap().unwrap().into_data(),
-            vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
+        assert_eq!(
+            sock.read_frame().unwrap().unwrap().into_data(),
+            vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
+        );
     }
 
     #[test]
@@ -148,10 +155,7 @@ mod tests {
         sock.write_frame(frame).unwrap();
 
         let (buf, _) = sock.into_inner();
-        assert_eq!(buf, vec![
-            0x89, 0x02, 0x04, 0x05,
-            0x8a, 0x01, 0x01
-        ]);
+        assert_eq!(buf, vec![0x89, 0x02, 0x04, 0x05, 0x8a, 0x01, 0x01]);
     }
 
 }

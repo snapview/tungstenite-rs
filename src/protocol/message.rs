@@ -1,4 +1,4 @@
-use std::convert::{From, Into, AsRef};
+use std::convert::{AsRef, From, Into};
 use std::fmt;
 use std::result::Result as StdResult;
 use std::str;
@@ -12,6 +12,7 @@ mod string_collect {
 
     use error::{Error, Result};
 
+    #[derive(Debug)]
     pub struct StringCollector {
         data: String,
         incomplete: Option<utf8::Incomplete>,
@@ -34,7 +35,7 @@ mod string_collect {
                     if let Ok(text) = result {
                         self.data.push_str(text);
                     } else {
-                        return Err(Error::Utf8)
+                        return Err(Error::Utf8);
                     }
                     true
                 } else {
@@ -52,7 +53,10 @@ mod string_collect {
                         self.data.push_str(text);
                         Ok(())
                     }
-                    Err(DecodeError::Incomplete { valid_prefix, incomplete_suffix }) => {
+                    Err(DecodeError::Incomplete {
+                        valid_prefix,
+                        incomplete_suffix,
+                    }) => {
                         self.data.push_str(valid_prefix);
                         self.incomplete = Some(incomplete_suffix);
                         Ok(())
@@ -81,10 +85,12 @@ mod string_collect {
 use self::string_collect::StringCollector;
 
 /// A struct representing the incomplete message.
+#[derive(Debug)]
 pub struct IncompleteMessage {
     collector: IncompleteMessageCollector,
 }
 
+#[derive(Debug)]
 enum IncompleteMessageCollector {
     Text(StringCollector),
     Binary(Vec<u8>),
@@ -95,11 +101,11 @@ impl IncompleteMessage {
     pub fn new(message_type: IncompleteMessageType) -> Self {
         IncompleteMessage {
             collector: match message_type {
-                IncompleteMessageType::Binary =>
-                    IncompleteMessageCollector::Binary(Vec::new()),
-                IncompleteMessageType::Text =>
-                    IncompleteMessageCollector::Text(StringCollector::new()),
-            }
+                IncompleteMessageType::Binary => IncompleteMessageCollector::Binary(Vec::new()),
+                IncompleteMessageType::Text => {
+                    IncompleteMessageCollector::Text(StringCollector::new())
+                }
+            },
         }
     }
     /// Add more data to an existing message.
@@ -109,17 +115,13 @@ impl IncompleteMessage {
                 v.extend(tail.as_ref());
                 Ok(())
             }
-            IncompleteMessageCollector::Text(ref mut t) => {
-                t.extend(tail)
-            }
+            IncompleteMessageCollector::Text(ref mut t) => t.extend(tail),
         }
     }
     /// Convert an incomplete message into a complete one.
     pub fn complete(self) -> Result<Message> {
         match self.collector {
-            IncompleteMessageCollector::Binary(v) => {
-                Ok(Message::Binary(v))
-            }
+            IncompleteMessageCollector::Binary(v) => Ok(Message::Binary(v)),
             IncompleteMessageCollector::Text(t) => {
                 let text = t.into_string()?;
                 Ok(Message::Text(text))
@@ -152,17 +154,18 @@ pub enum Message {
 }
 
 impl Message {
-
     /// Create a new text WebSocket message from a stringable.
     pub fn text<S>(string: S) -> Message
-        where S: Into<String>
+    where
+        S: Into<String>,
     {
         Message::Text(string.into())
     }
 
     /// Create a new binary WebSocket message by converting to Vec<u8>.
     pub fn binary<B>(bin: B) -> Message
-        where B: Into<Vec<u8>>
+    where
+        B: Into<Vec<u8>>,
     {
         Message::Binary(bin.into())
     }
@@ -203,9 +206,9 @@ impl Message {
     pub fn len(&self) -> usize {
         match *self {
             Message::Text(ref string) => string.len(),
-            Message::Binary(ref data) |
-            Message::Ping(ref data) |
-            Message::Pong(ref data) => data.len(),
+            Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
+                data.len()
+            }
         }
     }
 
@@ -219,9 +222,7 @@ impl Message {
     pub fn into_data(self) -> Vec<u8> {
         match self {
             Message::Text(string) => string.into_bytes(),
-            Message::Binary(data) |
-            Message::Ping(data) |
-            Message::Pong(data) => data,
+            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data,
         }
     }
 
@@ -229,10 +230,9 @@ impl Message {
     pub fn into_text(self) -> Result<String> {
         match self {
             Message::Text(string) => Ok(string),
-            Message::Binary(data) |
-            Message::Ping(data) |
-            Message::Pong(data) => Ok(try!(
-                String::from_utf8(data).map_err(|err| err.utf8_error()))),
+            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => Ok(try!(
+                String::from_utf8(data).map_err(|err| err.utf8_error())
+            )),
         }
     }
 
@@ -241,12 +241,11 @@ impl Message {
     pub fn to_text(&self) -> Result<&str> {
         match *self {
             Message::Text(ref string) => Ok(string),
-            Message::Binary(ref data) |
-            Message::Ping(ref data) |
-            Message::Pong(ref data) => Ok(try!(str::from_utf8(data))),
+            Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
+                Ok(try!(str::from_utf8(data)))
+            }
         }
     }
-
 }
 
 impl From<String> for Message {
@@ -303,7 +302,6 @@ mod tests {
         assert!(msg.is_binary());
         assert!(msg.into_text().is_err());
     }
-
 
     #[test]
     fn binary_convert_vec() {

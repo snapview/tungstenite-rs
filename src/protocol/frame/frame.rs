@@ -1,16 +1,16 @@
 use std::fmt;
 use std::borrow::Cow;
 use std::mem::transmute;
-use std::io::{Cursor, Read, Write, ErrorKind};
+use std::io::{Cursor, ErrorKind, Read, Write};
 use std::default::Default;
-use std::string::{String, FromUtf8Error};
+use std::string::{FromUtf8Error, String};
 use std::result::Result as StdResult;
-use byteorder::{ByteOrder, ReadBytesExt, NetworkEndian};
+use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt};
 use bytes::BufMut;
 
 use error::{Error, Result};
-use super::coding::{OpCode, Control, Data, CloseCode};
-use super::mask::{generate_mask, apply_mask};
+use super::coding::{CloseCode, Control, Data, OpCode};
+use super::mask::{apply_mask, generate_mask};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone)]
@@ -52,7 +52,6 @@ pub struct Frame {
 }
 
 impl Frame {
-
     /// Get the length of the frame.
     /// This is the length of the header + the length of the payload.
     #[inline]
@@ -186,9 +185,8 @@ impl Frame {
     #[doc(hidden)]
     #[inline]
     pub fn remove_mask(&mut self) {
-        self.mask.and_then(|mask| {
-            Some(apply_mask(&mut self.payload, &mask))
-        });
+        self.mask
+            .and_then(|mask| Some(apply_mask(&mut self.payload, &mask)));
         self.mask = None;
     }
 
@@ -204,7 +202,7 @@ impl Frame {
         String::from_utf8(self.payload)
     }
 
-     /// Consume the frame into a closing frame.
+    /// Consume the frame into a closing frame.
     #[inline]
     pub fn into_close(self) -> Result<Option<CloseFrame<'static>>> {
         match self.payload.len() {
@@ -215,7 +213,10 @@ impl Frame {
                 let code = NetworkEndian::read_u16(&data[0..2]).into();
                 data.drain(0..2);
                 let text = String::from_utf8(data)?;
-                Ok(Some(CloseFrame { code: code, reason: text.into() }))
+                Ok(Some(CloseFrame {
+                    code: code,
+                    reason: text.into(),
+                }))
             }
         }
     }
@@ -223,16 +224,19 @@ impl Frame {
     /// Create a new data frame.
     #[inline]
     pub fn message(data: Vec<u8>, code: OpCode, finished: bool) -> Frame {
-        debug_assert!(match code {
-            OpCode::Data(_) => true,
-            _ => false,
-        }, "Invalid opcode for data frame.");
+        debug_assert!(
+            match code {
+                OpCode::Data(_) => true,
+                _ => false,
+            },
+            "Invalid opcode for data frame."
+        );
 
         Frame {
             finished: finished,
             opcode: code,
             payload: data,
-            .. Frame::default()
+            ..Frame::default()
         }
     }
 
@@ -242,7 +246,7 @@ impl Frame {
         Frame {
             opcode: OpCode::Control(Control::Pong),
             payload: data,
-            .. Frame::default()
+            ..Frame::default()
         }
     }
 
@@ -252,7 +256,7 @@ impl Frame {
         Frame {
             opcode: OpCode::Control(Control::Ping),
             payload: data,
-            .. Frame::default()
+            ..Frame::default()
         }
     }
 
@@ -271,7 +275,7 @@ impl Frame {
 
         Frame {
             payload: payload,
-            .. Frame::default()
+            ..Frame::default()
         }
     }
 
@@ -284,7 +288,7 @@ impl Frame {
         let mut head = [0u8; 2];
         if try!(cursor.read(&mut head)) != 2 {
             cursor.set_position(initial);
-            return Ok(None)
+            return Ok(None);
         }
 
         trace!("Parsed headers {:?}", head);
@@ -335,7 +339,7 @@ impl Frame {
             let mut mask_bytes = [0u8; 4];
             if try!(cursor.read(&mut mask_bytes)) != 4 {
                 cursor.set_position(initial);
-                return Ok(None)
+                return Ok(None);
             } else {
                 header_length += 4;
                 Some(mask_bytes)
@@ -346,7 +350,7 @@ impl Frame {
 
         if size < length + header_length {
             cursor.set_position(initial);
-            return Ok(None)
+            return Ok(None);
         }
 
         let mut data = Vec::with_capacity(length as usize);
@@ -360,9 +364,11 @@ impl Frame {
         // Disallow bad opcode
         match opcode {
             OpCode::Control(Control::Reserved(_)) | OpCode::Data(Data::Reserved(_)) => {
-                return Err(Error::Protocol(format!("Encountered invalid opcode: {}", first & 0x0F).into()))
+                return Err(Error::Protocol(
+                    format!("Encountered invalid opcode: {}", first & 0x0F).into(),
+                ))
             }
-            _ => ()
+            _ => (),
         }
 
         let frame = Frame {
@@ -375,13 +381,13 @@ impl Frame {
             payload: data,
         };
 
-
         Ok(Some(frame))
     }
 
     /// Write a frame out to a buffer
     pub fn format<W>(mut self, w: &mut W) -> Result<()>
-        where W: Write
+    where
+        W: Write,
     {
         let mut one = 0u8;
         let code: u8 = self.opcode.into();
@@ -461,7 +467,8 @@ impl Default for Frame {
 
 impl fmt::Display for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
+        write!(
+            f,
             "
 <FRAME>
 final: {}
@@ -479,7 +486,11 @@ payload: 0x{}
             // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
             self.len(),
             self.payload.len(),
-            self.payload.iter().map(|byte| format!("{:x}", byte)).collect::<String>())
+            self.payload
+                .iter()
+                .map(|byte| format!("{:x}", byte))
+                .collect::<String>()
+        )
     }
 }
 
@@ -487,16 +498,18 @@ payload: 0x{}
 mod tests {
     use super::*;
 
-    use super::super::coding::{OpCode, Data};
+    use super::super::coding::{Data, OpCode};
     use std::io::Cursor;
 
     #[test]
     fn parse() {
-        let mut raw: Cursor<Vec<u8>> = Cursor::new(vec![
-            0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07
-        ]);
+        let mut raw: Cursor<Vec<u8>> =
+            Cursor::new(vec![0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let frame = Frame::parse(&mut raw).unwrap().unwrap();
-        assert_eq!(frame.into_data(), vec![ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 ]);
+        assert_eq!(
+            frame.into_data(),
+            vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
+        );
     }
 
     #[test]

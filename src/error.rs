@@ -13,7 +13,7 @@ use httparse;
 
 use protocol::frame::CloseFrame;
 
-#[cfg(feature="tls")]
+#[cfg(feature = "tls")]
 pub mod tls {
     //! TLS error wrapper module, feature-gated.
     pub use native_tls::Error;
@@ -29,7 +29,7 @@ pub enum Error {
     ConnectionClosed(Option<CloseFrame<'static>>),
     /// Input-output error
     Io(io::Error),
-    #[cfg(feature="tls")]
+    #[cfg(feature = "tls")]
     /// TLS error
     Tls(tls::Error),
     /// Buffer capacity exhausted
@@ -55,7 +55,7 @@ impl fmt::Display for Error {
                 }
             }
             Error::Io(ref err) => write!(f, "IO error: {}", err),
-            #[cfg(feature="tls")]
+            #[cfg(feature = "tls")]
             Error::Tls(ref err) => write!(f, "TLS error: {}", err),
             Error::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
             Error::Protocol(ref msg) => write!(f, "WebSocket protocol error: {}", msg),
@@ -71,7 +71,7 @@ impl ErrorTrait for Error {
         match *self {
             Error::ConnectionClosed(_) => "A close handshake is performed",
             Error::Io(ref err) => err.description(),
-            #[cfg(feature="tls")]
+            #[cfg(feature = "tls")]
             Error::Tls(ref err) => err.description(),
             Error::Capacity(ref msg) => msg.borrow(),
             Error::Protocol(ref msg) => msg.borrow(),
@@ -100,7 +100,7 @@ impl From<string::FromUtf8Error> for Error {
     }
 }
 
-#[cfg(feature="tls")]
+#[cfg(feature = "tls")]
 impl From<tls::Error> for Error {
     fn from(err: tls::Error) -> Self {
         Error::Tls(err)

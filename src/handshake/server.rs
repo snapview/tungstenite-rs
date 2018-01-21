@@ -8,12 +8,13 @@ use httparse;
 use httparse::Status;
 
 use error::{Error, Result};
-use protocol::{WebSocket, Role};
-use super::headers::{Headers, FromHttparse, MAX_HEADERS};
+use protocol::{Role, WebSocket};
+use super::headers::{FromHttparse, Headers, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
-use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
+use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
 
 /// Request from the client.
+#[derive(Debug)]
 pub struct Request {
     /// Path part of the URL.
     pub path: String,
@@ -24,14 +25,15 @@ pub struct Request {
 impl Request {
     /// Reply to the response.
     pub fn reply(&self, extra_headers: Option<Vec<(String, String)>>) -> Result<Vec<u8>> {
-        let key = self.headers.find_first("Sec-WebSocket-Key")
+        let key = self.headers
+            .find_first("Sec-WebSocket-Key")
             .ok_or_else(|| Error::Protocol("Missing Sec-WebSocket-Key".into()))?;
         let mut reply = format!(
             "\
-            HTTP/1.1 101 Switching Protocols\r\n\
-            Connection: Upgrade\r\n\
-            Upgrade: websocket\r\n\
-            Sec-WebSocket-Accept: {}\r\n",
+             HTTP/1.1 101 Switching Protocols\r\n\
+             Connection: Upgrade\r\n\
+             Upgrade: websocket\r\n\
+             Sec-WebSocket-Accept: {}\r\n",
             convert_key(key)?
         );
         if let Some(eh) = extra_headers {
@@ -61,11 +63,13 @@ impl<'h, 'b: 'h> FromHttparse<httparse::Request<'h, 'b>> for Request {
             return Err(Error::Protocol("Method is not GET".into()));
         }
         if raw.version.expect("Bug: no HTTP version") < /*1.*/1 {
-            return Err(Error::Protocol("HTTP version should be 1.1 or higher".into()));
+            return Err(Error::Protocol(
+                "HTTP version should be 1.1 or higher".into(),
+            ));
         }
         Ok(Request {
             path: raw.path.expect("Bug: no path in header").into(),
-            headers: Headers::from_httparse(raw.headers)?
+            headers: Headers::from_httparse(raw.headers)?,
         })
     }
 }
@@ -83,14 +87,17 @@ pub trait Callback: Sized {
     fn on_request(self, request: &Request) -> Result<Option<Vec<(String, String)>>>;
 }
 
-impl<F> Callback for F where F: FnOnce(&Request) -> Result<Option<Vec<(String, String)>>> {
+impl<F> Callback for F
+where
+    F: FnOnce(&Request) -> Result<Option<Vec<(String, String)>>>,
+{
     fn on_request(self, request: &Request) -> Result<Option<Vec<(String, String)>>> {
         self(request)
     }
 }
 
 /// Stub for callback that does nothing.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct NoCallback;
 
 impl Callback for NoCallback {
@@ -101,6 +108,7 @@ impl Callback for NoCallback {
 
 /// Server handshake role.
 #[allow(missing_copy_implementations)]
+#[derive(Debug)]
 pub struct ServerHandshake<S, C> {
     /// Callback which is called whenever the server read the request from the client and is ready
     /// to reply to it. The callback returns an optional headers which will be added to the reply
@@ -119,7 +127,10 @@ impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
         trace!("Server handshake initiated.");
         MidHandshake {
             machine: HandshakeMachine::start_read(stream),
-            role: ServerHandshake { callback: Some(callback), _marker: PhantomData },
+            role: ServerHandshake {
+                callback: Some(callback),
+                _marker: PhantomData,
+            },
         }
     }
 }
@@ -129,13 +140,18 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
     type InternalStream = S;
     type FinalResult = WebSocket<S>;
 
-    fn stage_finished(&mut self, finish: StageResult<Self::IncomingData, Self::InternalStream>)
-        -> Result<ProcessingResult<Self::InternalStream, Self::FinalResult>>
-    {
+    fn stage_finished(
+        &mut self,
+        finish: StageResult<Self::IncomingData, Self::InternalStream>,
+    ) -> Result<ProcessingResult<Self::InternalStream, Self::FinalResult>> {
         Ok(match finish {
-            StageResult::DoneReading { stream, result, tail } => {
+            StageResult::DoneReading {
+                stream,
+                result,
+                tail,
+            } => {
                 if !tail.is_empty() {
-                    return Err(Error::Protocol("Junk after client request".into()))
+                    return Err(Error::Protocol("Junk after client request".into()));
                 }
                 let extra_headers = {
                     if let Some(callback) = self.callback.take() {
@@ -182,13 +198,19 @@ mod tests {
         let (_, req) = Request::try_parse(DATA).unwrap().unwrap();
         let _ = req.reply(None).unwrap();
 
-        let extra_headers = Some(vec![(String::from("MyCustomHeader"),
-                                       String::from("MyCustomValue")),
-                                       (String::from("MyVersion"),
-                                        String::from("LOL"))]);
+        let extra_headers = Some(vec![
+            (
+                String::from("MyCustomHeader"),
+                String::from("MyCustomValue"),
+            ),
+            (String::from("MyVersion"), String::from("LOL")),
+        ]);
         let reply = req.reply(extra_headers).unwrap();
         let (_, req) = Response::try_parse(&reply).unwrap().unwrap();
-        assert_eq!(req.headers.find_first("MyCustomHeader"), Some(b"MyCustomValue".as_ref()));
+        assert_eq!(
+            req.headers.find_first("MyCustomHeader"),
+            Some(b"MyCustomValue".as_ref())
+        );
         assert_eq!(req.headers.find_first("MyVersion"), Some(b"LOL".as_ref()));
     }
 }

@@ -6,6 +6,7 @@ use error::{Error, Result};
 use util::NonBlockingResult;
 
 /// A generic handshake state machine.
+#[derive(Debug)]
 pub struct HandshakeMachine<Stream> {
     stream: Stream,
     state: HandshakeState,
@@ -47,11 +48,9 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
                     .map_err(|_| Error::Capacity("Header too long".into()))?
                     .read_from(&mut self.stream).no_block()?;
                 match read {
-                    Some(0) => {
-                        Err(Error::Protocol("Handshake not finished".into()))
-                    }
-                    Some(_) => {
-                        Ok(if let Some((size, obj)) = Obj::try_parse(Buf::bytes(&buf))? {
+                    Some(0) => Err(Error::Protocol("Handshake not finished".into())),
+                    Some(_) => Ok(
+                        if let Some((size, obj)) = Obj::try_parse(Buf::bytes(&buf))? {
                             buf.advance(size);
                             RoundResult::StageFinished(StageResult::DoneReading {
                                 result: obj,
@@ -63,14 +62,12 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
                                 state: HandshakeState::Reading(buf),
                                 ..self
                             })
-                        })
-                    }
-                    None => {
-                        Ok(RoundResult::WouldBlock(HandshakeMachine {
-                            state: HandshakeState::Reading(buf),
-                            ..self
-                        }))
-                    }
+                        },
+                    ),
+                    None => Ok(RoundResult::WouldBlock(HandshakeMachine {
+                        state: HandshakeState::Reading(buf),
+                        ..self
+                    })),
                 }
             }
             HandshakeState::Writing(mut buf) => {
@@ -98,6 +95,7 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
 }
 
 /// The result of the round.
+#[derive(Debug)]
 pub enum RoundResult<Obj, Stream> {
     /// Round not done, I/O would block.
     WouldBlock(HandshakeMachine<Stream>),
@@ -108,9 +106,14 @@ pub enum RoundResult<Obj, Stream> {
 }
 
 /// The result of the stage.
+#[derive(Debug)]
 pub enum StageResult<Obj, Stream> {
     /// Reading round finished.
-    DoneReading { result: Obj, stream: Stream, tail: Vec<u8> },
+    DoneReading {
+        result: Obj,
+        stream: Stream,
+        tail: Vec<u8>,
+    },
     /// Writing round finished.
     DoneWriting(Stream),
 }
@@ -122,6 +125,7 @@ pub trait TryParse: Sized {
 }
 
 /// The handshake state.
+#[derive(Debug)]
 enum HandshakeState {
     /// Reading data from the peer.
     Reading(InputBuffer),

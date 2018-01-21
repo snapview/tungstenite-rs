@@ -27,6 +27,9 @@ sha1 = "0.4.0"
 url = "1.5.1"
 utf-8 = "0.7.1"
 
+[patch.crates-io]
+input_buffer = { git = "https://github.com/unv-annihilator/input_buffer", rev = "f940362f34afd61a34d126d211a9ad2bf2ec903a" }
+
 [dependencies.native-tls]
 optional = true
 version = "0.1.5"
