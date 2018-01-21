@@ -30,6 +30,7 @@ pub enum Role {
 ///
 /// This is THE structure you want to create to be able to speak the WebSocket protocol.
 /// It may be created by calling `connect`, `accept` or `client` functions.
+#[derive(Debug)]
 pub struct WebSocket<Stream> {
     /// Server or client?
     role: Role,
@@ -396,6 +397,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
 }
 
 /// The current connection state.
+#[derive(Debug)]
 enum WebSocketState {
     /// The connection is active.
     Active,

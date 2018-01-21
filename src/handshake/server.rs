@@ -14,6 +14,7 @@ use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
 
 /// Request from the client.
+#[derive(Debug)]
 pub struct Request {
     /// Path part of the URL.
     pub path: String,
@@ -90,7 +91,7 @@ impl<F> Callback for F where F: FnOnce(&Request) -> Result<Option<Vec<(String, S
 }
 
 /// Stub for callback that does nothing.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct NoCallback;
 
 impl Callback for NoCallback {
@@ -101,6 +102,7 @@ impl Callback for NoCallback {
 
 /// Server handshake role.
 #[allow(missing_copy_implementations)]
+#[derive(Debug)]
 pub struct ServerHandshake<S, C> {
     /// Callback which is called whenever the server read the request from the client and is ready
     /// to reply to it. The callback returns an optional headers which will be added to the reply

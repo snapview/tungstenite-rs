@@ -6,7 +6,7 @@ use url::Url;
 use tungstenite::{Message, connect};
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let (mut socket, response) = connect(Url::parse("ws://localhost:3012/socket").unwrap())
         .expect("Can't connect");

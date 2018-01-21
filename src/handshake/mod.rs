@@ -17,6 +17,7 @@ use error::Error;
 use self::machine::{HandshakeMachine, RoundResult, StageResult, TryParse};
 
 /// A WebSocket handshake.
+#[derive(Debug)]
 pub struct MidHandshake<Role: HandshakeRole> {
     role: Role,
     machine: HandshakeMachine<Role::InternalStream>,
@@ -99,6 +100,7 @@ pub trait HandshakeRole {
 
 /// Stage processing result.
 #[doc(hidden)]
+#[derive(Debug)]
 pub enum ProcessingResult<Stream, FinalResult> {
     Continue(HandshakeMachine<Stream>),
     Done(FinalResult),

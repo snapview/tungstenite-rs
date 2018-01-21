@@ -45,7 +45,7 @@ fn run_test(case: u32) -> Result<()> {
 }
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let total = get_case_count().unwrap();
 
