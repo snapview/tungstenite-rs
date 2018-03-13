@@ -14,6 +14,7 @@ use input_buffer::{InputBuffer, MIN_READ};
 use error::{Error, Result};
 
 /// A reader and writer for WebSocket frames.
+#[derive(Debug)]
 pub struct FrameSocket<Stream> {
     stream: Stream,
     in_buffer: InputBuffer,

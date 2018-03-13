@@ -12,7 +12,7 @@ use std::net::TcpStream;
 use native_tls::TlsStream;
 
 /// Stream mode, either plain TCP or TLS.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Mode {
     /// Plain mode (`ws://` URL).
     Plain,
@@ -40,6 +40,7 @@ impl<S: Read + Write + NoDelay> NoDelay for TlsStream<S> {
 }
 
 /// Stream, either plain TCP or TLS.
+#[derive(Debug)]
 pub enum Stream<S, T> {
     /// Unencrypted socket stream.
     Plain(S),

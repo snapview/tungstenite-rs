@@ -17,6 +17,7 @@ use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
 
 /// Client request.
+#[derive(Debug)]
 pub struct Request<'t> {
     /// `ws://` or `wss://` URL to connect to.
     pub url: Url,
@@ -67,6 +68,7 @@ impl From<Url> for Request<'static> {
 }
 
 /// Client handshake role.
+#[derive(Debug)]
 pub struct ClientHandshake<S> {
     verify_data: VerifyData,
     _marker: PhantomData<S>,
@@ -131,6 +133,7 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
 }
 
 /// Information for handshake verification.
+#[derive(Debug)]
 struct VerifyData {
     /// Accepted server key.
     accept_key: String,
@@ -183,6 +186,7 @@ impl VerifyData {
 }
 
 /// Server response.
+#[derive(Debug)]
 pub struct Response {
     /// HTTP response code of the response.
     pub code: u16,

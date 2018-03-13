@@ -30,7 +30,7 @@ fn handle_client(stream: TcpStream) -> Result<()> {
 }
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let server = TcpListener::bind("127.0.0.1:9001").unwrap();
 

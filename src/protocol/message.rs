@@ -12,6 +12,7 @@ mod string_collect {
 
     use error::{Error, Result};
 
+    #[derive(Debug)]
     pub struct StringCollector {
         data: String,
         incomplete: Option<utf8::Incomplete>,
@@ -81,10 +82,12 @@ mod string_collect {
 use self::string_collect::StringCollector;
 
 /// A struct representing the incomplete message.
+#[derive(Debug)]
 pub struct IncompleteMessage {
     collector: IncompleteMessageCollector,
 }
 
+#[derive(Debug)]
 enum IncompleteMessageCollector {
     Text(StringCollector),
     Binary(Vec<u8>),

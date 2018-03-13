@@ -56,6 +56,7 @@ impl Headers {
 }
 
 /// The iterator over headers.
+#[derive(Debug)]
 pub struct HeadersIter<'name, 'headers> {
     name: &'name str,
     iter: slice::Iter<'headers, (String, Box<[u8]>)>,
