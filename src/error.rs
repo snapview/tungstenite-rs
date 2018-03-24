@@ -12,6 +12,7 @@ use std::string;
 use httparse;
 
 use protocol::frame::CloseFrame;
+use protocol::Message;
 
 #[cfg(feature="tls")]
 pub mod tls {
@@ -36,6 +37,8 @@ pub enum Error {
     Capacity(Cow<'static, str>),
     /// Protocol violation
     Protocol(Cow<'static, str>),
+    /// Message send queue full
+    SendQueueFull(Message),
     /// UTF coding error
     Utf8,
     /// Invlid URL.
@@ -59,6 +62,7 @@ impl fmt::Display for Error {
             Error::Tls(ref err) => write!(f, "TLS error: {}", err),
             Error::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
             Error::Protocol(ref msg) => write!(f, "WebSocket protocol error: {}", msg),
+            Error::SendQueueFull(_) => write!(f, "Send queue is full"),
             Error::Utf8 => write!(f, "UTF-8 encoding error"),
             Error::Url(ref msg) => write!(f, "URL error: {}", msg),
             Error::Http(code) => write!(f, "HTTP code: {}", code),
@@ -75,6 +79,7 @@ impl ErrorTrait for Error {
             Error::Tls(ref err) => err.description(),
             Error::Capacity(ref msg) => msg.borrow(),
             Error::Protocol(ref msg) => msg.borrow(),
+            Error::SendQueueFull(_) => "Send queue is full",
             Error::Utf8 => "",
             Error::Url(ref msg) => msg.borrow(),
             Error::Http(_) => "",
