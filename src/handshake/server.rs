@@ -8,7 +8,7 @@ use httparse;
 use httparse::Status;
 
 use error::{Error, Result};
-use protocol::{WebSocket, Role};
+use protocol::{WebSocket, WebSocketConfig, Role};
 use super::headers::{Headers, FromHttparse, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
@@ -108,6 +108,8 @@ pub struct ServerHandshake<S, C> {
     /// to reply to it. The callback returns an optional headers which will be added to the reply
     /// which the server sends to the user.
     callback: Option<C>,
+    /// WebSocket configuration.
+    config: Option<WebSocketConfig>,
     /// Internal stream type.
     _marker: PhantomData<S>,
 }
@@ -117,11 +119,11 @@ impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
     /// the handshake, this callback will be called when the a websocket client connnects to the
     /// server, you can specify the callback if you want to add additional header to the client
     /// upon join based on the incoming headers.
-    pub fn start(stream: S, callback: C) -> MidHandshake<Self> {
+    pub fn start(stream: S, callback: C, config: Option<WebSocketConfig>) -> MidHandshake<Self> {
         trace!("Server handshake initiated.");
         MidHandshake {
             machine: HandshakeMachine::start_read(stream),
-            role: ServerHandshake { callback: Some(callback), _marker: PhantomData },
+            role: ServerHandshake { callback: Some(callback), config, _marker: PhantomData },
         }
     }
 }
@@ -151,7 +153,12 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
             }
             StageResult::DoneWriting(stream) => {
                 debug!("Server handshake done.");
-                ProcessingResult::Done(WebSocket::from_raw_socket(stream, Role::Server))
+                let websocket = WebSocket::from_raw_socket(
+                    stream,
+                    Role::Server,
+                    self.config.clone(),
+                );
+                ProcessingResult::Done(websocket)
             }
         })
     }

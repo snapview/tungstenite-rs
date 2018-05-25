@@ -11,7 +11,8 @@ const AGENT: &'static str = "Tungstenite";
 
 fn get_case_count() -> Result<u32> {
     let (mut socket, _) = connect(
-        Url::parse("ws://localhost:9001/getCaseCount").unwrap()
+        Url::parse("ws://localhost:9001/getCaseCount").unwrap(),
+        None,
     )?;
     let msg = socket.read_message()?;
     socket.close(None)?;
@@ -20,7 +21,8 @@ fn get_case_count() -> Result<u32> {
 
 fn update_reports() -> Result<()> {
     let (mut socket, _) = connect(
-        Url::parse(&format!("ws://localhost:9001/updateReports?agent={}", AGENT)).unwrap()
+        Url::parse(&format!("ws://localhost:9001/updateReports?agent={}", AGENT)).unwrap(),
+        None,
     )?;
     socket.close(None)?;
     Ok(())
@@ -31,7 +33,7 @@ fn run_test(case: u32) -> Result<()> {
     let case_url = Url::parse(
         &format!("ws://localhost:9001/runCase?case={}&agent={}", case, AGENT)
     ).unwrap();
-    let (mut socket, _) = connect(case_url)?;
+    let (mut socket, _) = connect(case_url, None)?;
     loop {
         match socket.read_message()? {
             msg @ Message::Text(_) |

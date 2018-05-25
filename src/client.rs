@@ -7,6 +7,7 @@ use std::io::{Read, Write};
 use url::Url;
 
 use handshake::client::Response;
+use protocol::WebSocketConfig;
 
 #[cfg(feature="tls")]
 mod encryption {
@@ -77,7 +78,7 @@ use error::{Error, Result};
 /// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
 /// use `client` instead. There is no need to enable the "tls" feature if you don't call
 /// `connect` since it's the only function that uses native_tls.
-pub fn connect<'t, Req: Into<Request<'t>>>(request: Req)
+pub fn connect<'t, Req: Into<Request<'t>>>(request: Req, config: Option<WebSocketConfig>)
     -> Result<(WebSocket<AutoStream>, Response)>
 {
     let request: Request = request.into();
@@ -85,7 +86,7 @@ pub fn connect<'t, Req: Into<Request<'t>>>(request: Req)
     let addrs = request.url.to_socket_addrs()?;
     let mut stream = connect_to_some(addrs, &request.url, mode)?;
     NoDelay::set_nodelay(&mut stream, true)?;
-    client(request, stream)
+    client(request, stream, config)
         .map_err(|e| match e {
             HandshakeError::Failure(f) => f,
             HandshakeError::Interrupted(_) => panic!("Bug: blocking handshake not blocked"),
@@ -126,11 +127,12 @@ pub fn url_mode(url: &Url) -> Result<Mode> {
 /// Any stream supporting `Read + Write` will do.
 pub fn client<'t, Stream, Req>(
     request: Req,
-    stream: Stream
-    ) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
+    stream: Stream,
+    config: Option<WebSocketConfig>,
+) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
 where
     Stream: Read + Write,
     Req: Into<Request<'t>>,
 {
-    ClientHandshake::start(stream, request.into()).handshake()
+    ClientHandshake::start(stream, request.into(), config).handshake()
 }
