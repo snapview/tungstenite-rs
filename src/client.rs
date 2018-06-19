@@ -25,11 +25,11 @@ mod encryption {
         match mode {
             Mode::Plain => Ok(StreamSwitcher::Plain(stream)),
             Mode::Tls => {
-                let connector = TlsConnector::builder()?.build()?;
+                let connector = TlsConnector::builder().build()?;
                 connector.connect(domain, stream)
                     .map_err(|e| match e {
                         TlsHandshakeError::Failure(f) => f.into(),
-                        TlsHandshakeError::Interrupted(_) => panic!("Bug: TLS handshake not blocked"),
+                        TlsHandshakeError::WouldBlock(_) => panic!("Bug: TLS handshake not blocked"),
                     })
                     .map(StreamSwitcher::Tls)
             }
