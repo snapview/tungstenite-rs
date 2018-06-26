@@ -11,7 +11,7 @@ use std::fmt;
 use std::io::{Read, Write};
 
 use base64;
-use sha1::Sha1;
+use sha1::{Sha1, Digest};
 
 use error::Error;
 use self::machine::{HandshakeMachine, RoundResult, StageResult, TryParse};
@@ -111,10 +111,10 @@ fn convert_key(input: &[u8]) -> Result<String, Error> {
     // ... field is constructed by concatenating /key/ ...
     // ... with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" (RFC 6455)
     const WS_GUID: &'static [u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-    let mut sha1 = Sha1::new();
-    sha1.update(input);
-    sha1.update(WS_GUID);
-    Ok(base64::encode(&sha1.digest().bytes()))
+    let mut sha1 = Sha1::default();
+    sha1.input(input);
+    sha1.input(WS_GUID);
+    Ok(base64::encode(&sha1.result()))
 }
 
 #[cfg(test)]
