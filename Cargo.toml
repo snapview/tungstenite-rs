@@ -30,10 +30,7 @@ utf-8 = "0.7.1"
 
 [dependencies.native-tls]
 optional = true
-version = "0.1.5"
+version = "0.2"
 
 [dev-dependencies]
 env_logger = "0.5.3"
-
-[patch.crates-io]
-native-tls = { git = "https://github.com/sfackler/rust-native-tls.git" }
