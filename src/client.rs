@@ -68,6 +68,9 @@ use error::{Error, Result};
 
 /// Connect to the given WebSocket in blocking mode.
 ///
+/// Uses a websocket configuration passed as an argument to the function. Calling it with `None` is
+/// equal to calling `connect()` function.
+///
 /// The URL may be either ws:// or wss://.
 /// To support wss:// URLs, feature "tls" must be turned on.
 ///
@@ -78,19 +81,38 @@ use error::{Error, Result};
 /// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
 /// use `client` instead. There is no need to enable the "tls" feature if you don't call
 /// `connect` since it's the only function that uses native_tls.
-pub fn connect<'t, Req: Into<Request<'t>>>(request: Req, config: Option<WebSocketConfig>)
-    -> Result<(WebSocket<AutoStream>, Response)>
-{
+pub fn connect_with_config<'t, Req: Into<Request<'t>>>(
+    request: Req,
+    config: Option<WebSocketConfig>
+) -> Result<(WebSocket<AutoStream>, Response)> {
     let request: Request = request.into();
     let mode = url_mode(&request.url)?;
     let addrs = request.url.to_socket_addrs()?;
     let mut stream = connect_to_some(addrs, &request.url, mode)?;
     NoDelay::set_nodelay(&mut stream, true)?;
-    client(request, stream, config)
+    client_with_config(request, stream, config)
         .map_err(|e| match e {
             HandshakeError::Failure(f) => f,
             HandshakeError::Interrupted(_) => panic!("Bug: blocking handshake not blocked"),
         })
+}
+
+/// Connect to the given WebSocket in blocking mode.
+///
+/// The URL may be either ws:// or wss://.
+/// To support wss:// URLs, feature "tls" must be turned on.
+///
+/// This function "just works" for those who wants a simple blocking solution
+/// similar to `std::net::TcpStream`. If you want a non-blocking or other
+/// custom stream, call `client` instead.
+///
+/// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
+/// use `client` instead. There is no need to enable the "tls" feature if you don't call
+/// `connect` since it's the only function that uses native_tls.
+pub fn connect<'t, Req: Into<Request<'t>>>(request: Req)
+    -> Result<(WebSocket<AutoStream>, Response)>
+{
+    connect_with_config(request, None)
 }
 
 fn connect_to_some<A>(addrs: A, url: &Url, mode: Mode) -> Result<AutoStream>
@@ -120,12 +142,13 @@ pub fn url_mode(url: &Url) -> Result<Mode> {
     }
 }
 
-/// Do the client handshake over the given stream.
+/// Do the client handshake over the given stream given a web socket configuration. Passing `None`
+/// as configuration is equal to calling `client()` function.
 ///
 /// Use this function if you need a nonblocking handshake support or if you
 /// want to use a custom stream like `mio::tcp::TcpStream` or `openssl::ssl::SslStream`.
 /// Any stream supporting `Read + Write` will do.
-pub fn client<'t, Stream, Req>(
+pub fn client_with_config<'t, Stream, Req>(
     request: Req,
     stream: Stream,
     config: Option<WebSocketConfig>,
@@ -135,4 +158,18 @@ where
     Req: Into<Request<'t>>,
 {
     ClientHandshake::start(stream, request.into(), config).handshake()
+}
+
+/// Do the client handshake over the given stream.
+///
+/// Use this function if you need a nonblocking handshake support or if you
+/// want to use a custom stream like `mio::tcp::TcpStream` or `openssl::ssl::SslStream`.
+/// Any stream supporting `Read + Write` will do.
+pub fn client<'t, Stream, Req>(request: Req, stream: Stream)
+    -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
+where
+    Stream: Read + Write,
+    Req: Into<Request<'t>>,
+{
+    client_with_config(request, stream, None)
 }

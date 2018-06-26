@@ -25,7 +25,7 @@ fn main() {
                 ];
                 Ok(Some(extra_headers))
             };
-            let mut websocket = accept_hdr(stream.unwrap(), callback, None).unwrap();
+            let mut websocket = accept_hdr(stream.unwrap(), callback).unwrap();
 
             loop {
                 let msg = websocket.read_message().unwrap();
