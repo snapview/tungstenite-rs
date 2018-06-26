@@ -26,6 +26,23 @@ pub enum Role {
     Client,
 }
 
+/// The configuration for WebSocket connection.
+#[derive(Debug, Clone, Copy)]
+pub struct WebSocketConfig {
+    /// The size of the send queue. You can use it to turn on/off the backpressure features. `None`
+    /// means here that the size of the queue is unlimited. The default value is the unlimited
+    /// queue.
+    pub max_send_queue: Option<usize>,
+}
+
+impl Default for WebSocketConfig {
+    fn default() -> Self {
+        WebSocketConfig {
+            max_send_queue: None,
+        }
+    }
+}
+
 /// WebSocket input-output stream.
 ///
 /// This is THE structure you want to create to be able to speak the WebSocket protocol.
@@ -42,20 +59,26 @@ pub struct WebSocket<Stream> {
     incomplete: Option<IncompleteMessage>,
     /// Send: a data send queue.
     send_queue: VecDeque<Frame>,
-    max_send_queue: usize,
     /// Send: an OOB pong message.
     pong: Option<Frame>,
+    /// The configuration for the websocket session.
+    config: WebSocketConfig,
 }
 
 impl<Stream> WebSocket<Stream> {
     /// Convert a raw socket into a WebSocket without performing a handshake.
-    pub fn from_raw_socket(stream: Stream, role: Role) -> Self {
-        WebSocket::from_frame_socket(FrameSocket::new(stream), role)
+    pub fn from_raw_socket(stream: Stream, role: Role, config: Option<WebSocketConfig>) -> Self {
+        WebSocket::from_frame_socket(FrameSocket::new(stream), role, config)
     }
 
     /// Convert a raw socket into a WebSocket without performing a handshake.
-    pub fn from_partially_read(stream: Stream, part: Vec<u8>, role: Role) -> Self {
-        WebSocket::from_frame_socket(FrameSocket::from_partially_read(stream, part), role)
+    pub fn from_partially_read(
+        stream: Stream,
+        part: Vec<u8>,
+        role: Role,
+        config: Option<WebSocketConfig>,
+    ) -> Self {
+        WebSocket::from_frame_socket(FrameSocket::from_partially_read(stream, part), role, config)
     }
 
     /// Returns a shared reference to the inner stream.
@@ -68,15 +91,19 @@ impl<Stream> WebSocket<Stream> {
     }
 
     /// Convert a frame socket into a WebSocket.
-    fn from_frame_socket(socket: FrameSocket<Stream>, role: Role) -> Self {
+    fn from_frame_socket(
+        socket: FrameSocket<Stream>,
+        role: Role,
+        config: Option<WebSocketConfig>
+    ) -> Self {
         WebSocket {
             role: role,
             socket: socket,
             state: WebSocketState::Active,
             incomplete: None,
             send_queue: VecDeque::new(),
-            max_send_queue: 1,
             pong: None,
+            config: config.unwrap_or_else(|| WebSocketConfig::default()),
         }
     }
 }
@@ -104,7 +131,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// Send a message to stream, if possible.
     ///
     /// WebSocket will buffer a configurable number of messages at a time, except to reply to Ping
-    /// and Close requests. If the WebSocket's send queue is full, SendQueueFull will be returned
+    /// and Close requests. If the WebSocket's send queue is full, `SendQueueFull` will be returned
     /// along with the passed message. Otherwise, the message is queued and Ok(()) is returned.
     ///
     /// Note that only the last pong frame is stored to be sent, and only the
@@ -113,8 +140,10 @@ impl<Stream: Read + Write> WebSocket<Stream> {
         // Try to make some room for the new message
         self.write_pending().no_block()?;
 
-        if self.send_queue.len() >= self.max_send_queue {
-            return Err(Error::SendQueueFull(message));
+        if let Some(max_send_queue) = self.config.max_send_queue {
+            if self.send_queue.len() >= max_send_queue {
+                return Err(Error::SendQueueFull(message));
+            }
         }
 
         let frame = match message {
@@ -466,7 +495,7 @@ mod tests {
             0x82, 0x03,
             0x01, 0x02, 0x03,
         ]);
-        let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client);
+        let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, None);
         assert_eq!(socket.read_message().unwrap(), Message::Ping(vec![1, 2]));
         assert_eq!(socket.read_message().unwrap(), Message::Pong(vec![3]));
         assert_eq!(socket.read_message().unwrap(), Message::Text("Hello, World!".into()));

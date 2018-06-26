@@ -11,7 +11,7 @@ use rand;
 use url::Url;
 
 use error::{Error, Result};
-use protocol::{WebSocket, Role};
+use protocol::{WebSocket, WebSocketConfig, Role};
 use super::headers::{Headers, FromHttparse, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
@@ -71,12 +71,17 @@ impl From<Url> for Request<'static> {
 #[derive(Debug)]
 pub struct ClientHandshake<S> {
     verify_data: VerifyData,
+    config: Option<WebSocketConfig>,
     _marker: PhantomData<S>,
 }
 
 impl<S: Read + Write> ClientHandshake<S> {
     /// Initiate a client handshake.
-    pub fn start(stream: S, request: Request) -> MidHandshake<Self> {
+    pub fn start(
+        stream: S,
+        request: Request,
+        config: Option<WebSocketConfig>
+    ) -> MidHandshake<Self> {
         let key = generate_key();
 
         let machine = {
@@ -102,6 +107,7 @@ impl<S: Read + Write> ClientHandshake<S> {
             let accept_key = convert_key(key.as_ref()).unwrap();
             ClientHandshake {
                 verify_data: VerifyData { accept_key },
+                config,
                 _marker: PhantomData,
             }
         };
@@ -125,8 +131,13 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
             StageResult::DoneReading { stream, result, tail, } => {
                 self.verify_data.verify_response(&result)?;
                 debug!("Client handshake done.");
-                ProcessingResult::Done((WebSocket::from_partially_read(stream, tail, Role::Client),
-                                       result))
+                let websocket = WebSocket::from_partially_read(
+                    stream,
+                    tail,
+                    Role::Client,
+                    self.config.clone(),
+                );
+                ProcessingResult::Done((websocket, result))
             }
         })
     }
