@@ -1,11 +1,10 @@
 use std::fmt;
 use std::borrow::Cow;
-use std::mem::transmute;
 use std::io::{Cursor, Read, Write, ErrorKind};
 use std::default::Default;
 use std::string::{String, FromUtf8Error};
 use std::result::Result as StdResult;
-use byteorder::{ByteOrder, ReadBytesExt, NetworkEndian};
+use byteorder::{ByteOrder, ReadBytesExt, WriteBytesExt, NetworkEndian};
 use bytes::BufMut;
 
 use error::{Error, Result};
@@ -260,11 +259,10 @@ impl Frame {
     #[inline]
     pub fn close(msg: Option<CloseFrame>) -> Frame {
         let payload = if let Some(CloseFrame { code, reason }) = msg {
-            let raw: [u8; 2] = unsafe {
-                let u: u16 = code.into();
-                transmute(u.to_be())
-            };
-            [&raw[..], reason.as_bytes()].concat()
+            let mut p = Vec::with_capacity(reason.as_bytes().len() + 2);
+            p.write_u16::<NetworkEndian>(code.into()).unwrap(); // can't fail
+            p.extend_from_slice(reason.as_bytes());
+            p
         } else {
             Vec::new()
         };
