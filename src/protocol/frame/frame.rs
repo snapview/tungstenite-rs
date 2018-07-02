@@ -344,7 +344,7 @@ impl Frame {
             None
         };
 
-        if size < length + header_length {
+        if size < header_length || size - header_length < length {
             cursor.set_position(initial);
             return Ok(None)
         }
@@ -511,6 +511,16 @@ mod tests {
     fn display() {
         let f = Frame::message("hi there".into(), OpCode::Data(Data::Text), true);
         let view = format!("{}", f);
-        view.contains("payload:");
+        assert!(view.contains("payload:"));
+    }
+
+    #[test]
+    fn parse_overflow() {
+        let mut raw: Cursor<Vec<u8>> = Cursor::new(vec![
+            0x83, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
+        ]);
+        let frame_none = Frame::parse(&mut raw).unwrap();
+        assert!(frame_none.is_none());
     }
 }
