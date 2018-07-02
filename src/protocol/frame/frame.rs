@@ -344,11 +344,17 @@ impl Frame {
             None
         };
 
+        // Make sure `length` is not too big (fits into `usize`).
+        if length > usize::max_value() as u64 {
+            return Err(Error::Capacity(format!("Message length too big: {}", length).into()));
+        }
+
         if size < header_length || size - header_length < length {
             cursor.set_position(initial);
             return Ok(None)
         }
 
+        // Size is checked above, so it won't be truncated here.
         let mut data = Vec::with_capacity(length as usize);
         if length > 0 {
             unsafe {
@@ -520,7 +526,6 @@ mod tests {
             0x83, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
             0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
         ]);
-        let frame_none = Frame::parse(&mut raw).unwrap();
-        assert!(frame_none.is_none());
+        let _ = Frame::parse(&mut raw); // should not crash
     }
 }
