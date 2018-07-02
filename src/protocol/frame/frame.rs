@@ -342,6 +342,14 @@ impl Frame {
             None
         };
 
+        // Disallow bad opcode
+        match opcode {
+            OpCode::Control(Control::Reserved(_)) | OpCode::Data(Data::Reserved(_)) => {
+                return Err(Error::Protocol(format!("Encountered invalid opcode: {}", first & 0x0F).into()))
+            }
+            _ => ()
+        }
+
         // Make sure `length` is not too big (fits into `usize`).
         if length > usize::max_value() as u64 {
             return Err(Error::Capacity(format!("Message length too big: {}", length).into()));
@@ -359,14 +367,6 @@ impl Frame {
                 try!(cursor.read_exact(data.bytes_mut()));
                 data.advance_mut(length as usize);
             }
-        }
-
-        // Disallow bad opcode
-        match opcode {
-            OpCode::Control(Control::Reserved(_)) | OpCode::Data(Data::Reserved(_)) => {
-                return Err(Error::Protocol(format!("Encountered invalid opcode: {}", first & 0x0F).into()))
-            }
-            _ => ()
         }
 
         let frame = Frame {
