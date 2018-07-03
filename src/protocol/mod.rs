@@ -145,10 +145,14 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// Note that only the last pong frame is stored to be sent, and only the
     /// most recent pong frame is sent if multiple pong frames are queued.
     pub fn write_message(&mut self, message: Message) -> Result<()> {
-        // Try to make some room for the new message
-        self.write_pending().no_block()?;
-
         if let Some(max_send_queue) = self.config.max_send_queue {
+            if self.send_queue.len() >= max_send_queue {
+                // Try to make some room for the new message.
+                // Do not return here if write would block, ignore WouldBlock silently
+                // since we must queue the message anyway.
+                self.write_pending().no_block()?;
+            }
+
             if self.send_queue.len() >= max_send_queue {
                 return Err(Error::SendQueueFull(message));
             }
@@ -167,8 +171,9 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 return self.write_pending()
             }
         };
+
         self.send_queue.push_back(frame);
-        Ok(())
+        self.write_pending()
     }
 
     /// Close the connection.
