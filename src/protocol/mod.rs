@@ -67,11 +67,19 @@ pub struct WebSocket<Stream> {
 
 impl<Stream> WebSocket<Stream> {
     /// Convert a raw socket into a WebSocket without performing a handshake.
+    ///
+    /// Call this function if you're using Tungstenite as a part of a web framework
+    /// or together with an existing one. If you need an initial handshake, use
+    /// `connect()` or `accept()` functions of the crate to construct a websocket.
     pub fn from_raw_socket(stream: Stream, role: Role, config: Option<WebSocketConfig>) -> Self {
         WebSocket::from_frame_socket(FrameSocket::new(stream), role, config)
     }
 
     /// Convert a raw socket into a WebSocket without performing a handshake.
+    ///
+    /// Call this function if you're using Tungstenite as a part of a web framework
+    /// or together with an existing one. If you need an initial handshake, use
+    /// `connect()` or `accept()` functions of the crate to construct a websocket.
     pub fn from_partially_read(
         stream: Stream,
         part: Vec<u8>,
@@ -135,7 +143,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// along with the passed message. Otherwise, the message is queued and Ok(()) is returned.
     ///
     /// Note that only the last pong frame is stored to be sent, and only the
-    /// most recent pong frame is sent if multiple pong frames are queued
+    /// most recent pong frame is sent if multiple pong frames are queued.
     pub fn write_message(&mut self, message: Message) -> Result<()> {
         // Try to make some room for the new message
         self.write_pending().no_block()?;
@@ -216,7 +224,9 @@ impl<Stream: Read + Write> WebSocket<Stream> {
             Ok(())
         }
     }
+}
 
+impl<Stream: Read + Write> WebSocket<Stream> {
     /// Try to decode one message frame. May return None.
     fn read_message_frame(&mut self) -> Result<Option<Message>> {
         if let Some(mut frame) = self.socket.read_frame()? {
