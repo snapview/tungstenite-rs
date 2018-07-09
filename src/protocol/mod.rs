@@ -33,12 +33,17 @@ pub struct WebSocketConfig {
     /// means here that the size of the queue is unlimited. The default value is the unlimited
     /// queue.
     pub max_send_queue: Option<usize>,
+    /// The maximum size of a message. `None` means no size limit. The default value is 64 megabytes
+    /// which should be reasonably big for all normal use-cases but small enough to prevent
+    /// memory eating by a malicious user.
+    pub max_message_size: Option<usize>,
 }
 
 impl Default for WebSocketConfig {
     fn default() -> Self {
         WebSocketConfig {
             max_send_queue: None,
+            max_message_size: Some(64 << 20),
         }
     }
 }
@@ -308,8 +313,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                     match data {
                         OpData::Continue => {
                             if let Some(ref mut msg) = self.incomplete {
-                                // TODO if msg too big
-                                msg.extend(frame.into_data())?;
+                                msg.extend(frame.into_data(), self.config.max_message_size)?;
                             } else {
                                 return Err(Error::Protocol("Continue frame but nothing to continue".into()))
                             }
@@ -332,7 +336,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                                     _ => panic!("Bug: message is not text nor binary"),
                                 };
                                 let mut m = IncompleteMessage::new(message_type);
-                                m.extend(frame.into_data())?;
+                                m.extend(frame.into_data(), self.config.max_message_size)?;
                                 m
                             };
                             if fin {
@@ -475,7 +479,7 @@ impl WebSocketState {
 
 #[cfg(test)]
 mod tests {
-    use super::{WebSocket, Role, Message};
+    use super::{WebSocket, Role, Message, WebSocketConfig};
 
     use std::io;
     use std::io::Cursor;
@@ -517,4 +521,38 @@ mod tests {
         assert_eq!(socket.read_message().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03]));
     }
 
+
+    #[test]
+    fn size_limiting_text_fragmented() {
+        let incoming = Cursor::new(vec![
+            0x01, 0x07,
+            0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20,
+            0x80, 0x06,
+            0x57, 0x6f, 0x72, 0x6c, 0x64, 0x21,
+        ]);
+        let limit = WebSocketConfig {
+            max_message_size: Some(10),
+            .. WebSocketConfig::default()
+        };
+        let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
+        assert_eq!(socket.read_message().unwrap_err().to_string(),
+            "Space limit exceeded: Message too big: 7 + 6 > 10"
+        );
+    }
+
+    #[test]
+    fn size_limiting_binary() {
+        let incoming = Cursor::new(vec![
+            0x82, 0x03,
+            0x01, 0x02, 0x03,
+        ]);
+        let limit = WebSocketConfig {
+            max_message_size: Some(2),
+            .. WebSocketConfig::default()
+        };
+        let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
+        assert_eq!(socket.read_message().unwrap_err().to_string(),
+            "Space limit exceeded: Message too big: 0 + 3 > 2"
+        );
+    }
 }

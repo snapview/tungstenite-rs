@@ -3,7 +3,7 @@ use std::fmt;
 use std::result::Result as StdResult;
 use std::str;
 
-use error::Result;
+use error::{Result, Error};
 
 mod string_collect {
 
@@ -24,6 +24,11 @@ mod string_collect {
                 data: String::new(),
                 incomplete: None,
             }
+        }
+
+        pub fn len(&self) -> usize {
+            self.data.len()
+                .saturating_add(self.incomplete.map(|i| i.buffer_len as usize).unwrap_or(0))
         }
 
         pub fn extend<T: AsRef<[u8]>>(&mut self, tail: T) -> Result<()> {
@@ -105,8 +110,29 @@ impl IncompleteMessage {
             }
         }
     }
+
+    /// Get the current filled size of the buffer.
+    pub fn len(&self) -> usize {
+        match self.collector {
+            IncompleteMessageCollector::Text(ref t) => t.len(),
+            IncompleteMessageCollector::Binary(ref b) => b.len(),
+        }
+    }
+
     /// Add more data to an existing message.
-    pub fn extend<T: AsRef<[u8]>>(&mut self, tail: T) -> Result<()> {
+    pub fn extend<T: AsRef<[u8]>>(&mut self, tail: T, size_limit: Option<usize>) -> Result<()> {
+        // Always have a max size. This ensures an error in case of concatenating two buffers
+        // of more than `usize::max_value()` bytes in total.
+        let max_size = size_limit.unwrap_or_else(usize::max_value);
+        let my_size = self.len();
+        let portion_size = tail.as_ref().len();
+        // Be careful about integer overflows here.
+        if my_size > max_size || portion_size > max_size - my_size {
+            return Err(Error::Capacity(
+                format!("Message too big: {} + {} > {}", my_size, portion_size, max_size).into()
+            ))
+        }
+
         match self.collector {
             IncompleteMessageCollector::Binary(ref mut v) => {
                 v.extend(tail.as_ref());
@@ -117,6 +143,7 @@ impl IncompleteMessage {
             }
         }
     }
+
     /// Convert an incomplete message into a complete one.
     pub fn complete(self) -> Result<Message> {
         match self.collector {
