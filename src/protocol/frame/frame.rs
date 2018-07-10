@@ -5,7 +5,6 @@ use std::default::Default;
 use std::string::{String, FromUtf8Error};
 use std::result::Result as StdResult;
 use byteorder::{ByteOrder, ReadBytesExt, WriteBytesExt, NetworkEndian};
-use bytes::BufMut;
 
 use error::{Error, Result};
 use super::coding::{OpCode, Control, Data, CloseCode};
@@ -363,11 +362,9 @@ impl Frame {
         // Size is checked above, so it won't be truncated here.
         let mut data = Vec::with_capacity(length as usize);
         if length > 0 {
-            unsafe {
-                try!(cursor.read_exact(data.bytes_mut()));
-                data.advance_mut(length as usize);
-            }
+            try!(cursor.take(length).read_to_end(&mut data));
         }
+        debug_assert_eq!(data.len() as u64, length);
 
         let frame = Frame {
             finished: finished,
