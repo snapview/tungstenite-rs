@@ -122,7 +122,7 @@ impl<Stream> WebSocket<Stream> {
             incomplete: None,
             send_queue: VecDeque::new(),
             pong: None,
-            config: config.unwrap_or_else(|| WebSocketConfig::default()),
+            config: config.unwrap_or_else(WebSocketConfig::default),
         }
     }
 }
