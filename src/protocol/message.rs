@@ -159,6 +159,7 @@ impl IncompleteMessage {
 }
 
 /// The type of incomplete message.
+#[derive(Copy, Clone)]
 pub enum IncompleteMessageType {
     Text,
     Binary,
