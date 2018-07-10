@@ -50,7 +50,7 @@ pub struct FrameHeader {
     /// WebSocket protocol opcode.
     pub opcode: OpCode,
     /// A frame mask, if any.
-    pub mask: Option<[u8; 4]>,
+    mask: Option<[u8; 4]>,
 }
 
 impl Default for FrameHeader {
@@ -119,6 +119,13 @@ impl FrameHeader {
         }
 
         Ok(())
+    }
+
+    /// Generate a random frame mask and store this in the header.
+    ///
+    /// Of course this does not change frame contents. It just generates a mask.
+    pub(crate) fn set_random_mask(&mut self) {
+        self.mask = Some(generate_mask())
     }
 }
 
@@ -218,34 +225,16 @@ impl Frame {
         self.header.len(length as u64) + length
     }
 
-    /// Test whether the frame is a final frame.
+    /// Get a reference to the frame's header.
     #[inline]
-    pub fn is_final(&self) -> bool {
-        self.header.is_final
+    pub fn header(&self) -> &FrameHeader {
+        &self.header
     }
 
-    /// Test whether the first reserved bit is set.
+    /// Get a mutable reference to the frame's header.
     #[inline]
-    pub fn has_rsv1(&self) -> bool {
-        self.header.rsv1
-    }
-
-    /// Test whether the second reserved bit is set.
-    #[inline]
-    pub fn has_rsv2(&self) -> bool {
-        self.header.rsv2
-    }
-
-    /// Test whether the third reserved bit is set.
-    #[inline]
-    pub fn has_rsv3(&self) -> bool {
-        self.header.rsv3
-    }
-
-    /// Get the OpCode of the frame.
-    #[inline]
-    pub fn opcode(&self) -> OpCode {
-        self.header.opcode
+    pub fn header_mut(&mut self) -> &mut FrameHeader {
+        &mut self.header
     }
 
     /// Get a reference to the frame's payload.
@@ -254,86 +243,34 @@ impl Frame {
         &self.payload
     }
 
-    // Test whether the frame is masked.
-    #[doc(hidden)]
-    #[inline]
-    pub fn is_masked(&self) -> bool {
-        self.header.mask.is_some()
-    }
-
-    // Get an optional reference to the frame's mask.
-    #[doc(hidden)]
-    #[allow(dead_code)]
-    #[inline]
-    pub fn mask(&self) -> Option<&[u8; 4]> {
-        self.header.mask.as_ref()
-    }
-
-    /// Make this frame a final frame.
-    #[allow(dead_code)]
-    #[inline]
-    pub fn set_final(&mut self, is_final: bool) -> &mut Frame {
-        self.header.is_final = is_final;
-        self
-    }
-
-    /// Set the first reserved bit.
-    #[inline]
-    pub fn set_rsv1(&mut self, has_rsv1: bool) -> &mut Frame {
-        self.header.rsv1 = has_rsv1;
-        self
-    }
-
-    /// Set the second reserved bit.
-    #[inline]
-    pub fn set_rsv2(&mut self, has_rsv2: bool) -> &mut Frame {
-        self.header.rsv2 = has_rsv2;
-        self
-    }
-
-    /// Set the third reserved bit.
-    #[inline]
-    pub fn set_rsv3(&mut self, has_rsv3: bool) -> &mut Frame {
-        self.header.rsv3 = has_rsv3;
-        self
-    }
-
-    /// Set the OpCode.
-    #[allow(dead_code)]
-    #[inline]
-    pub fn set_opcode(&mut self, opcode: OpCode) -> &mut Frame {
-        self.header.opcode = opcode;
-        self
-    }
-
-    /// Edit the frame's payload.
-    #[allow(dead_code)]
+    /// Get a mutable reference to the frame's payload.
     #[inline]
     pub fn payload_mut(&mut self) -> &mut Vec<u8> {
         &mut self.payload
     }
 
-    // Generate a new mask for this frame.
-    //
-    // This method simply generates and stores the mask. It does not change the payload data.
-    // Instead, the payload data will be masked with the generated mask when the frame is sent
-    // to the other endpoint.
-    #[doc(hidden)]
+    /// Test whether the frame is masked.
     #[inline]
-    pub fn set_mask(&mut self) -> &mut Frame {
-        self.header.mask = Some(generate_mask());
-        self
+    pub(crate) fn is_masked(&self) -> bool {
+        self.header.mask.is_some()
     }
 
-    // This method unmasks the payload and should only be called on frames that are actually
-    // masked. In other words, those frames that have just been received from a client endpoint.
-    #[doc(hidden)]
+    /// Generate a random mask for the frame.
+    ///
+    /// This just generates a mask, payload is not changed. The actual masking is performed
+    /// either on `format()` or on `apply_mask()` call.
     #[inline]
-    pub fn remove_mask(&mut self) {
-        self.header.mask.and_then(|mask| {
-            Some(apply_mask(&mut self.payload, &mask))
-        });
-        self.header.mask = None;
+    pub(crate) fn set_random_mask(&mut self) {
+        self.header.set_random_mask()
+    }
+
+    /// This method unmasks the payload and should only be called on frames that are actually
+    /// masked. In other words, those frames that have just been received from a client endpoint.
+    #[inline]
+    pub(crate) fn apply_mask(&mut self) {
+        if let Some(mask) = self.header.mask.take() {
+            apply_mask(&mut self.payload, &mask)
+        }
     }
 
     /// Consume the frame into its payload as binary.
@@ -350,7 +287,7 @@ impl Frame {
 
      /// Consume the frame into a closing frame.
     #[inline]
-    pub fn into_close(self) -> Result<Option<CloseFrame<'static>>> {
+    pub(crate) fn into_close(self) -> Result<Option<CloseFrame<'static>>> {
         match self.payload.len() {
             0 => Ok(None),
             1 => Err(Error::Protocol("Invalid close sequence".into())),
@@ -435,7 +372,7 @@ impl Frame {
     /// Write a frame out to a buffer
     pub fn format(mut self, output: &mut impl Write) -> Result<()> {
         self.header.format(self.payload.len() as u64, output)?;
-        self.remove_mask();
+        self.apply_mask();
         output.write_all(self.payload())?;
         Ok(())
     }

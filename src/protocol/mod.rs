@@ -246,8 +246,11 @@ impl<Stream: Read + Write> WebSocket<Stream> {
             // the negotiated extensions defines the meaning of such a nonzero
             // value, the receiving endpoint MUST _Fail the WebSocket
             // Connection_.
-            if frame.has_rsv1() || frame.has_rsv2() || frame.has_rsv3() {
-                return Err(Error::Protocol("Reserved bits are non-zero".into()))
+            {
+                let hdr = frame.header();
+                if hdr.rsv1 || hdr.rsv2 || hdr.rsv3 {
+                    return Err(Error::Protocol("Reserved bits are non-zero".into()))
+                }
             }
 
             match self.role {
@@ -255,7 +258,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                     if frame.is_masked() {
                         // A server MUST remove masking for data frames received from a client
                         // as described in Section 5.3. (RFC 6455)
-                        frame.remove_mask()
+                        frame.apply_mask()
                     } else {
                         // The server MUST close the connection upon receiving a
                         // frame that is not masked. (RFC 6455)
@@ -270,13 +273,13 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 }
             }
 
-            match frame.opcode() {
+            match frame.header().opcode {
 
                 OpCode::Control(ctl) => {
                     match ctl {
                         // All control frames MUST have a payload length of 125 bytes or less
                         // and MUST NOT be fragmented. (RFC 6455)
-                        _ if !frame.is_final() => {
+                        _ if !frame.header().is_final => {
                             Err(Error::Protocol("Fragmented control frame".into()))
                         }
                         _ if frame.payload().len() > 125 => {
@@ -309,7 +312,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 }
 
                 OpCode::Data(data) => {
-                    let fin = frame.is_final();
+                    let fin = frame.header().is_final;
                     match data {
                         OpData::Continue => {
                             if let Some(ref mut msg) = self.incomplete {
@@ -423,7 +426,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
             Role::Client => {
                 // 5.  If the data is being sent by the client, the frame(s) MUST be
                 // masked as defined in Section 5.3. (RFC 6455)
-                frame.set_mask();
+                frame.set_random_mask();
             }
         }
         let res = self.socket.write_frame(frame);
