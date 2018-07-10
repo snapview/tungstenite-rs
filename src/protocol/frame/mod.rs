@@ -5,7 +5,7 @@ pub mod coding;
 mod frame;
 mod mask;
 
-pub use self::frame::Frame;
+pub use self::frame::{Frame, FrameHeader};
 pub use self::frame::CloseFrame;
 
 use std::io::{Read, Write};
@@ -16,9 +16,14 @@ use error::{Error, Result};
 /// A reader and writer for WebSocket frames.
 #[derive(Debug)]
 pub struct FrameSocket<Stream> {
+    /// The underlying network stream.
     stream: Stream,
+    /// Buffer to read data from the stream.
     in_buffer: InputBuffer,
+    /// Buffer to send packets to the network.
     out_buffer: Vec<u8>,
+    /// Header and remaining size of the incoming packet being processed.
+    header: Option<(FrameHeader, u64)>,
 }
 
 impl<Stream> FrameSocket<Stream> {
@@ -28,24 +33,30 @@ impl<Stream> FrameSocket<Stream> {
             stream: stream,
             in_buffer: InputBuffer::with_capacity(MIN_READ),
             out_buffer: Vec::new(),
+            header: None,
         }
     }
+
     /// Create a new frame socket from partially read data.
     pub fn from_partially_read(stream: Stream, part: Vec<u8>) -> Self {
         FrameSocket {
             stream: stream,
             in_buffer: InputBuffer::from_partially_read(part),
             out_buffer: Vec::new(),
+            header: None,
         }
     }
+
     /// Extract a stream from the socket.
     pub fn into_inner(self) -> (Stream, Vec<u8>) {
         (self.stream, self.in_buffer.into_vec())
     }
+
     /// Returns a shared reference to the inner stream.
     pub fn get_ref(&self) -> &Stream {
         &self.stream
     }
+
     /// Returns a mutable reference to the inner stream.
     pub fn get_mut(&mut self) -> &mut Stream {
         &mut self.stream
@@ -57,12 +68,37 @@ impl<Stream> FrameSocket<Stream>
 {
     /// Read a frame from stream.
     pub fn read_frame(&mut self) -> Result<Option<Frame>> {
-        loop {
-            if let Some(frame) = Frame::parse(&mut self.in_buffer.as_cursor_mut())? {
-                trace!("received frame {}", frame);
-                return Ok(Some(frame));
+        let payload = loop {
+            {
+                let cursor = self.in_buffer.as_cursor_mut();
+
+                if self.header.is_none() {
+                    self.header = FrameHeader::parse(cursor)?;
+                }
+
+                if let Some((_, ref length)) = self.header {
+                    let length = *length;
+
+                    // Make sure `length` is not too big (fits into `usize`).
+                    if length > usize::max_value() as u64 {
+                        return Err(Error::Capacity(
+                            format!("Message length too big: {}", length).into()
+                        ))
+                    }
+
+                    let input_size = cursor.get_ref().len() as u64 - cursor.position();
+                    if length <= input_size {
+                        // No truncation here since `length` is checked above
+                        let mut payload = Vec::with_capacity(length as usize);
+                        if length > 0 {
+                            cursor.take(length).read_to_end(&mut payload)?;
+                        }
+                        break payload
+                    }
+                }
             }
-            // No full frames in buffer.
+
+            // Not enough data in buffer.
             let size = self.in_buffer.prepare_reserve(MIN_READ)
                 .with_limit(usize::max_value())
                 .map_err(|_| Error::Capacity("Incoming TCP buffer is full".into()))?
@@ -71,7 +107,13 @@ impl<Stream> FrameSocket<Stream>
                 trace!("no frame received");
                 return Ok(None)
             }
-        }
+        };
+
+        let (header, length) = self.header.take().expect("Bug: no frame header");
+        debug_assert_eq!(payload.len() as u64, length);
+        let frame = Frame::from_payload(header, payload);
+        trace!("received frame {}", frame);
+        Ok(Some(frame))
     }
 
 }
@@ -155,4 +197,13 @@ mod tests {
         ]);
     }
 
+    #[test]
+    fn parse_overflow() {
+        let raw = Cursor::new(vec![
+            0x83, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
+        ]);
+        let mut sock = FrameSocket::new(raw);
+        let _ = sock.read_frame(); // should not crash
+    }
 }
