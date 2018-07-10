@@ -113,7 +113,7 @@ impl<S: Read + Write> ClientHandshake<S> {
         };
 
         trace!("Client handshake initiated.");
-        MidHandshake { role: client, machine: machine }
+        MidHandshake { role: client, machine }
     }
 }
 

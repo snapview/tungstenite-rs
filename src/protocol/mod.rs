@@ -116,8 +116,8 @@ impl<Stream> WebSocket<Stream> {
         config: Option<WebSocketConfig>
     ) -> Self {
         WebSocket {
-            role: role,
-            socket: socket,
+            role,
+            socket,
             state: WebSocketState::Active,
             incomplete: None,
             send_queue: VecDeque::new(),

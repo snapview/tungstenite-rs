@@ -30,7 +30,7 @@ impl<Stream> FrameSocket<Stream> {
     /// Create a new frame socket.
     pub fn new(stream: Stream) -> Self {
         FrameSocket {
-            stream: stream,
+            stream,
             in_buffer: InputBuffer::with_capacity(MIN_READ),
             out_buffer: Vec::new(),
             header: None,
@@ -40,7 +40,7 @@ impl<Stream> FrameSocket<Stream> {
     /// Create a new frame socket from partially read data.
     pub fn from_partially_read(stream: Stream, part: Vec<u8>) -> Self {
         FrameSocket {
-            stream: stream,
+            stream,
             in_buffer: InputBuffer::from_partially_read(part),
             out_buffer: Vec::new(),
             header: None,
