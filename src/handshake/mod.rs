@@ -110,7 +110,7 @@ pub enum ProcessingResult<Stream, FinalResult> {
 fn convert_key(input: &[u8]) -> Result<String, Error> {
     // ... field is constructed by concatenating /key/ ...
     // ... with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" (RFC 6455)
-    const WS_GUID: &'static [u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    const WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     let mut sha1 = Sha1::default();
     sha1.input(input);
     sha1.input(WS_GUID);
