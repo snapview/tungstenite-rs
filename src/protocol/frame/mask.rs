@@ -1,6 +1,6 @@
 use std::cmp::min;
 use std::mem::uninitialized;
-use std::ptr::copy_nonoverlapping;
+use std::ptr::{copy_nonoverlapping, read_unaligned};
 use rand;
 
 /// Generate a random frame mask.
@@ -28,12 +28,8 @@ fn apply_mask_fallback(buf: &mut [u8], mask: &[u8; 4]) {
 #[inline]
 #[allow(dead_code)]
 fn apply_mask_fast32(buf: &mut [u8], mask: &[u8; 4]) {
-    // TODO replace this with read_unaligned() as it stabilizes.
-    let mask_u32 = unsafe {
-        let mut m: u32 = uninitialized();
-        #[allow(trivial_casts)]
-        copy_nonoverlapping(mask.as_ptr(), &mut m as *mut _ as *mut u8, 4);
-        m
+    let mask_u32: u32 = unsafe {
+        read_unaligned(mask.as_ptr() as *const u32)
     };
 
     let mut ptr = buf.as_mut_ptr();
