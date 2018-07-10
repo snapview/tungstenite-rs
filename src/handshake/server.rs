@@ -156,7 +156,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                 let websocket = WebSocket::from_raw_socket(
                     stream,
                     Role::Server,
-                    self.config.clone(),
+                    self.config,
                 );
                 ProcessingResult::Done(websocket)
             }
