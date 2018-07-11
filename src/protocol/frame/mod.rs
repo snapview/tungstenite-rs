@@ -67,7 +67,9 @@ impl<Stream> FrameSocket<Stream>
     where Stream: Read
 {
     /// Read a frame from stream.
-    pub fn read_frame(&mut self) -> Result<Option<Frame>> {
+    pub fn read_frame(&mut self, max_size: Option<usize>) -> Result<Option<Frame>> {
+        let max_size = max_size.unwrap_or_else(usize::max_value);
+
         let payload = loop {
             {
                 let cursor = self.in_buffer.as_cursor_mut();
@@ -79,10 +81,11 @@ impl<Stream> FrameSocket<Stream>
                 if let Some((_, ref length)) = self.header {
                     let length = *length;
 
-                    // Make sure `length` is not too big (fits into `usize`).
-                    if length > usize::max_value() as u64 {
+                    // Enforce frame size limit early and make sure `length` 
+                    // is not too big (fits into `usize`).
+                    if length > max_size as u64 {
                         return Err(Error::Capacity(
-                            format!("Message length too big: {}", length).into()
+                            format!("Message length too big: {} > {}", length, max_size).into()
                         ))
                     }
 
@@ -160,11 +163,11 @@ mod tests {
         ]);
         let mut sock = FrameSocket::new(raw);
 
-        assert_eq!(sock.read_frame().unwrap().unwrap().into_data(),
+        assert_eq!(sock.read_frame(None).unwrap().unwrap().into_data(),
             vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
-        assert_eq!(sock.read_frame().unwrap().unwrap().into_data(),
+        assert_eq!(sock.read_frame(None).unwrap().unwrap().into_data(),
             vec![0x03, 0x02, 0x01]);
-        assert!(sock.read_frame().unwrap().is_none());
+        assert!(sock.read_frame(None).unwrap().is_none());
 
         let (_, rest) = sock.into_inner();
         assert_eq!(rest, vec![0x99]);
@@ -176,7 +179,7 @@ mod tests {
             0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
         ]);
         let mut sock = FrameSocket::from_partially_read(raw, vec![0x82, 0x07, 0x01]);
-        assert_eq!(sock.read_frame().unwrap().unwrap().into_data(),
+        assert_eq!(sock.read_frame(None).unwrap().unwrap().into_data(),
             vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
     }
 
@@ -204,6 +207,17 @@ mod tests {
             0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
         ]);
         let mut sock = FrameSocket::new(raw);
-        let _ = sock.read_frame(); // should not crash
+        let _ = sock.read_frame(None); // should not crash
+    }
+
+    #[test]
+    fn size_limit_hit() {
+        let raw = Cursor::new(vec![
+            0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+        ]);
+        let mut sock = FrameSocket::new(raw);
+        assert_eq!(sock.read_frame(Some(5)).unwrap_err().to_string(),
+            "Space limit exceeded: Message length too big: 7 > 5"
+        );
     }
 }

@@ -37,6 +37,11 @@ pub struct WebSocketConfig {
     /// which should be reasonably big for all normal use-cases but small enough to prevent
     /// memory eating by a malicious user.
     pub max_message_size: Option<usize>,
+    /// The maximum size of a single message frame. `None` means no size limit. The limit is for
+    /// frame payload NOT including the frame header. The default value is 16 megabytes which should
+    /// be reasonably big for all normal use-cases but small enough to prevent memory eating
+    /// by a malicious user.
+    pub max_frame_size: Option<usize>,
 }
 
 impl Default for WebSocketConfig {
@@ -44,6 +49,7 @@ impl Default for WebSocketConfig {
         WebSocketConfig {
             max_send_queue: None,
             max_message_size: Some(64 << 20),
+            max_frame_size: Some(16 << 20),
         }
     }
 }
@@ -239,7 +245,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
 impl<Stream: Read + Write> WebSocket<Stream> {
     /// Try to decode one message frame. May return None.
     fn read_message_frame(&mut self) -> Result<Option<Message>> {
-        if let Some(mut frame) = self.socket.read_frame()? {
+        if let Some(mut frame) = self.socket.read_frame(self.config.max_frame_size)? {
 
             // MUST be 0 unless an extension is negotiated that defines meanings
             // for non-zero values.  If a nonzero value is received and none of
