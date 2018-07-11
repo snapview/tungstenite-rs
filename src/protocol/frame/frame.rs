@@ -107,7 +107,7 @@ impl FrameHeader {
             | if self.mask.is_some() { 0x80 } else { 0 }
         };
 
-        output.write(&[one, two])?;
+        output.write_all(&[one, two])?;
         match lenfmt {
             LengthFormat::U8(_) => (),
             LengthFormat::U16 => output.write_u16::<NetworkEndian>(length as u16)?,
