@@ -296,7 +296,7 @@ impl Frame {
                 let code = NetworkEndian::read_u16(&data[0..2]).into();
                 data.drain(0..2);
                 let text = String::from_utf8(data)?;
-                Ok(Some(CloseFrame { code: code, reason: text.into() }))
+                Ok(Some(CloseFrame { code, reason: text.into() }))
             }
         }
     }
@@ -357,7 +357,7 @@ impl Frame {
 
         Frame {
             header: FrameHeader::default(),
-            payload: payload,
+            payload,
         }
     }
 
