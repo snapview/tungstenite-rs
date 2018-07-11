@@ -269,7 +269,7 @@ impl Frame {
     #[inline]
     pub(crate) fn apply_mask(&mut self) {
         if let Some(mask) = self.header.mask.take() {
-            apply_mask(&mut self.payload, &mask)
+            apply_mask(&mut self.payload, mask)
         }
     }
 

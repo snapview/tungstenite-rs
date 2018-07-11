@@ -11,14 +11,14 @@ pub fn generate_mask() -> [u8; 4] {
 
 /// Mask/unmask a frame.
 #[inline]
-pub fn apply_mask(buf: &mut [u8], mask: &[u8; 4]) {
+pub fn apply_mask(buf: &mut [u8], mask: [u8; 4]) {
     apply_mask_fast32(buf, mask)
 }
 
 /// A safe unoptimized mask application.
 #[inline]
 #[allow(dead_code)]
-fn apply_mask_fallback(buf: &mut [u8], mask: &[u8; 4]) {
+fn apply_mask_fallback(buf: &mut [u8], mask: [u8; 4]) {
     for (i, byte) in buf.iter_mut().enumerate() {
         *byte ^= mask[i & 3];
     }
@@ -27,7 +27,7 @@ fn apply_mask_fallback(buf: &mut [u8], mask: &[u8; 4]) {
 /// Faster version of `apply_mask()` which operates on 4-byte blocks.
 #[inline]
 #[allow(dead_code)]
-fn apply_mask_fast32(buf: &mut [u8], mask: &[u8; 4]) {
+fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
     let mask_u32: u32 = unsafe {
         read_unaligned(mask.as_ptr() as *const u32)
     };
@@ -101,10 +101,10 @@ mod tests {
         // Check masking with proper alignment.
         {
             let mut masked = unmasked.clone();
-            apply_mask_fallback(&mut masked, &mask);
+            apply_mask_fallback(&mut masked, mask);
 
             let mut masked_fast = unmasked.clone();
-            apply_mask_fast32(&mut masked_fast, &mask);
+            apply_mask_fast32(&mut masked_fast, mask);
 
             assert_eq!(masked, masked_fast);
         }
@@ -112,10 +112,10 @@ mod tests {
         // Check masking without alignment.
         {
             let mut masked = unmasked.clone();
-            apply_mask_fallback(&mut masked[1..], &mask);
+            apply_mask_fallback(&mut masked[1..], mask);
 
             let mut masked_fast = unmasked.clone();
-            apply_mask_fast32(&mut masked_fast[1..], &mask);
+            apply_mask_fast32(&mut masked_fast[1..], mask);
 
             assert_eq!(masked, masked_fast);
         }
