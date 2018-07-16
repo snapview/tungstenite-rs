@@ -108,7 +108,9 @@ impl<Stream> WebSocket<Stream> {
     pub fn get_mut(&mut self) -> &mut Stream {
         self.socket.get_mut()
     }
+}
 
+impl<Stream> WebSocket<Stream> {
     /// Convert a frame socket into a WebSocket.
     fn from_frame_socket(
         socket: FrameSocket<Stream>,
