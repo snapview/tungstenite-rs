@@ -108,6 +108,11 @@ impl<Stream> WebSocket<Stream> {
     pub fn get_mut(&mut self) -> &mut Stream {
         self.socket.get_mut()
     }
+
+    /// Change the configuration.
+    pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
+        set_func(&mut self.config)
+    }
 }
 
 impl<Stream> WebSocket<Stream> {
