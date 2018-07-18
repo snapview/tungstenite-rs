@@ -33,12 +33,23 @@ pub struct WebSocketConfig {
     /// means here that the size of the queue is unlimited. The default value is the unlimited
     /// queue.
     pub max_send_queue: Option<usize>,
+    /// The maximum size of a message. `None` means no size limit. The default value is 64 megabytes
+    /// which should be reasonably big for all normal use-cases but small enough to prevent
+    /// memory eating by a malicious user.
+    pub max_message_size: Option<usize>,
+    /// The maximum size of a single message frame. `None` means no size limit. The limit is for
+    /// frame payload NOT including the frame header. The default value is 16 megabytes which should
+    /// be reasonably big for all normal use-cases but small enough to prevent memory eating
+    /// by a malicious user.
+    pub max_frame_size: Option<usize>,
 }
 
 impl Default for WebSocketConfig {
     fn default() -> Self {
         WebSocketConfig {
             max_send_queue: None,
+            max_message_size: Some(64 << 20),
+            max_frame_size: Some(16 << 20),
         }
     }
 }
@@ -98,6 +109,13 @@ impl<Stream> WebSocket<Stream> {
         self.socket.get_mut()
     }
 
+    /// Change the configuration.
+    pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
+        set_func(&mut self.config)
+    }
+}
+
+impl<Stream> WebSocket<Stream> {
     /// Convert a frame socket into a WebSocket.
     fn from_frame_socket(
         socket: FrameSocket<Stream>,
@@ -105,13 +123,13 @@ impl<Stream> WebSocket<Stream> {
         config: Option<WebSocketConfig>
     ) -> Self {
         WebSocket {
-            role: role,
-            socket: socket,
+            role,
+            socket,
             state: WebSocketState::Active,
             incomplete: None,
             send_queue: VecDeque::new(),
             pong: None,
-            config: config.unwrap_or_else(|| WebSocketConfig::default()),
+            config: config.unwrap_or_else(WebSocketConfig::default),
         }
     }
 }
@@ -145,10 +163,14 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// Note that only the last pong frame is stored to be sent, and only the
     /// most recent pong frame is sent if multiple pong frames are queued.
     pub fn write_message(&mut self, message: Message) -> Result<()> {
-        // Try to make some room for the new message
-        self.write_pending().no_block()?;
-
         if let Some(max_send_queue) = self.config.max_send_queue {
+            if self.send_queue.len() >= max_send_queue {
+                // Try to make some room for the new message.
+                // Do not return here if write would block, ignore WouldBlock silently
+                // since we must queue the message anyway.
+                self.write_pending().no_block()?;
+            }
+
             if self.send_queue.len() >= max_send_queue {
                 return Err(Error::SendQueueFull(message));
             }
@@ -167,8 +189,9 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 return self.write_pending()
             }
         };
+
         self.send_queue.push_back(frame);
-        Ok(())
+        self.write_pending()
     }
 
     /// Close the connection.
@@ -229,15 +252,18 @@ impl<Stream: Read + Write> WebSocket<Stream> {
 impl<Stream: Read + Write> WebSocket<Stream> {
     /// Try to decode one message frame. May return None.
     fn read_message_frame(&mut self) -> Result<Option<Message>> {
-        if let Some(mut frame) = self.socket.read_frame()? {
+        if let Some(mut frame) = self.socket.read_frame(self.config.max_frame_size)? {
 
             // MUST be 0 unless an extension is negotiated that defines meanings
             // for non-zero values.  If a nonzero value is received and none of
             // the negotiated extensions defines the meaning of such a nonzero
             // value, the receiving endpoint MUST _Fail the WebSocket
             // Connection_.
-            if frame.has_rsv1() || frame.has_rsv2() || frame.has_rsv3() {
-                return Err(Error::Protocol("Reserved bits are non-zero".into()))
+            {
+                let hdr = frame.header();
+                if hdr.rsv1 || hdr.rsv2 || hdr.rsv3 {
+                    return Err(Error::Protocol("Reserved bits are non-zero".into()))
+                }
             }
 
             match self.role {
@@ -245,7 +271,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                     if frame.is_masked() {
                         // A server MUST remove masking for data frames received from a client
                         // as described in Section 5.3. (RFC 6455)
-                        frame.remove_mask()
+                        frame.apply_mask()
                     } else {
                         // The server MUST close the connection upon receiving a
                         // frame that is not masked. (RFC 6455)
@@ -260,13 +286,13 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 }
             }
 
-            match frame.opcode() {
+            match frame.header().opcode {
 
                 OpCode::Control(ctl) => {
                     match ctl {
                         // All control frames MUST have a payload length of 125 bytes or less
                         // and MUST NOT be fragmented. (RFC 6455)
-                        _ if !frame.is_final() => {
+                        _ if !frame.header().is_final => {
                             Err(Error::Protocol("Fragmented control frame".into()))
                         }
                         _ if frame.payload().len() > 125 => {
@@ -299,12 +325,11 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 }
 
                 OpCode::Data(data) => {
-                    let fin = frame.is_final();
+                    let fin = frame.header().is_final;
                     match data {
                         OpData::Continue => {
                             if let Some(ref mut msg) = self.incomplete {
-                                // TODO if msg too big
-                                msg.extend(frame.into_data())?;
+                                msg.extend(frame.into_data(), self.config.max_message_size)?;
                             } else {
                                 return Err(Error::Protocol("Continue frame but nothing to continue".into()))
                             }
@@ -327,7 +352,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                                     _ => panic!("Bug: message is not text nor binary"),
                                 };
                                 let mut m = IncompleteMessage::new(message_type);
-                                m.extend(frame.into_data())?;
+                                m.extend(frame.into_data(), self.config.max_message_size)?;
                                 m
                             };
                             if fin {
@@ -414,7 +439,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
             Role::Client => {
                 // 5.  If the data is being sent by the client, the frame(s) MUST be
                 // masked as defined in Section 5.3. (RFC 6455)
-                frame.set_mask();
+                frame.set_random_mask();
             }
         }
         let res = self.socket.write_frame(frame);
@@ -470,7 +495,7 @@ impl WebSocketState {
 
 #[cfg(test)]
 mod tests {
-    use super::{WebSocket, Role, Message};
+    use super::{WebSocket, Role, Message, WebSocketConfig};
 
     use std::io;
     use std::io::Cursor;
@@ -512,4 +537,38 @@ mod tests {
         assert_eq!(socket.read_message().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03]));
     }
 
+
+    #[test]
+    fn size_limiting_text_fragmented() {
+        let incoming = Cursor::new(vec![
+            0x01, 0x07,
+            0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20,
+            0x80, 0x06,
+            0x57, 0x6f, 0x72, 0x6c, 0x64, 0x21,
+        ]);
+        let limit = WebSocketConfig {
+            max_message_size: Some(10),
+            .. WebSocketConfig::default()
+        };
+        let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
+        assert_eq!(socket.read_message().unwrap_err().to_string(),
+            "Space limit exceeded: Message too big: 7 + 6 > 10"
+        );
+    }
+
+    #[test]
+    fn size_limiting_binary() {
+        let incoming = Cursor::new(vec![
+            0x82, 0x03,
+            0x01, 0x02, 0x03,
+        ]);
+        let limit = WebSocketConfig {
+            max_message_size: Some(2),
+            .. WebSocketConfig::default()
+        };
+        let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
+        assert_eq!(socket.read_message().unwrap_err().to_string(),
+            "Space limit exceeded: Message too big: 0 + 3 > 2"
+        );
+    }
 }

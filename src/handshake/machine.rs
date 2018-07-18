@@ -16,14 +16,14 @@ impl<Stream> HandshakeMachine<Stream> {
     /// Start reading data from the peer.
     pub fn start_read(stream: Stream) -> Self {
         HandshakeMachine {
-            stream: stream,
+            stream,
             state: HandshakeState::Reading(InputBuffer::with_capacity(MIN_READ)),
         }
     }
     /// Start writing data to the peer.
     pub fn start_write<D: Into<Vec<u8>>>(stream: Stream, data: D) -> Self {
         HandshakeMachine {
-            stream: stream,
+            stream,
             state: HandshakeState::Writing(Cursor::new(data.into())),
         }
     }

@@ -28,7 +28,7 @@ impl Headers {
     /// Iterate over all headers with the given name.
     pub fn find<'headers, 'name>(&'headers self, name: &'name str) -> HeadersIter<'name, 'headers> {
         HeadersIter {
-            name: name,
+            name,
             iter: self.data.iter()
         }
     }
