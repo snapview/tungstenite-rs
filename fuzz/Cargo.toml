@@ -1,0 +1,30 @@
+
+[package]
+name = "tungstenite-fuzz"
+version = "0.0.1"
+authors = ["Sergey \"Shnatsel\" Davidoff <shnatsel@gmail.com>"]
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies.tungstenite]
+path = ".."
+[dependencies.libfuzzer-sys]
+git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "parse_frame"
+path = "fuzz_targets/parse_frame.rs"
+
+[[bin]]
+name = "read_message_server"
+path = "fuzz_targets/read_message_server.rs"
+
+[[bin]]
+name = "read_message_client"
+path = "fuzz_targets/read_message_client.rs"
