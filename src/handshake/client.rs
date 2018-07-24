@@ -52,7 +52,7 @@ impl<'t> Request<'t> {
 
     /// Adds a custom header to the request.
     pub fn add_header(&mut self, name: Cow<'t, str>, value: Cow<'t, str>) {
-        let mut headers = self.extra_headers.take().unwrap_or_else(|| vec![]);
+        let mut headers = self.extra_headers.take().unwrap_or_else(Vec::new);
         headers.push((name, value));
         self.extra_headers = Some(headers);
     }

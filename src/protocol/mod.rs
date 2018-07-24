@@ -109,6 +109,13 @@ impl<Stream> WebSocket<Stream> {
         self.socket.get_mut()
     }
 
+    /// Change the configuration.
+    pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
+        set_func(&mut self.config)
+    }
+}
+
+impl<Stream> WebSocket<Stream> {
     /// Convert a frame socket into a WebSocket.
     fn from_frame_socket(
         socket: FrameSocket<Stream>,
