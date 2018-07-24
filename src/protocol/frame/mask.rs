@@ -29,7 +29,7 @@ fn apply_mask_fallback(buf: &mut [u8], mask: [u8; 4]) {
 #[allow(dead_code)]
 fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
     let mask_u32: u32 = unsafe {
-        read_unaligned(mask.as_ptr() as *const u32)
+        read_unaligned((&mask).as_ptr() as *const u32)
     };
 
     let mut ptr = buf.as_mut_ptr();

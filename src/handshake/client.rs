@@ -135,7 +135,7 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
                     stream,
                     tail,
                     Role::Client,
-                    self.config.clone(),
+                    self.config,
                 );
                 ProcessingResult::Done((websocket, result))
             }
