@@ -303,6 +303,12 @@ impl From<Vec<u8>> for Message {
     }
 }
 
+impl Into<Vec<u8>> for Message {
+    fn into(self) -> Vec<u8> {
+        self.into_data()
+    }
+}
+
 impl fmt::Display for Message {
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
         if let Ok(string) = self.to_text() {
@@ -341,6 +347,15 @@ mod tests {
         let msg = Message::from(bin);
         assert!(msg.is_binary());
         assert!(msg.into_text().is_err());
+    }
+
+    #[test]
+    fn binary_convert_into_vec() {
+        let bin = vec![6u8, 7, 8, 9, 10, 241];
+        let bin_copy = bin.clone();
+        let msg = Message::from(bin);
+        let serialized: Vec<u8> = msg.into();
+        assert_eq!(bin_copy, serialized);
     }
 
     #[test]
