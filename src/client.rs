@@ -90,7 +90,6 @@ pub fn connect_with_config<'t, Req: Into<Request<'t>>>(
 ) -> Result<(WebSocket<AutoStream>, Response)> {
     let request: Request = request.into();
     let mode = url_mode(&request.url)?;
-    // let addrs = request.url.to_socket_addrs()?;
     let mut stream = connect_to_some(&request, mode)?;
     NoDelay::set_nodelay(&mut stream, true)?;
     client_with_config(request, stream, config)

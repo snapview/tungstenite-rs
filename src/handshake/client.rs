@@ -21,7 +21,6 @@ use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
 pub struct BasicAuth {
     /// Basic Auth username
     pub username: String,
-
     /// Optional Basic Auth password
     pub password: Option<String>
 }
@@ -31,8 +30,8 @@ impl BasicAuth {
     /// in HTTP headers.
     /// Example: Username: user, Password: pass -> "Basic dXNlcjpwYXNz"
     pub fn to_header_value(&self) -> String {
-        // TODO - clean this up
-        let creds = format!("{}:{}", self.username, self.password.as_ref().unwrap_or(&"".to_string()));
+        let password = self.password.as_ref().map_or("", String::as_str);
+        let creds = format!("{}:{}", self.username, password);
         format!("Basic {}", base64::encode(&creds))
     }
 }
@@ -49,7 +48,6 @@ pub enum ProxyAuth {
 pub struct Proxy {
     /// The URL of the proxy server to connect to
     pub url: Url,
-
     /// Optional proxy authentication configuration
     pub auth: Option<ProxyAuth>,
 }
@@ -98,6 +96,24 @@ impl<'t> Request<'t> {
     }
 
     /// Sets an HTTP proxy to use when connecting to the WebSocket server
+    /// # Example
+    /// ```
+    ///    extern crate url;
+    ///
+    ///    use tungstenite::handshake::client::{BasicAuth, Proxy, ProxyAuth, Request};
+    ///    use url::Url;
+    ///
+    ///    let ws_url = Url::parse("ws://example.com/socket").unwrap();
+    ///    let mut ws_request = Request::from(ws_url);
+    ///
+    ///    ws_request.set_proxy(Proxy {
+    ///        url: "http://127.0.0.1:8899".parse().unwrap(),
+    ///        auth: Some(ProxyAuth::Basic(BasicAuth {
+    ///            username: "user".to_string(),
+    ///            password: Some("pass".to_string()),
+    ///        })),
+    ///    });
+    /// ```
     pub fn set_proxy(&mut self, proxy: Proxy) {
         self.proxy = Some(proxy);
     }
