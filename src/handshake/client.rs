@@ -16,6 +16,44 @@ use super::headers::{Headers, FromHttparse, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
 
+/// HTTP Basic Authentication Credentials
+#[derive(Debug)]
+pub struct BasicAuth {
+    /// Basic Auth username
+    pub username: String,
+
+    /// Optional Basic Auth password
+    pub password: Option<String>
+}
+
+impl BasicAuth {
+    /// Converts the credential information into a format suitable for use
+    /// in HTTP headers.
+    /// Example: Username: user, Password: pass -> "Basic dXNlcjpwYXNz"
+    pub fn to_header_value(&self) -> String {
+        // TODO - clean this up
+        let creds = format!("{}:{}", self.username, self.password.as_ref().unwrap_or(&"".to_string()));
+        format!("Basic {}", base64::encode(&creds))
+    }
+}
+
+/// The different types of Proxy Authentication
+#[derive(Debug)]
+pub enum ProxyAuth {
+    /// Sets the `Proxy-Authorization` header using Basic Auth
+    Basic(BasicAuth)
+}
+
+/// A configuration for using an HTTP proxy
+#[derive(Debug)]
+pub struct Proxy {
+    /// The URL of the proxy server to connect to
+    pub url: Url,
+
+    /// Optional proxy authentication configuration
+    pub auth: Option<ProxyAuth>,
+}
+
 /// Client request.
 #[derive(Debug)]
 pub struct Request<'t> {
@@ -23,6 +61,8 @@ pub struct Request<'t> {
     pub url: Url,
     /// Extra HTTP headers to append to the request.
     pub extra_headers: Option<Vec<(Cow<'t, str>, Cow<'t, str>)>>,
+    /// Proxy Configuration
+    pub proxy: Option<Proxy>,
 }
 
 impl<'t> Request<'t> {
@@ -56,6 +96,11 @@ impl<'t> Request<'t> {
         headers.push((name, value));
         self.extra_headers = Some(headers);
     }
+
+    /// Sets an HTTP proxy to use when connecting to the WebSocket server
+    pub fn set_proxy(&mut self, proxy: Proxy) {
+        self.proxy = Some(proxy);
+    }
 }
 
 impl From<Url> for Request<'static> {
@@ -63,6 +108,7 @@ impl From<Url> for Request<'static> {
         Request {
             url: value,
             extra_headers: None,
+            proxy: None,
         }
     }
 }
