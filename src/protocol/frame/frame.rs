@@ -11,7 +11,7 @@ use super::coding::{OpCode, Control, Data, CloseCode};
 use super::mask::{generate_mask, apply_mask};
 
 /// A struct representing the close command.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct CloseFrame<'t> {
     /// The reason as a code.
     pub code: CloseCode,

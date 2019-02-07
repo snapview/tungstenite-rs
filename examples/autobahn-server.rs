@@ -24,7 +24,8 @@ fn handle_client(stream: TcpStream) -> Result<()> {
                 socket.write_message(msg)?;
             }
             Message::Ping(_) |
-            Message::Pong(_) => {}
+            Message::Pong(_) |
+            Message::Close(_) => {}
         }
     }
 }
