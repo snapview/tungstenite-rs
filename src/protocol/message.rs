@@ -4,6 +4,7 @@ use std::result::Result as StdResult;
 use std::str;
 
 use error::{Result, Error};
+use super::frame::CloseFrame;
 
 mod string_collect {
 
@@ -179,6 +180,8 @@ pub enum Message {
     ///
     /// The payload here must have a length less than 125 bytes
     Pong(Vec<u8>),
+    /// A close message with the optional close frame.
+    Close(Option<CloseFrame<'static>>),
 }
 
 impl Message {
@@ -229,6 +232,14 @@ impl Message {
         }
     }
 
+    /// Indicates whether a message ia s close message.
+    pub fn is_close(&self) -> bool {
+        match *self {
+            Message::Close(_) => true,
+            _ => false,
+        }
+    }
+
     /// Get the length of the WebSocket message.
     pub fn len(&self) -> usize {
         match *self {
@@ -236,6 +247,7 @@ impl Message {
             Message::Binary(ref data) |
             Message::Ping(ref data) |
             Message::Pong(ref data) => data.len(),
+            Message::Close(ref data) => data.as_ref().map(|d| d.reason.len()).unwrap_or(0),
         }
     }
 
@@ -252,6 +264,8 @@ impl Message {
             Message::Binary(data) |
             Message::Ping(data) |
             Message::Pong(data) => data,
+            Message::Close(None) => Vec::new(),
+            Message::Close(Some(frame)) => frame.reason.into_owned().into_bytes(),
         }
     }
 
@@ -263,6 +277,8 @@ impl Message {
             Message::Ping(data) |
             Message::Pong(data) => Ok(try!(
                 String::from_utf8(data).map_err(|err| err.utf8_error()))),
+            Message::Close(None) => Ok(String::new()),
+            Message::Close(Some(frame)) => Ok(frame.reason.into_owned()),
         }
     }
 
@@ -274,6 +290,8 @@ impl Message {
             Message::Binary(ref data) |
             Message::Ping(ref data) |
             Message::Pong(ref data) => Ok(try!(str::from_utf8(data))),
+            Message::Close(None) => Ok(""),
+            Message::Close(Some(ref frame)) => Ok(&frame.reason),
         }
     }
 

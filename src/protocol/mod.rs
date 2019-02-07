@@ -8,7 +8,7 @@ pub use self::message::Message;
 pub use self::frame::CloseFrame;
 
 use std::collections::VecDeque;
-use std::io::{Read, Write, ErrorKind as IoErrorKind};
+use std::io::{Read, Write};
 use std::mem::replace;
 
 use error::{Error, Result};
@@ -146,8 +146,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
             self.write_pending().no_block()?;
             // If we get here, either write blocks or we have nothing to write.
             // Thus if read blocks, just let it return WouldBlock.
-            let res = self.read_message_frame();
-            if let Some(message) = self.translate_close(res)? {
+            if let Some(message) = self.read_message_frame()? {
                 trace!("Received message {}", message);
                 return Ok(message)
             }
@@ -188,34 +187,19 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 self.pong = Some(Frame::pong(data));
                 return self.write_pending()
             }
+            Message::Close(code) => {
+                return self.close(code)
+            }
         };
 
         self.send_queue.push_back(frame);
         self.write_pending()
     }
 
-    /// Close the connection.
-    ///
-    /// This function guarantees that the close frame will be queued.
-    /// There is no need to call it again.
-    pub fn close(&mut self, code: Option<CloseFrame>) -> Result<()> {
-        if let WebSocketState::Active = self.state {
-            self.state = WebSocketState::ClosedByUs;
-            let frame = Frame::close(code);
-            self.send_queue.push_back(frame);
-        } else {
-            // Already closed, nothing to do.
-        }
-        self.write_pending()
-    }
-
     /// Flush the pending send queue.
     pub fn write_pending(&mut self) -> Result<()> {
         // First, make sure we have no pending frame sending.
-        {
-            let res = self.socket.write_pending();
-            self.translate_close(res)?;
-        }
+        self.socket.write_pending()?;
 
         // Upon receipt of a Ping frame, an endpoint MUST send a Pong frame in
         // response, unless it already received a Close frame. It SHOULD
@@ -246,6 +230,22 @@ impl<Stream: Read + Write> WebSocket<Stream> {
         } else {
             Ok(())
         }
+    }
+
+    /// Close the connection.
+    ///
+    /// This function guarantees that the close frame will be queued.
+    /// There is no need to call it again. Calling this function is
+    /// the same as calling `write(Message::Close(..))`.
+    pub fn close(&mut self, code: Option<CloseFrame>) -> Result<()> {
+        if let WebSocketState::Active = self.state {
+            self.state = WebSocketState::ClosedByUs;
+            let frame = Frame::close(code);
+            self.send_queue.push_back(frame);
+        } else {
+            // Already closed, nothing to do.
+        }
+        self.write_pending()
     }
 }
 
@@ -299,7 +299,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                             Err(Error::Protocol("Control frame too big".into()))
                         }
                         OpCtl::Close => {
-                            self.do_close(frame.into_close()?).map(|_| None)
+                            Ok(self.do_close(frame.into_close()?).map(Message::Close))
                         }
                         OpCtl::Reserved(i) => {
                             Err(Error::Protocol(format!("Unknown control frame type {}", i).into()))
@@ -373,7 +373,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
         } else {
             match replace(&mut self.state, WebSocketState::Terminated) {
                 WebSocketState::CloseAcknowledged(close) | WebSocketState::ClosedByPeer(close) => {
-                    Err(Error::ConnectionClosed(close))
+                    Ok(Some(Message::Close(close)))
                 }
                 _ => {
                     Err(Error::Protocol("Connection reset without closing handshake".into()))
@@ -382,13 +382,14 @@ impl<Stream: Read + Write> WebSocket<Stream> {
         }
     }
 
-    /// Received a close frame.
-    fn do_close(&mut self, close: Option<CloseFrame>) -> Result<()> {
+    /// Received a close frame. Tells if we need to return a close frame to the user.
+    fn do_close(&mut self, close: Option<CloseFrame>) -> Option<Option<CloseFrame<'static>>> {
         debug!("Received close frame: {:?}", close);
         match self.state {
             WebSocketState::Active => {
                 let close_code = close.as_ref().map(|f| f.code);
-                self.state = WebSocketState::ClosedByPeer(close.map(CloseFrame::into_owned));
+                let close = close.map(CloseFrame::into_owned);
+                self.state = WebSocketState::ClosedByPeer(close.clone());
                 let reply = if let Some(code) = close_code {
                     if code.is_allowed() {
                         Frame::close(Some(CloseFrame {
@@ -406,11 +407,12 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 };
                 debug!("Replying to close with {:?}", reply);
                 self.send_queue.push_back(reply);
-                Ok(())
+
+                Some(close)
             }
             WebSocketState::ClosedByPeer(_) | WebSocketState::CloseAcknowledged(_) => {
                 // It is already closed, just ignore.
-                Ok(())
+                None
             }
             WebSocketState::ClosedByUs => {
                 // We received a reply.
@@ -419,11 +421,11 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                     Role::Client => {
                         // Client waits for the server to close the connection.
                         self.state = WebSocketState::CloseAcknowledged(close);
-                        Ok(())
+                        None
                     }
                     Role::Server => {
                         // Server closes the connection.
-                        Err(Error::ConnectionClosed(close))
+                        Some(close)
                     }
                 }
             }
@@ -442,30 +444,8 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 frame.set_random_mask();
             }
         }
-        let res = self.socket.write_frame(frame);
-        self.translate_close(res)
+        self.socket.write_frame(frame)
     }
-
-    /// Translate a "Connection reset by peer" into ConnectionClosed as needed.
-    fn translate_close<T>(&mut self, res: Result<T>) -> Result<T> {
-        match res {
-            Err(Error::Io(err)) => Err({
-                if err.kind() == IoErrorKind::ConnectionReset {
-                    match self.state {
-                        WebSocketState::ClosedByPeer(ref mut frame) =>
-                            Error::ConnectionClosed(frame.take()),
-                        WebSocketState::CloseAcknowledged(ref mut frame) =>
-                            Error::ConnectionClosed(frame.take()),
-                        _ => Error::Io(err),
-                    }
-                } else {
-                    Error::Io(err)
-                }
-            }),
-            x => x,
-        }
-    }
-
 }
 
 /// The current connection state.
