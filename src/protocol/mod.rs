@@ -13,7 +13,7 @@ use std::mem::replace;
 
 use error::{Error, Result};
 use self::message::{IncompleteMessage, IncompleteMessageType};
-use self::frame::{Frame, FrameSocket};
+use self::frame::{Frame, FrameCodec};
 use self::frame::coding::{OpCode, Data as OpData, Control as OpCtl, CloseCode};
 use util::NonBlockingResult;
 
@@ -60,20 +60,10 @@ impl Default for WebSocketConfig {
 /// It may be created by calling `connect`, `accept` or `client` functions.
 #[derive(Debug)]
 pub struct WebSocket<Stream> {
-    /// Server or client?
-    role: Role,
     /// The underlying socket.
-    socket: FrameSocket<Stream>,
-    /// The state of processing, either "active" or "closing".
-    state: WebSocketState,
-    /// Receive: an incomplete message being processed.
-    incomplete: Option<IncompleteMessage>,
-    /// Send: a data send queue.
-    send_queue: VecDeque<Frame>,
-    /// Send: an OOB pong message.
-    pong: Option<Frame>,
-    /// The configuration for the websocket session.
-    config: WebSocketConfig,
+    socket: Stream,
+    /// The context for managing a WebSocket.
+    context: WebSocketContext,
 }
 
 impl<Stream> WebSocket<Stream> {
@@ -83,7 +73,10 @@ impl<Stream> WebSocket<Stream> {
     /// or together with an existing one. If you need an initial handshake, use
     /// `connect()` or `accept()` functions of the crate to construct a websocket.
     pub fn from_raw_socket(stream: Stream, role: Role, config: Option<WebSocketConfig>) -> Self {
-        WebSocket::from_frame_socket(FrameSocket::new(stream), role, config)
+        WebSocket {
+            socket: stream,
+            context: WebSocketContext::new(role, config),
+        }
     }
 
     /// Convert a raw socket into a WebSocket without performing a handshake.
@@ -97,40 +90,24 @@ impl<Stream> WebSocket<Stream> {
         role: Role,
         config: Option<WebSocketConfig>,
     ) -> Self {
-        WebSocket::from_frame_socket(FrameSocket::from_partially_read(stream, part), role, config)
+        WebSocket {
+            socket: stream,
+            context: WebSocketContext::from_partially_read(part, role, config),
+        }
     }
 
     /// Returns a shared reference to the inner stream.
     pub fn get_ref(&self) -> &Stream {
-        self.socket.get_ref()
+        &self.socket
     }
     /// Returns a mutable reference to the inner stream.
     pub fn get_mut(&mut self) -> &mut Stream {
-        self.socket.get_mut()
+        &mut self.socket
     }
 
     /// Change the configuration.
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
-        set_func(&mut self.config)
-    }
-}
-
-impl<Stream> WebSocket<Stream> {
-    /// Convert a frame socket into a WebSocket.
-    fn from_frame_socket(
-        socket: FrameSocket<Stream>,
-        role: Role,
-        config: Option<WebSocketConfig>
-    ) -> Self {
-        WebSocket {
-            role,
-            socket,
-            state: WebSocketState::Active,
-            incomplete: None,
-            send_queue: VecDeque::new(),
-            pong: None,
-            config: config.unwrap_or_else(WebSocketConfig::default),
-        }
+        self.context.set_config(set_func)
     }
 }
 
@@ -140,17 +117,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// This function sends pong and close responses automatically.
     /// However, it never blocks on write.
     pub fn read_message(&mut self) -> Result<Message> {
-        loop {
-            // Since we may get ping or close, we need to reply to the messages even during read.
-            // Thus we call write_pending() but ignore its blocking.
-            self.write_pending().no_block()?;
-            // If we get here, either write blocks or we have nothing to write.
-            // Thus if read blocks, just let it return WouldBlock.
-            if let Some(message) = self.read_message_frame()? {
-                trace!("Received message {}", message);
-                return Ok(message)
-            }
-        }
+        self.context.read_message(&mut self.socket)
     }
 
     /// Send a message to stream, if possible.
@@ -162,12 +129,114 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// Note that only the last pong frame is stored to be sent, and only the
     /// most recent pong frame is sent if multiple pong frames are queued.
     pub fn write_message(&mut self, message: Message) -> Result<()> {
+        self.context.write_message(&mut self.socket, message)
+    }
+
+    /// Flush the pending send queue.
+    pub fn write_pending(&mut self) -> Result<()> {
+        self.context.write_pending(&mut self.socket)
+    }
+
+    /// Close the connection.
+    ///
+    /// This function guarantees that the close frame will be queued.
+    /// There is no need to call it again. Calling this function is
+    /// the same as calling `write(Message::Close(..))`.
+    pub fn close(&mut self, code: Option<CloseFrame>) -> Result<()> {
+        self.context.close(&mut self.socket, code)
+    }
+}
+
+
+/// A context for managing WebSocket stream.
+#[derive(Debug)]
+pub struct WebSocketContext {
+    /// Server or client?
+    role: Role,
+    /// encoder/decoder of frame.
+    frame: FrameCodec,
+    /// The state of processing, either "active" or "closing".
+    state: WebSocketState,
+    /// Receive: an incomplete message being processed.
+    incomplete: Option<IncompleteMessage>,
+    /// Send: a data send queue.
+    send_queue: VecDeque<Frame>,
+    /// Send: an OOB pong message.
+    pong: Option<Frame>,
+    /// The configuration for the websocket session.
+    config: WebSocketConfig,
+}
+
+impl WebSocketContext {
+    /// Create a WebSocket context that manages a post-handshake stream.
+    pub fn new(role: Role, config: Option<WebSocketConfig>) -> Self {
+        WebSocketContext {
+            role,
+            frame: FrameCodec::new(),
+            state: WebSocketState::Active,
+            incomplete: None,
+            send_queue: VecDeque::new(),
+            pong: None,
+            config: config.unwrap_or_else(WebSocketConfig::default),
+        }
+    }
+
+    /// Create a WebSocket context that manages an post-handshake stream.
+    pub fn from_partially_read(
+        part: Vec<u8>,
+        role: Role,
+        config: Option<WebSocketConfig>,
+    ) -> Self {
+        WebSocketContext {
+            frame: FrameCodec::from_partially_read(part),
+            ..WebSocketContext::new(role, config)
+        }
+    }
+
+    /// Change the configuration.
+    pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
+        set_func(&mut self.config)
+    }
+
+    /// Read a message from the provided stream, if possible.
+    ///
+    /// This function sends pong and close responses automatically.
+    /// However, it never blocks on write.
+    pub fn read_message<Stream>(&mut self, stream: &mut Stream) -> Result<Message>
+    where
+        Stream: Read + Write,
+    {
+        loop {
+            // Since we may get ping or close, we need to reply to the messages even during read.
+            // Thus we call write_pending() but ignore its blocking.
+            self.write_pending(stream).no_block()?;
+            // If we get here, either write blocks or we have nothing to write.
+            // Thus if read blocks, just let it return WouldBlock.
+            if let Some(message) = self.read_message_frame(stream)? {
+                trace!("Received message {}", message);
+                return Ok(message)
+            }
+        }
+    }
+
+    /// Send a message to the provided stream, if possible.
+    ///
+    /// WebSocket will buffer a configurable number of messages at a time, except to reply to Ping
+    /// and Close requests. If the WebSocket's send queue is full, `SendQueueFull` will be returned
+    /// along with the passed message. Otherwise, the message is queued and Ok(()) is returned.
+    ///
+    /// Note that only the last pong frame is stored to be sent, and only the
+    /// most recent pong frame is sent if multiple pong frames are queued.
+    pub fn write_message<Stream>(&mut self, stream: &mut Stream, message: Message) -> Result<()>
+    where
+        Stream: Read + Write,
+    {
         if let Some(max_send_queue) = self.config.max_send_queue {
             if self.send_queue.len() >= max_send_queue {
                 // Try to make some room for the new message.
                 // Do not return here if write would block, ignore WouldBlock silently
                 // since we must queue the message anyway.
-                self.write_pending().no_block()?;
+                self.write_pending(stream).no_block()?;
             }
 
             if self.send_queue.len() >= max_send_queue {
@@ -185,31 +254,34 @@ impl<Stream: Read + Write> WebSocket<Stream> {
             Message::Ping(data) => Frame::ping(data),
             Message::Pong(data) => {
                 self.pong = Some(Frame::pong(data));
-                return self.write_pending()
+                return self.write_pending(stream)
             }
             Message::Close(code) => {
-                return self.close(code)
+                return self.close(stream, code)
             }
         };
 
         self.send_queue.push_back(frame);
-        self.write_pending()
+        self.write_pending(stream)
     }
 
     /// Flush the pending send queue.
-    pub fn write_pending(&mut self) -> Result<()> {
+    pub fn write_pending<Stream>(&mut self, stream: &mut Stream) -> Result<()>
+    where
+        Stream: Read + Write,
+    {
         // First, make sure we have no pending frame sending.
-        self.socket.write_pending()?;
+        self.frame.write_pending(stream)?;
 
         // Upon receipt of a Ping frame, an endpoint MUST send a Pong frame in
         // response, unless it already received a Close frame. It SHOULD
         // respond with Pong frame as soon as is practical. (RFC 6455)
         if let Some(pong) = self.pong.take() {
-            self.send_one_frame(pong)?;
+            self.send_one_frame(stream, pong)?;
         }
         // If we have any unsent frames, send them.
         while let Some(data) = self.send_queue.pop_front() {
-            self.send_one_frame(data)?;
+            self.send_one_frame(stream, data)?;
         }
 
         // If we get to this point, the send queue is empty and the underlying socket is still
@@ -237,7 +309,10 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// This function guarantees that the close frame will be queued.
     /// There is no need to call it again. Calling this function is
     /// the same as calling `write(Message::Close(..))`.
-    pub fn close(&mut self, code: Option<CloseFrame>) -> Result<()> {
+    pub fn close<Stream>(&mut self, stream: &mut Stream, code: Option<CloseFrame>) -> Result<()>
+    where
+        Stream: Read + Write,
+    {
         if let WebSocketState::Active = self.state {
             self.state = WebSocketState::ClosedByUs;
             let frame = Frame::close(code);
@@ -245,14 +320,17 @@ impl<Stream: Read + Write> WebSocket<Stream> {
         } else {
             // Already closed, nothing to do.
         }
-        self.write_pending()
+        self.write_pending(stream)
     }
 }
 
-impl<Stream: Read + Write> WebSocket<Stream> {
+impl WebSocketContext {
     /// Try to decode one message frame. May return None.
-    fn read_message_frame(&mut self) -> Result<Option<Message>> {
-        if let Some(mut frame) = self.socket.read_frame(self.config.max_frame_size)? {
+    fn read_message_frame<Stream>(&mut self, stream: &mut Stream) -> Result<Option<Message>>
+    where
+        Stream: Read + Write,
+    {
+        if let Some(mut frame) = self.frame.read_frame(stream, self.config.max_frame_size)? {
 
             // MUST be 0 unless an extension is negotiated that defines meanings
             // for non-zero values.  If a nonzero value is received and none of
@@ -434,7 +512,10 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     }
 
     /// Send a single pending frame.
-    fn send_one_frame(&mut self, mut frame: Frame) -> Result<()> {
+    fn send_one_frame<Stream>(&mut self, stream: &mut Stream, mut frame: Frame) -> Result<()>
+    where
+        Stream: Read + Write,
+    {
         match self.role {
             Role::Server => {
             }
@@ -444,9 +525,10 @@ impl<Stream: Read + Write> WebSocket<Stream> {
                 frame.set_random_mask();
             }
         }
-        self.socket.write_frame(frame)
+        self.frame.write_frame(stream, frame)
     }
 }
+
 
 /// The current connection state.
 #[derive(Debug)]
