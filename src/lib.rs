@@ -22,6 +22,8 @@ extern crate url;
 extern crate utf8;
 #[cfg(feature="tls")] extern crate native_tls;
 
+pub extern crate http;
+
 pub mod error;
 pub mod protocol;
 pub mod client;
