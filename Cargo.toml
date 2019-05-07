@@ -33,4 +33,4 @@ optional = true
 version = "0.2"
 
 [dev-dependencies]
-env_logger = "0.5.3"
+env_logger = "0.6.1"
