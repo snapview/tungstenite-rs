@@ -33,5 +33,5 @@ fuzz_target!(|data: &[u8]| {
     //let vector: Vec<u8> = data.into();
     let cursor = Cursor::new(data);
     let mut socket = WebSocket::from_raw_socket(WriteMoc(cursor), Role::Client, None);
-    socket.read_message();
+    socket.read_message().ok();
 });
