@@ -11,7 +11,6 @@ use std::string;
 
 use httparse;
 
-use protocol::frame::CloseFrame;
 use protocol::Message;
 
 #[cfg(feature="tls")]
@@ -26,8 +25,20 @@ pub type Result<T> = result::Result<T, Error>;
 /// Possible WebSocket errors
 #[derive(Debug)]
 pub enum Error {
-    /// WebSocket connection closed (normally)
-    ConnectionClosed(Option<CloseFrame<'static>>),
+    /// WebSocket connection closed normally
+    ///
+    /// Upon receiving this, the server must drop the WebSocket object as soon as possible
+    /// to close the connection.
+    /// The client gets this error if the connection is already closed at the server side.
+    ///
+    /// Receiving this error means that the WebSocket object is not usable anymore and the only
+    /// meaningful action with it is dropping it.
+    ConnectionClosed,
+    /// Trying to work with already closed connection
+    ///
+    /// Trying to write after receiving `Message::Close` or trying to read after receiving
+    /// `Error::ConnectionClosed` causes this.
+    AlreadyClosed,
     /// Input-output error
     Io(io::Error),
     #[cfg(feature="tls")]
@@ -50,13 +61,8 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Error::ConnectionClosed(ref frame) => {
-                if let Some(ref cf) = *frame {
-                    write!(f, "Connection closed: {}", cf)
-                } else {
-                    write!(f, "Connection closed (empty close frame)")
-                }
-            }
+            Error::ConnectionClosed => write!(f, "Connection closed normally"),
+            Error::AlreadyClosed => write!(f, "Trying to work with closed connection"),
             Error::Io(ref err) => write!(f, "IO error: {}", err),
             #[cfg(feature="tls")]
             Error::Tls(ref err) => write!(f, "TLS error: {}", err),
@@ -73,7 +79,8 @@ impl fmt::Display for Error {
 impl ErrorTrait for Error {
     fn description(&self) -> &str {
         match *self {
-            Error::ConnectionClosed(_) => "A close handshake is performed",
+            Error::ConnectionClosed => "A close handshake is performed",
+            Error::AlreadyClosed => "Trying to read or write after getting close notification",
             Error::Io(ref err) => err.description(),
             #[cfg(feature="tls")]
             Error::Tls(ref err) => err.description(),
