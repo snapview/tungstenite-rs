@@ -1,4 +1,5 @@
 extern crate tungstenite;
+extern crate env_logger;
 
 use std::thread::spawn;
 use std::net::TcpListener;
@@ -7,6 +8,7 @@ use tungstenite::accept_hdr;
 use tungstenite::handshake::server::Request;
 
 fn main() {
+    env_logger::init();
     let server = TcpListener::bind("127.0.0.1:3012").unwrap();
     for stream in server.incoming() {
         spawn(move || {
