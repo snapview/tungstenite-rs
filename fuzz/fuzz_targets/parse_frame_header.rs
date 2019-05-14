@@ -8,5 +8,5 @@ fuzz_target!(|data: &[u8]| {
     let vector: Vec<u8> = data.into();
     let mut cursor = Cursor::new(vector);
 
-    tungstenite::protocol::frame::Frame::parse(&mut cursor);
+    tungstenite::protocol::frame::FrameHeader::parse(&mut cursor).ok();
 });

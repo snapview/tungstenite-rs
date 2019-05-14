@@ -18,8 +18,8 @@ git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
 members = ["."]
 
 [[bin]]
-name = "parse_frame"
-path = "fuzz_targets/parse_frame.rs"
+name = "parse_frame_header"
+path = "fuzz_targets/parse_frame_header.rs"
 
 [[bin]]
 name = "read_message_server"
