@@ -41,7 +41,7 @@ pub enum Error {
     SendQueueFull(Message),
     /// UTF coding error
     Utf8,
-    /// Invlid URL.
+    /// Invalid URL.
     Url(Cow<'static, str>),
     /// HTTP error.
     Http(u16),
