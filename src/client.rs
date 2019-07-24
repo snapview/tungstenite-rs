@@ -87,7 +87,26 @@ pub fn connect_with_config<'t, Req: Into<Request<'t>>>(
 ) -> Result<(WebSocket<AutoStream>, Response)> {
     let request: Request = request.into();
     let mode = url_mode(&request.url)?;
-    let addrs = request.url.to_socket_addrs()?;
+    let host = request.url.host()
+        .ok_or_else(|| Error::Url("No host name in the URL".into()))?;
+    let port = request.url.port_or_known_default()
+        .ok_or_else(|| Error::Url("No port number in the URL".into()))?;
+    let addrs;
+    let addr;
+    let addrs = match host {
+        url::Host::Domain(domain) => {
+            addrs = (domain, port).to_socket_addrs()?;
+            addrs.as_slice()
+        }
+        url::Host::Ipv4(ip) => {
+            addr = (ip, port).into();
+            std::slice::from_ref(&addr)
+        }
+        url::Host::Ipv6(ip) => {
+            addr = (ip, port).into();
+            std::slice::from_ref(&addr)
+        }
+    };
     let mut stream = connect_to_some(addrs, &request.url, mode)?;
     NoDelay::set_nodelay(&mut stream, true)?;
     client_with_config(request, stream, config)
@@ -115,9 +134,7 @@ pub fn connect<'t, Req: Into<Request<'t>>>(request: Req)
     connect_with_config(request, None)
 }
 
-fn connect_to_some<A>(addrs: A, url: &Url, mode: Mode) -> Result<AutoStream>
-    where A: Iterator<Item=SocketAddr>
-{
+fn connect_to_some(addrs: &[SocketAddr], url: &Url, mode: Mode) -> Result<AutoStream> {
     let domain = url.host_str().ok_or_else(|| Error::Url("No host name in the URL".into()))?;
     for addr in addrs {
         debug!("Trying to contact {} at {}...", url, addr);
