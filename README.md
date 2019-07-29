@@ -1,6 +1,6 @@
 # Tungstenite
 
-Lightweight stream-based WebSocket implementation for [Rust](http://www.rust-lang.org).
+Lightweight stream-based WebSocket implementation for [Rust](https://www.rust-lang.org/).
 
 ```rust
 use std::net::TcpListener;
@@ -38,7 +38,7 @@ Introduction
 This library provides an implementation of WebSockets,
 [RFC6455](https://tools.ietf.org/html/rfc6455). It allows for both synchronous (like TcpStream)
 and asynchronous usage and is easy to integrate into any third-party event loops including
-[MIO](https://github.com/carllerche/mio). The API design abstracts away all the internals of the
+[MIO](https://github.com/tokio-rs/mio). The API design abstracts away all the internals of the
 WebSocket protocol but still makes them accessible for those who wants full control over the
 network.
 
@@ -61,7 +61,7 @@ There is no support for permessage-deflate at the moment. It's planned.
 Testing
 -------
 
-Tungstenite is thoroughly tested and passes the [Autobahn Test Suite](http://autobahn.ws/testsuite/) for
+Tungstenite is thoroughly tested and passes the [Autobahn Test Suite](https://crossbar.io/autobahn/) for
 WebSockets. It is also covered by internal unit tests as good as possible.
 
 Contributing
