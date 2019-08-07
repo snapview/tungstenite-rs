@@ -18,7 +18,7 @@ use self::frame::coding::{OpCode, Data as OpData, Control as OpCtl, CloseCode};
 use util::NonBlockingResult;
 
 /// Indicates a Client or Server role of the websocket
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
     /// This socket is a server
     Server,
@@ -295,8 +295,13 @@ impl WebSocketContext {
         // If we get to this point, the send queue is empty and the underlying socket is still
         // willing to take more data.
 
+        let closing_state = match self.state {
+            WebSocketState::ClosedByPeer | WebSocketState::CloseAcknowledged => true,
+            _ => false,
+        };
+
         // If we're closing and there is nothing to send anymore, we should close the connection.
-        if let (Role::Server, WebSocketState::ClosedByPeer) = (&self.role, &self.state) {
+        if self.role == Role::Server && closing_state {
             // The underlying TCP connection, in most normal cases, SHOULD be closed
             // first by the server, so that it holds the TIME_WAIT state and not the
             // client (as this would prevent it from re-opening the connection for 2
@@ -567,7 +572,6 @@ impl WebSocketState {
     /// Check if the state is active, return error if not.
     fn check_active(&self) -> Result<()> {
         match self {
-            WebSocketState::CloseAcknowledged => Err(Error::ConnectionClosed),
             WebSocketState::Terminated => Err(Error::AlreadyClosed),
             _ => Ok(()),
         }
