@@ -567,8 +567,8 @@ impl WebSocketState {
     /// Check if the state is active, return error if not.
     fn check_active(&self) -> Result<()> {
         match self {
-            WebSocketState::Terminated
-                => Err(Error::AlreadyClosed),
+            WebSocketState::CloseAcknowledged => Err(Error::ConnectionClosed),
+            WebSocketState::Terminated => Err(Error::AlreadyClosed),
             _ => Ok(()),
         }
     }
