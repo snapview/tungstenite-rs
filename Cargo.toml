@@ -7,9 +7,9 @@ authors = ["Alexey Galakhov"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
 homepage = "https://github.com/snapview/tungstenite-rs"
-documentation = "https://docs.rs/tungstenite/0.9.0"
+documentation = "https://docs.rs/tungstenite/0.9.1"
 repository = "https://github.com/snapview/tungstenite-rs"
-version = "0.9.0"
+version = "0.9.1"
 
 [features]
 default = ["tls"]
