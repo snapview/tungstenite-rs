@@ -3,7 +3,7 @@
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::result::Result as StdResult;
 
-use error::Error;
+use crate::error::Error;
 
 /// Non-blocking IO handling.
 pub trait NonBlockingError: Sized {
@@ -40,7 +40,8 @@ pub trait NonBlockingResult {
 }
 
 impl<T, E> NonBlockingResult for StdResult<T, E>
-    where E : NonBlockingError
+where
+    E: NonBlockingError,
 {
     type Result = StdResult<Option<T>, E>;
     fn no_block(self) -> Self::Result {
@@ -49,7 +50,7 @@ impl<T, E> NonBlockingResult for StdResult<T, E>
             Err(e) => match e.into_non_blocking() {
                 Some(e) => Err(e),
                 None => Ok(None),
-            }
+            },
         }
     }
 }

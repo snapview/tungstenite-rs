@@ -5,15 +5,15 @@ use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::result::Result as StdResult;
 
-use httparse;
-use httparse::Status;
 use http::StatusCode;
+use httparse::Status;
+use log::*;
 
-use error::{Error, Result};
-use protocol::{WebSocket, WebSocketConfig, Role};
-use super::headers::{Headers, FromHttparse, MAX_HEADERS};
+use super::headers::{FromHttparse, Headers, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
-use super::{MidHandshake, HandshakeRole, ProcessingResult, convert_key};
+use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
+use crate::error::{Error, Result};
+use crate::protocol::{Role, WebSocket, WebSocketConfig};
 
 /// Request from the client.
 #[derive(Debug)]
@@ -27,14 +27,16 @@ pub struct Request {
 impl Request {
     /// Reply to the response.
     pub fn reply(&self, extra_headers: Option<Vec<(String, String)>>) -> Result<Vec<u8>> {
-        let key = self.headers.find_first("Sec-WebSocket-Key")
+        let key = self
+            .headers
+            .find_first("Sec-WebSocket-Key")
             .ok_or_else(|| Error::Protocol("Missing Sec-WebSocket-Key".into()))?;
         let mut reply = format!(
             "\
-            HTTP/1.1 101 Switching Protocols\r\n\
-            Connection: Upgrade\r\n\
-            Upgrade: websocket\r\n\
-            Sec-WebSocket-Accept: {}\r\n",
+             HTTP/1.1 101 Switching Protocols\r\n\
+             Connection: Upgrade\r\n\
+             Upgrade: websocket\r\n\
+             Sec-WebSocket-Accept: {}\r\n",
             convert_key(key)?
         );
         add_headers(&mut reply, extra_headers);
@@ -45,12 +47,11 @@ impl Request {
 fn add_headers(reply: &mut impl FmtWrite, extra_headers: Option<ExtraHeaders>) {
     if let Some(eh) = extra_headers {
         for (k, v) in eh {
-            write!(reply, "{}: {}\r\n", k, v).unwrap();
+            writeln!(reply, "{}: {}\r", k, v).unwrap();
         }
     }
-    write!(reply, "\r\n").unwrap();
+    writeln!(reply, "\r").unwrap();
 }
-
 
 impl TryParse for Request {
     fn try_parse(buf: &[u8]) -> Result<Option<(usize, Self)>> {
@@ -69,11 +70,13 @@ impl<'h, 'b: 'h> FromHttparse<httparse::Request<'h, 'b>> for Request {
             return Err(Error::Protocol("Method is not GET".into()));
         }
         if raw.version.expect("Bug: no HTTP version") < /*1.*/1 {
-            return Err(Error::Protocol("HTTP version should be 1.1 or higher".into()));
+            return Err(Error::Protocol(
+                "HTTP version should be 1.1 or higher".into(),
+            ));
         }
         Ok(Request {
             path: raw.path.expect("Bug: no path in header").into(),
-            headers: Headers::from_httparse(raw.headers)?
+            headers: Headers::from_httparse(raw.headers)?,
         })
     }
 }
@@ -115,7 +118,10 @@ pub trait Callback: Sized {
     fn on_request(self, request: &Request) -> StdResult<Option<ExtraHeaders>, ErrorResponse>;
 }
 
-impl<F> Callback for F where F: FnOnce(&Request) -> StdResult<Option<ExtraHeaders>, ErrorResponse> {
+impl<F> Callback for F
+where
+    F: FnOnce(&Request) -> StdResult<Option<ExtraHeaders>, ErrorResponse>,
+{
     fn on_request(self, request: &Request) -> StdResult<Option<ExtraHeaders>, ErrorResponse> {
         self(request)
     }
@@ -160,7 +166,7 @@ impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
                 callback: Some(callback),
                 config,
                 error_code: None,
-                _marker: PhantomData
+                _marker: PhantomData,
             },
         }
     }
@@ -171,13 +177,18 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
     type InternalStream = S;
     type FinalResult = WebSocket<S>;
 
-    fn stage_finished(&mut self, finish: StageResult<Self::IncomingData, Self::InternalStream>)
-        -> Result<ProcessingResult<Self::InternalStream, Self::FinalResult>>
-    {
+    fn stage_finished(
+        &mut self,
+        finish: StageResult<Self::IncomingData, Self::InternalStream>,
+    ) -> Result<ProcessingResult<Self::InternalStream, Self::FinalResult>> {
         Ok(match finish {
-            StageResult::DoneReading { stream, result, tail } => {
+            StageResult::DoneReading {
+                stream,
+                result,
+                tail,
+            } => {
                 if !tail.is_empty() {
-                    return Err(Error::Protocol("Junk after client request".into()))
+                    return Err(Error::Protocol("Junk after client request".into()));
                 }
 
                 let callback_result = if let Some(callback) = self.callback.take() {
@@ -192,8 +203,12 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                         ProcessingResult::Continue(HandshakeMachine::start_write(stream, response))
                     }
 
-                    Err(ErrorResponse { error_code, headers, body }) => {
-                        self.error_code= Some(error_code.as_u16());
+                    Err(ErrorResponse {
+                        error_code,
+                        headers,
+                        body,
+                    }) => {
+                        self.error_code = Some(error_code.as_u16());
                         let mut response = format!(
                             "HTTP/1.1 {} {}\r\n",
                             error_code.as_str(),
@@ -214,11 +229,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                     return Err(Error::Http(err));
                 } else {
                     debug!("Server handshake done.");
-                    let websocket = WebSocket::from_raw_socket(
-                        stream,
-                        Role::Server,
-                        self.config.clone(),
-                    );
+                    let websocket = WebSocket::from_raw_socket(stream, Role::Server, self.config);
                     ProcessingResult::Done(websocket)
                 }
             }
@@ -228,9 +239,9 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
 
 #[cfg(test)]
 mod tests {
-    use super::Request;
-    use super::super::machine::TryParse;
     use super::super::client::Response;
+    use super::super::machine::TryParse;
+    use super::Request;
 
     #[test]
     fn request_parsing() {
@@ -253,13 +264,19 @@ mod tests {
         let (_, req) = Request::try_parse(DATA).unwrap().unwrap();
         let _ = req.reply(None).unwrap();
 
-        let extra_headers = Some(vec![(String::from("MyCustomHeader"),
-                                       String::from("MyCustomValue")),
-                                       (String::from("MyVersion"),
-                                        String::from("LOL"))]);
+        let extra_headers = Some(vec![
+            (
+                String::from("MyCustomHeader"),
+                String::from("MyCustomValue"),
+            ),
+            (String::from("MyVersion"), String::from("LOL")),
+        ]);
         let reply = req.reply(extra_headers).unwrap();
         let (_, req) = Response::try_parse(&reply).unwrap().unwrap();
-        assert_eq!(req.headers.find_first("MyCustomHeader"), Some(b"MyCustomValue".as_ref()));
+        assert_eq!(
+            req.headers.find_first("MyCustomHeader"),
+            Some(b"MyCustomValue".as_ref())
+        );
         assert_eq!(req.headers.find_first("MyVersion"), Some(b"LOL".as_ref()));
     }
 }

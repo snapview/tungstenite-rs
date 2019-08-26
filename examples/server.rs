@@ -1,8 +1,5 @@
-extern crate tungstenite;
-extern crate env_logger;
-
-use std::thread::spawn;
 use std::net::TcpListener;
+use std::thread::spawn;
 
 use tungstenite::accept_hdr;
 use tungstenite::handshake::server::Request;
@@ -23,7 +20,10 @@ fn main() {
                 // Let's add an additional header to our response to the client.
                 let extra_headers = vec![
                     (String::from("MyCustomHeader"), String::from(":)")),
-                    (String::from("SOME_TUNGSTENITE_HEADER"), String::from("header_value")),
+                    (
+                        String::from("SOME_TUNGSTENITE_HEADER"),
+                        String::from("header_value"),
+                    ),
                 ];
                 Ok(Some(extra_headers))
             };

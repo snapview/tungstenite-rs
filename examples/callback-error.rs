@@ -1,10 +1,8 @@
-extern crate tungstenite;
-
-use std::thread::spawn;
 use std::net::TcpListener;
+use std::thread::spawn;
 
 use tungstenite::accept_hdr;
-use tungstenite::handshake::server::{Request, ErrorResponse};
+use tungstenite::handshake::server::{ErrorResponse, Request};
 use tungstenite::http::StatusCode;
 
 fn main() {
