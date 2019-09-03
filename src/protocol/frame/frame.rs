@@ -1,14 +1,15 @@
-use std::fmt;
+use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
+use log::*;
 use std::borrow::Cow;
-use std::io::{Cursor, Read, Write, ErrorKind};
 use std::default::Default;
-use std::string::{String, FromUtf8Error};
+use std::fmt;
+use std::io::{Cursor, ErrorKind, Read, Write};
 use std::result::Result as StdResult;
-use byteorder::{ByteOrder, ReadBytesExt, WriteBytesExt, NetworkEndian};
+use std::string::{FromUtf8Error, String};
 
-use error::{Error, Result};
-use super::coding::{OpCode, Control, Data, CloseCode};
-use super::mask::{generate_mask, apply_mask};
+use super::coding::{CloseCode, Control, Data, OpCode};
+use super::mask::{apply_mask, generate_mask};
+use crate::error::{Error, Result};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -77,15 +78,13 @@ impl FrameHeader {
                 cursor.set_position(initial);
                 ret
             }
-            ret => ret
+            ret => ret,
         }
     }
 
     /// Get the size of the header formatted with given payload length.
     pub fn len(&self, length: u64) -> usize {
-        2
-        + LengthFormat::for_length(length).extra_bytes()
-        + if self.mask.is_some() { 4 } else { 0 }
+        2 + LengthFormat::for_length(length).extra_bytes() + if self.mask.is_some() { 4 } else { 0 }
     }
 
     /// Format a header for given payload size.
@@ -93,19 +92,15 @@ impl FrameHeader {
         let code: u8 = self.opcode.into();
 
         let one = {
-            code
-            | if self.is_final { 0x80 } else { 0 }
-            | if self.rsv1     { 0x40 } else { 0 }
-            | if self.rsv2     { 0x20 } else { 0 }
-            | if self.rsv3     { 0x10 } else { 0 }
+            code | if self.is_final { 0x80 } else { 0 }
+                | if self.rsv1 { 0x40 } else { 0 }
+                | if self.rsv2 { 0x20 } else { 0 }
+                | if self.rsv3 { 0x10 } else { 0 }
         };
 
         let lenfmt = LengthFormat::for_length(length);
 
-        let two = {
-            lenfmt.length_byte()
-            | if self.mask.is_some() { 0x80 } else { 0 }
-        };
+        let two = { lenfmt.length_byte() | if self.mask.is_some() { 0x80 } else { 0 } };
 
         output.write_all(&[one, two])?;
         match lenfmt {
@@ -137,7 +132,7 @@ impl FrameHeader {
         let (first, second) = {
             let mut head = [0u8; 2];
             if cursor.read(&mut head)? != 2 {
-                return Ok(None)
+                return Ok(None);
             }
             trace!("Parsed headers {:?}", head);
             (head[0], head[1])
@@ -169,17 +164,17 @@ impl FrameHeader {
                     Err(err) => {
                         return Err(err.into());
                     }
-                    Ok(read) => read
+                    Ok(read) => read,
                 }
             } else {
-                length_byte as u64
+                u64::from(length_byte)
             }
         };
 
         let mask = if masked {
             let mut mask_bytes = [0u8; 4];
             if cursor.read(&mut mask_bytes)? != 4 {
-                return Ok(None)
+                return Ok(None);
             } else {
                 Some(mask_bytes)
             }
@@ -190,9 +185,11 @@ impl FrameHeader {
         // Disallow bad opcode
         match opcode {
             OpCode::Control(Control::Reserved(_)) | OpCode::Data(Data::Reserved(_)) => {
-                return Err(Error::Protocol(format!("Encountered invalid opcode: {}", first & 0x0F).into()))
+                return Err(Error::Protocol(
+                    format!("Encountered invalid opcode: {}", first & 0x0F).into(),
+                ))
             }
-            _ => ()
+            _ => (),
         }
 
         let hdr = FrameHeader {
@@ -216,13 +213,18 @@ pub struct Frame {
 }
 
 impl Frame {
-
     /// Get the length of the frame.
     /// This is the length of the header + the length of the payload.
     #[inline]
     pub fn len(&self) -> usize {
         let length = self.payload.len();
         self.header.len(length as u64) + length
+    }
+
+    /// Check if the frame is empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     /// Get a reference to the frame's header.
@@ -285,7 +287,7 @@ impl Frame {
         String::from_utf8(self.payload)
     }
 
-     /// Consume the frame into a closing frame.
+    /// Consume the frame into a closing frame.
     #[inline]
     pub(crate) fn into_close(self) -> Result<Option<CloseFrame<'static>>> {
         match self.payload.len() {
@@ -296,7 +298,10 @@ impl Frame {
                 let code = NetworkEndian::read_u16(&data[0..2]).into();
                 data.drain(0..2);
                 let text = String::from_utf8(data)?;
-                Ok(Some(CloseFrame { code, reason: text.into() }))
+                Ok(Some(CloseFrame {
+                    code,
+                    reason: text.into(),
+                }))
             }
         }
     }
@@ -304,16 +309,19 @@ impl Frame {
     /// Create a new data frame.
     #[inline]
     pub fn message(data: Vec<u8>, opcode: OpCode, is_final: bool) -> Frame {
-        debug_assert!(match opcode {
-            OpCode::Data(_) => true,
-            _ => false,
-        }, "Invalid opcode for data frame.");
+        debug_assert!(
+            match opcode {
+                OpCode::Data(_) => true,
+                _ => false,
+            },
+            "Invalid opcode for data frame."
+        );
 
         Frame {
             header: FrameHeader {
                 is_final,
                 opcode,
-                .. FrameHeader::default()
+                ..FrameHeader::default()
             },
             payload: data,
         }
@@ -325,7 +333,7 @@ impl Frame {
         Frame {
             header: FrameHeader {
                 opcode: OpCode::Control(Control::Pong),
-                .. FrameHeader::default()
+                ..FrameHeader::default()
             },
             payload: data,
         }
@@ -337,7 +345,7 @@ impl Frame {
         Frame {
             header: FrameHeader {
                 opcode: OpCode::Control(Control::Ping),
-                .. FrameHeader::default()
+                ..FrameHeader::default()
             },
             payload: data,
         }
@@ -363,10 +371,7 @@ impl Frame {
 
     /// Create a frame from given header and data.
     pub fn from_payload(header: FrameHeader, payload: Vec<u8>) -> Self {
-        Frame {
-            header,
-            payload,
-        }
+        Frame { header, payload }
     }
 
     /// Write a frame out to a buffer
@@ -380,7 +385,8 @@ impl Frame {
 
 impl fmt::Display for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
+        write!(
+            f,
             "
 <FRAME>
 final: {}
@@ -398,7 +404,11 @@ payload: 0x{}
             // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
             self.len(),
             self.payload.len(),
-            self.payload.iter().map(|byte| format!("{:x}", byte)).collect::<String>())
+            self.payload
+                .iter()
+                .map(|byte| format!("{:x}", byte))
+                .collect::<String>()
+        )
     }
 }
 
@@ -448,7 +458,7 @@ impl LengthFormat {
         match byte & 0x7F {
             126 => LengthFormat::U16,
             127 => LengthFormat::U64,
-            b => LengthFormat::U8(b)
+            b => LengthFormat::U8(b),
         }
     }
 }
@@ -457,20 +467,22 @@ impl LengthFormat {
 mod tests {
     use super::*;
 
-    use super::super::coding::{OpCode, Data};
+    use super::super::coding::{Data, OpCode};
     use std::io::Cursor;
 
     #[test]
     fn parse() {
-        let mut raw: Cursor<Vec<u8>> = Cursor::new(vec![
-            0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07
-        ]);
+        let mut raw: Cursor<Vec<u8>> =
+            Cursor::new(vec![0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let (header, length) = FrameHeader::parse(&mut raw).unwrap().unwrap();
         assert_eq!(length, 7);
         let mut payload = Vec::new();
         raw.read_to_end(&mut payload).unwrap();
         let frame = Frame::from_payload(header, payload);
-        assert_eq!(frame.into_data(), vec![ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 ]);
+        assert_eq!(
+            frame.into_data(),
+            vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
+        );
     }
 
     #[test]
@@ -487,5 +499,4 @@ mod tests {
         let view = format!("{}", f);
         assert!(view.contains("payload:"));
     }
-
 }

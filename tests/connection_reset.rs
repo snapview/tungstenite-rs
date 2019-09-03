@@ -1,13 +1,9 @@
 //! Verifies that the server returns a `ConnectionClosed` error when the connection
 //! is closedd from the server's point of view and drop the underlying tcp socket.
 
-extern crate env_logger;
-extern crate tungstenite;
-extern crate url;
-
 use std::net::TcpListener;
 use std::process::exit;
-use std::thread::{spawn, sleep};
+use std::thread::{sleep, spawn};
 use std::time::Duration;
 
 use tungstenite::{accept, connect, Error, Message};
@@ -28,14 +24,16 @@ fn test_close() {
     let client_thread = spawn(move || {
         let (mut client, _) = connect(Url::parse("ws://localhost:3012/socket").unwrap()).unwrap();
 
-        client.write_message(Message::Text("Hello WebSocket".into())).unwrap();
+        client
+            .write_message(Message::Text("Hello WebSocket".into()))
+            .unwrap();
 
         let message = client.read_message().unwrap(); // receive close from server
         assert!(message.is_close());
 
         let err = client.read_message().unwrap_err(); // now we should get ConnectionClosed
         match err {
-            Error::ConnectionClosed => { },
+            Error::ConnectionClosed => {}
             _ => panic!("unexpected error"),
         }
     });
@@ -52,7 +50,7 @@ fn test_close() {
 
     let err = client_handler.read_message().unwrap_err(); // now we should get ConnectionClosed
     match err {
-        Error::ConnectionClosed => { },
+        Error::ConnectionClosed => {}
         _ => panic!("unexpected error"),
     }
 

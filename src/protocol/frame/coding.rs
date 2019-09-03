@@ -1,7 +1,7 @@
 //! Various codes defined in RFC 6455.
 
+use std::convert::{From, Into};
 use std::fmt;
-use std::convert::{Into, From};
 
 /// WebSocket message opcode as in RFC 6455.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -42,8 +42,8 @@ impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Data::Continue => write!(f, "CONTINUE"),
-            Data::Text     => write!(f, "TEXT"),
-            Data::Binary   => write!(f, "BINARY"),
+            Data::Text => write!(f, "TEXT"),
+            Data::Binary => write!(f, "BINARY"),
             Data::Reserved(x) => write!(f, "RESERVED_DATA_{}", x),
         }
     }
@@ -53,8 +53,8 @@ impl fmt::Display for Control {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Control::Close => write!(f, "CLOSE"),
-            Control::Ping  => write!(f, "PING"),
-            Control::Pong  => write!(f, "PONG"),
+            Control::Ping => write!(f, "PING"),
+            Control::Pong => write!(f, "PONG"),
             Control::Reserved(x) => write!(f, "RESERVED_CONTROL_{}", x),
         }
     }
@@ -71,18 +71,18 @@ impl fmt::Display for OpCode {
 
 impl Into<u8> for OpCode {
     fn into(self) -> u8 {
-        use self::Data::{Continue, Text, Binary};
         use self::Control::{Close, Ping, Pong};
+        use self::Data::{Binary, Continue, Text};
         use self::OpCode::*;
         match self {
             Data(Continue) => 0,
-            Data(Text)     => 1,
-            Data(Binary)   => 2,
+            Data(Text) => 1,
+            Data(Binary) => 2,
             Data(self::Data::Reserved(i)) => i,
 
             Control(Close) => 8,
-            Control(Ping)  => 9,
-            Control(Pong)  => 10,
+            Control(Ping) => 9,
+            Control(Pong) => 10,
             Control(self::Control::Reserved(i)) => i,
         }
     }
@@ -90,19 +90,19 @@ impl Into<u8> for OpCode {
 
 impl From<u8> for OpCode {
     fn from(byte: u8) -> OpCode {
-        use self::Data::{Continue, Text, Binary};
         use self::Control::{Close, Ping, Pong};
+        use self::Data::{Binary, Continue, Text};
         use self::OpCode::*;
         match byte {
-            0   =>   Data(Continue),
-            1   =>   Data(Text),
-            2   =>   Data(Binary),
-            i @ 3 ... 7 => Data(self::Data::Reserved(i)),
-            8   =>   Control(Close),
-            9   =>   Control(Ping),
-            10  =>   Control(Pong),
-            i @ 11 ... 15 => Control(self::Control::Reserved(i)),
-            _   =>   panic!("Bug: OpCode out of range"),
+            0 => Data(Continue),
+            1 => Data(Text),
+            2 => Data(Binary),
+            i @ 3..=7 => Data(self::Data::Reserved(i)),
+            8 => Control(Close),
+            9 => Control(Ping),
+            10 => Control(Pong),
+            i @ 11..=15 => Control(self::Control::Reserved(i)),
+            _ => panic!("Bug: OpCode out of range"),
         }
     }
 }
@@ -183,13 +183,13 @@ pub enum CloseCode {
 
 impl CloseCode {
     /// Check if this CloseCode is allowed.
-    pub fn is_allowed(&self) -> bool {
-        match *self {
-            Bad(_)      => false,
+    pub fn is_allowed(self) -> bool {
+        match self {
+            Bad(_) => false,
             Reserved(_) => false,
-            Status      => false,
-            Abnormal    => false,
-            Tls         => false,
+            Status => false,
+            Abnormal => false,
+            Tls => false,
             _ => true,
         }
     }
@@ -205,24 +205,24 @@ impl fmt::Display for CloseCode {
 impl<'t> Into<u16> for &'t CloseCode {
     fn into(self) -> u16 {
         match *self {
-           Normal         =>  1000,
-           Away           =>  1001,
-           Protocol       =>  1002,
-           Unsupported    =>  1003,
-           Status         =>  1005,
-           Abnormal       =>  1006,
-           Invalid        =>  1007,
-           Policy         =>  1008,
-           Size           =>  1009,
-           Extension      =>  1010,
-           Error          =>  1011,
-           Restart        =>  1012,
-           Again          =>  1013,
-           Tls            =>  1015,
-           Reserved(code) =>  code,
-           Iana(code)     =>  code,
-           Library(code)  =>  code,
-           Bad(code)      =>  code,
+            Normal => 1000,
+            Away => 1001,
+            Protocol => 1002,
+            Unsupported => 1003,
+            Status => 1005,
+            Abnormal => 1006,
+            Invalid => 1007,
+            Policy => 1008,
+            Size => 1009,
+            Extension => 1010,
+            Error => 1011,
+            Restart => 1012,
+            Again => 1013,
+            Tls => 1015,
+            Reserved(code) => code,
+            Iana(code) => code,
+            Library(code) => code,
+            Bad(code) => code,
         }
     }
 }
@@ -250,11 +250,11 @@ impl From<u16> for CloseCode {
             1012 => Restart,
             1013 => Again,
             1015 => Tls,
-            1...999     => Bad(code),
-            1000...2999 => Reserved(code),
-            3000...3999 => Iana(code),
-            4000...4999 => Library(code),
-            _   => Bad(code)
+            1..=999 => Bad(code),
+            1016..=2999 => Reserved(code),
+            3000..=3999 => Iana(code),
+            4000..=4999 => Library(code),
+            _ => Bad(code),
         }
     }
 }

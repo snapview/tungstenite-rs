@@ -1,7 +1,8 @@
+use rand;
 use std::cmp::min;
+#[allow(deprecated)]
 use std::mem::uninitialized;
 use std::ptr::{copy_nonoverlapping, read_unaligned};
-use rand;
 
 /// Generate a random frame mask.
 #[inline]
@@ -26,11 +27,9 @@ fn apply_mask_fallback(buf: &mut [u8], mask: [u8; 4]) {
 
 /// Faster version of `apply_mask()` which operates on 4-byte blocks.
 #[inline]
-#[allow(dead_code)]
+#[allow(dead_code, clippy::cast_ptr_alignment)]
 fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
-    let mask_u32: u32 = unsafe {
-        read_unaligned(mask.as_ptr() as *const u32)
-    };
+    let mask_u32: u32 = unsafe { read_unaligned(mask.as_ptr() as *const u32) };
 
     let mut ptr = buf.as_mut_ptr();
     let mut len = buf.len();
@@ -40,7 +39,7 @@ fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
     let mask_u32 = if head > 0 {
         unsafe {
             xor_mem(ptr, mask_u32, head);
-            ptr = ptr.offset(head as isize);
+            ptr = ptr.add(head);
         }
         len -= head;
         if cfg!(target_endian = "big") {
@@ -67,7 +66,9 @@ fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
 
     // Possible last block.
     if len > 0 {
-        unsafe { xor_mem(ptr, mask_u32, len); }
+        unsafe {
+            xor_mem(ptr, mask_u32, len);
+        }
     }
 }
 
@@ -75,6 +76,7 @@ fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
 // TODO: copy_nonoverlapping here compiles to call memcpy. While it is not so inefficient,
 // it could be done better. The compiler does not see that len is limited to 3.
 unsafe fn xor_mem(ptr: *mut u8, mask: u32, len: usize) {
+    #[allow(deprecated)]
     let mut b: u32 = uninitialized();
     #[allow(trivial_casts)]
     copy_nonoverlapping(ptr, &mut b as *mut _ as *mut u8, len);
@@ -90,12 +92,10 @@ mod tests {
 
     #[test]
     fn test_apply_mask() {
-        let mask = [
-            0x6d, 0xb6, 0xb2, 0x80,
-        ];
+        let mask = [0x6d, 0xb6, 0xb2, 0x80];
         let unmasked = vec![
-            0xf3, 0x00, 0x01, 0x02,  0x03, 0x80, 0x81, 0x82,
-            0xff, 0xfe, 0x00, 0x17,  0x74, 0xf9, 0x12, 0x03,
+            0xf3, 0x00, 0x01, 0x02, 0x03, 0x80, 0x81, 0x82, 0xff, 0xfe, 0x00, 0x17, 0x74, 0xf9,
+            0x12, 0x03,
         ];
 
         // Check masking with proper alignment.
@@ -120,6 +120,4 @@ mod tests {
             assert_eq!(masked, masked_fast);
         }
     }
-
 }
-

@@ -1,15 +1,11 @@
-extern crate tungstenite;
-extern crate url;
-extern crate env_logger;
-
+use tungstenite::{connect, Message};
 use url::Url;
-use tungstenite::{Message, connect};
 
 fn main() {
     env_logger::init();
 
-    let (mut socket, response) = connect(Url::parse("ws://localhost:3012/socket").unwrap())
-        .expect("Can't connect");
+    let (mut socket, response) =
+        connect(Url::parse("ws://localhost:3012/socket").unwrap()).expect("Can't connect");
 
     println!("Connected to the server");
     println!("Response HTTP code: {}", response.code);
@@ -18,11 +14,12 @@ fn main() {
         println!("* {}", header);
     }
 
-    socket.write_message(Message::Text("Hello WebSocket".into())).unwrap();
+    socket
+        .write_message(Message::Text("Hello WebSocket".into()))
+        .unwrap();
     loop {
         let msg = socket.read_message().expect("Error reading message");
         println!("Received: {}", msg);
     }
     // socket.close(None);
-
 }
