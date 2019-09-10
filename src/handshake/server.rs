@@ -153,7 +153,7 @@ pub struct ServerHandshake<S, C> {
     _marker: PhantomData<S>,
 }
 
-impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
+impl<S: Read + Write + Unpin, C: Callback> ServerHandshake<S, C> {
     /// Start server handshake. `callback` specifies a custom callback which the user can pass to
     /// the handshake, this callback will be called when the a websocket client connnects to the
     /// server, you can specify the callback if you want to add additional header to the client
@@ -172,7 +172,7 @@ impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
     }
 }
 
-impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
+impl<S: Read + Write + Unpin, C: Callback> HandshakeRole for ServerHandshake<S, C> {
     type IncomingData = Request;
     type InternalStream = S;
     type FinalResult = WebSocket<S>;

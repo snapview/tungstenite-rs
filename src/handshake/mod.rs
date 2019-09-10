@@ -24,6 +24,16 @@ pub struct MidHandshake<Role: HandshakeRole> {
 }
 
 impl<Role: HandshakeRole> MidHandshake<Role> {
+    /// Allow access to machine
+    pub fn get_ref(&self) -> &HandshakeMachine<Role::InternalStream> {
+        &self.machine
+    }
+
+    /// Allow mutable access to machine
+    pub fn get_mut(&mut self) -> &mut HandshakeMachine<Role::InternalStream> {
+        &mut self.machine
+    }
+
     /// Restarts the handshake process.
     pub fn handshake(mut self) -> Result<Role::FinalResult, HandshakeError<Role>> {
         let mut mach = self.machine;
@@ -91,7 +101,7 @@ pub trait HandshakeRole {
     #[doc(hidden)]
     type IncomingData: TryParse;
     #[doc(hidden)]
-    type InternalStream: Read + Write;
+    type InternalStream: Read + Write + Unpin;
     #[doc(hidden)]
     type FinalResult;
     #[doc(hidden)]
