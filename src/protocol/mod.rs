@@ -533,7 +533,7 @@ impl WebSocketContext {
 }
 
 /// The current connection state.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum WebSocketState {
     /// The connection is active.
     Active,
