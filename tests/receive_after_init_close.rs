@@ -1,5 +1,5 @@
-//! Verifies that the server returns a `ConnectionClosed` error when the connection
-//! is closedd from the server's point of view and drop the underlying tcp socket.
+//! Verifies that we can read data messages even if we have initiated a close handshake,
+//! but before we got confirmation.
 
 use std::net::TcpListener;
 use std::process::exit;
@@ -10,7 +10,7 @@ use tungstenite::{accept, connect, Error, Message};
 use url::Url;
 
 #[test]
-fn test_close() {
+fn test_receive_after_init_close() {
     env_logger::init();
 
     spawn(|| {
@@ -19,10 +19,10 @@ fn test_close() {
         exit(1);
     });
 
-    let server = TcpListener::bind("127.0.0.1:3012").unwrap();
+    let server = TcpListener::bind("127.0.0.1:3013").unwrap();
 
     let client_thread = spawn(move || {
-        let (mut client, _) = connect(Url::parse("ws://localhost:3012/socket").unwrap()).unwrap();
+        let (mut client, _) = connect(Url::parse("ws://localhost:3013/socket").unwrap()).unwrap();
 
         client
             .write_message(Message::Text("Hello WebSocket".into()))
@@ -41,10 +41,11 @@ fn test_close() {
     let client_handler = server.incoming().next().unwrap();
     let mut client_handler = accept(client_handler.unwrap()).unwrap();
 
+    client_handler.close(None).unwrap(); // send close to client
+
+    // This read should succeed even though we already initiated a close
     let message = client_handler.read_message().unwrap();
     assert_eq!(message.into_data(), b"Hello WebSocket");
-
-    client_handler.close(None).unwrap(); // send close to client
 
     assert!(client_handler.read_message().unwrap().is_close()); // receive acknowledgement
 

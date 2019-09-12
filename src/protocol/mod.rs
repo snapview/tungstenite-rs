@@ -396,7 +396,7 @@ impl WebSocketContext {
                     }
                 }
 
-                OpCode::Data(_) if !self.state.is_active() => {
+                OpCode::Data(_) if !self.state.can_read() => {
                     // No data processing while closing.
                     Ok(None)
                 }
@@ -533,7 +533,7 @@ impl WebSocketContext {
 }
 
 /// The current connection state.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum WebSocketState {
     /// The connection is active.
     Active,
@@ -550,8 +550,19 @@ enum WebSocketState {
 impl WebSocketState {
     /// Tell if we're allowed to process normal messages.
     fn is_active(&self) -> bool {
-        match *self {
+        match self {
             WebSocketState::Active => true,
+            _ => false,
+        }
+    }
+
+    /// Tell if we should process incoming data. Note that if we send a close frame
+    /// but the remote hasn't confirmed, they might have sent data before they receive our
+    /// close frame, so we should still pass those to client code, hence ClosedByUs is valid.
+    fn can_read(&self) -> bool {
+        match self {
+            WebSocketState::Active     |
+            WebSocketState::ClosedByUs => true,
             _ => false,
         }
     }
