@@ -337,6 +337,9 @@ impl WebSocketContext {
         Stream: Read + Write,
     {
         if let Some(mut frame) = self.frame.read_frame(stream, self.config.max_frame_size)? {
+            if !self.state.can_read() {
+                return Err(Error::Protocol("Remote sent frame after having sent a Close Frame".into()));
+            }
             // MUST be 0 unless an extension is negotiated that defines meanings
             // for non-zero values.  If a nonzero value is received and none of
             // the negotiated extensions defines the meaning of such a nonzero
@@ -388,9 +391,6 @@ impl WebSocketContext {
                         OpCtl::Reserved(i) => Err(Error::Protocol(
                             format!("Unknown control frame type {}", i).into(),
                         )),
-                        OpCtl::Ping | OpCtl::Pong if !self.state.can_read() => {
-                            Ok(None)
-                        }
                         OpCtl::Ping => {
                             let data = frame.into_data();
                             // No ping processing after we sent a close frame.
@@ -401,11 +401,6 @@ impl WebSocketContext {
                         }
                         OpCtl::Pong => Ok(Some(Message::Pong(frame.into_data()))),
                     }
-                }
-
-                OpCode::Data(_) if !self.state.can_read() => {
-                    // No data processing while closing.
-                    Ok(None)
                 }
 
                 OpCode::Data(data) => {
