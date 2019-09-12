@@ -550,7 +550,7 @@ enum WebSocketState {
 impl WebSocketState {
     /// Tell if we're allowed to process normal messages.
     fn is_active(&self) -> bool {
-        match *self {
+        match self {
             WebSocketState::Active => true,
             _ => false,
         }
@@ -560,7 +560,7 @@ impl WebSocketState {
     /// but the remote hasn't confirmed, they might have sent data before they receive our
     /// close frame, so we should still pass those to client code, hence ClosedByUs is valid.
     fn can_read(&self) -> bool {
-        match *self {
+        match self {
             WebSocketState::Active     |
             WebSocketState::ClosedByUs => true,
             _ => false,
