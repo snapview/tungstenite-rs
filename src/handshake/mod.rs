@@ -101,7 +101,7 @@ pub trait HandshakeRole {
     #[doc(hidden)]
     type IncomingData: TryParse;
     #[doc(hidden)]
-    type InternalStream: Read + Write + Unpin;
+    type InternalStream: Read + Write;
     #[doc(hidden)]
     type FinalResult;
     #[doc(hidden)]

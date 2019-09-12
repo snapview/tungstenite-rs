@@ -179,7 +179,7 @@ pub fn client_with_config<'t, Stream, Req>(
     config: Option<WebSocketConfig>,
 ) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
 where
-    Stream: Read + Write + Unpin,
+    Stream: Read + Write,
     Req: Into<Request<'t>>,
 {
     ClientHandshake::start(stream, request.into(), config).handshake()
@@ -195,7 +195,7 @@ pub fn client<'t, Stream, Req>(
     stream: Stream,
 ) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
 where
-    Stream: Read + Write + Unpin,
+    Stream: Read + Write,
     Req: Into<Request<'t>>,
 {
     client_with_config(request, stream, None)

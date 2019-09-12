@@ -73,7 +73,7 @@ pub struct ClientHandshake<S> {
     _marker: PhantomData<S>,
 }
 
-impl<S: Read + Write + Unpin> ClientHandshake<S> {
+impl<S: Read + Write> ClientHandshake<S> {
     /// Initiate a client handshake.
     pub fn start(
         stream: S,
@@ -124,7 +124,7 @@ impl<S: Read + Write + Unpin> ClientHandshake<S> {
     }
 }
 
-impl<S: Read + Write + Unpin> HandshakeRole for ClientHandshake<S> {
+impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
     type IncomingData = Response;
     type InternalStream = S;
     type FinalResult = (WebSocket<S>, Response);
