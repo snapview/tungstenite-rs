@@ -34,7 +34,7 @@ fn test_close() {
         let err = client.read_message().unwrap_err(); // now we should get ConnectionClosed
         match err {
             Error::ConnectionClosed => {}
-            _ => panic!("unexpected error"),
+            _ => panic!("unexpected error: {:?}", err),
         }
     });
 
@@ -51,7 +51,7 @@ fn test_close() {
     let err = client_handler.read_message().unwrap_err(); // now we should get ConnectionClosed
     match err {
         Error::ConnectionClosed => {}
-        _ => panic!("unexpected error"),
+        _ => panic!("unexpected error: {:?}", err),
     }
 
     drop(client_handler);
