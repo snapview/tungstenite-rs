@@ -230,8 +230,13 @@ impl WebSocketContext {
     where
         Stream: Read + Write,
     {
-        // Do not write to already closed connections.
+        // When terminated, return AlreadyClosed.
         self.state.check_active()?;
+
+        // Do not write after sending a close frame.
+        if !self.state.is_active() {
+            return Err(Error::Protocol("Sending after closing is not allowed".into()));
+        }
 
         if let Some(max_send_queue) = self.config.max_send_queue {
             if self.send_queue.len() >= max_send_queue {
