@@ -115,8 +115,18 @@ impl<Stream> WebSocket<Stream> {
 impl<Stream: Read + Write> WebSocket<Stream> {
     /// Read a message from stream, if possible.
     ///
-    /// This function sends pong and close responses automatically.
-    /// However, it never blocks on write.
+    /// This will queue responses to ping and close messages to be sent. It will call
+    /// `write_pending` before trying to read in order to make sure that those responses
+    /// make progress even if you never call `write_pending`. That does mean that they
+    /// get sent out earliest on the next call to `read_message`, `write_message` or `write_pending`.
+    ///
+    /// ## Closing the connection
+    /// When the remote endpoint decides to close the connection this will return
+    /// the close message with an optional close frame.
+    ///
+    /// You should continue calling `read_message`, `write_message` or `write_pending` to drive
+    /// the reply to the close frame until [Error::ConnectionClosed] is returned. Once that happens
+    /// it is safe to drop the underlying connection.
     pub fn read_message(&mut self) -> Result<Message> {
         self.context.read_message(&mut self.socket)
     }
@@ -124,11 +134,30 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// Send a message to stream, if possible.
     ///
     /// WebSocket will buffer a configurable number of messages at a time, except to reply to Ping
-    /// and Close requests. If the WebSocket's send queue is full, `SendQueueFull` will be returned
-    /// along with the passed message. Otherwise, the message is queued and Ok(()) is returned.
+    /// requests. A Pong reply will jump the queue because the
+    /// [websocket RFC](https://tools.ietf.org/html/rfc6455#section-5.5.2) specifies it should be sent
+    /// as soon as is practical.
     ///
-    /// Note that only the last pong frame is stored to be sent, and only the
-    /// most recent pong frame is sent if multiple pong frames are queued.
+    /// Note that upon receiving a ping message, tungstenite cues a pong reply automatically.
+    /// When you call either `read_message`, `write_message` or `write_pending` next it will try to send
+    /// that pong out if the underlying connection can take more data. This means you should not
+    /// respond to ping frames manually.
+    ///
+    /// You can however send pong frames manually in order to indicate a unidirectional heartbeat
+    /// as described in [RFC 6455](https://tools.ietf.org/html/rfc6455#section-5.5.3). Note that
+    /// if `read_message` returns a ping, you should call `write_pending` until it doesn't return
+    /// WouldBlock before passing a pong to `write_message`, otherwise the response to the
+    /// ping will not be sent, but rather replaced by your custom pong message.
+    ///
+    /// ## Errors
+    /// - If the WebSocket's send queue is full, `SendQueueFull` will be returned
+    /// along with the passed message. Otherwise, the message is queued and Ok(()) is returned.
+    /// - If the connection is closed and should be dropped, this will return [Error::ConnectionClosed].
+    /// - If you try again after [Error::ConnectionClosed] was returned either from here or from `read_message`,
+    ///   [Error::AlreadyClosed] will be returned. This indicates a program error on your part.
+    /// - [Error::Io] is returned if the underlying connection returns an error
+    ///   (consider these fatal except for WouldBlock).
+    /// - [Error::Capacity] if your message size is bigger than the configured max message size.
     pub fn write_message(&mut self, message: Message) -> Result<()> {
         self.context.write_message(&mut self.socket, message)
     }
@@ -142,7 +171,23 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     ///
     /// This function guarantees that the close frame will be queued.
     /// There is no need to call it again. Calling this function is
-    /// the same as calling `write(Message::Close(..))`.
+    /// the same as calling `write_message(Message::Close(..))`.
+    ///
+    /// After queing the close frame you should continue calling `read_message` or
+    /// `write_pending` to drive the close handshake to completion.
+    ///
+    /// The websocket RFC defines that the underlying connection should be closed
+    /// by the server. Tungstenite takes care of this asymmetry for you.
+    ///
+    /// When the close handshake is finished (we have both sent and received
+    /// a close message), `read_message` or `write_pending` will return
+    /// [Error::ConnectionClosed] if this endpoint is the server.
+    ///
+    /// If this endpoint is a client, [Error::ConnectionClosed] will only be
+    /// returned after the server has closed the underlying connection.
+    ///
+    /// It is thus safe to drop the underlying connection as soon as [Error::ConnectionClosed]
+    /// is returned from `read_message` or `write_pending`.
     pub fn close(&mut self, code: Option<CloseFrame>) -> Result<()> {
         self.context.close(&mut self.socket, code)
     }

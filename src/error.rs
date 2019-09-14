@@ -25,30 +25,40 @@ pub type Result<T> = result::Result<T, Error>;
 /// Possible WebSocket errors
 #[derive(Debug)]
 pub enum Error {
-    /// WebSocket connection closed normally
+    /// WebSocket connection closed normally. This informs you of the close.
+    /// It's not an error as such and nothing wrong happened.
     ///
-    /// Upon receiving this, the server must drop the WebSocket object as soon as possible
-    /// to close the connection.
-    /// The client gets this error if the connection is already closed at the server side.
+    /// This is returned as soon as the close handshake is finished (we have both sent and
+    /// received a close frame) on the server end and as soon as the server has closed the
+    /// underlying connection if this endpoint is a client.
     ///
-    /// Receiving this error means that the WebSocket object is not usable anymore and the only
-    /// meaningful action with it is dropping it.
+    /// Thus when you receive this, it is safe to drop the underlying connection.
+    ///
+    /// Receiving this error means that the WebSocket object is not usable anymore and the
+    /// only meaningful action with it is dropping it.
     ConnectionClosed,
-    /// Trying to work with already closed connection
+    /// Trying to work with already closed connection.
     ///
-    /// Trying to write after receiving `Message::Close` or trying to read after receiving
-    /// `Error::ConnectionClosed` causes this.
+    /// Trying to read or write after receiving `ConnectionClosed` causes this.
+    ///
+    /// As opposed to `ConnectionClosed`, this indicates your code tries to operate on the
+    /// connection when it really shouldn't anymore, so this really indicates a programmer
+    /// error on your part.
     AlreadyClosed,
-    /// Input-output error
+    /// Input-output error. Appart from WouldBlock, these are generally errors with the
+    /// underlying connection and you should probably consider them fatal.
     Io(io::Error),
     #[cfg(feature = "tls")]
     /// TLS error
     Tls(tls::Error),
-    /// Buffer capacity exhausted
+    /// - When reading: buffer capacity exhausted.
+    /// - When writing: your message is bigger than the configured max message size
+    ///   (64MB by default).
     Capacity(Cow<'static, str>),
-    /// Protocol violation
+    /// Protocol violation. Only returned from reads, if the remote caused a protocol
+    /// violation. Messages you send are currently not checked for protocol validity.
     Protocol(Cow<'static, str>),
-    /// Message send queue full
+    /// Message send queue full.
     SendQueueFull(Message),
     /// UTF coding error
     Utf8,
