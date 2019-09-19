@@ -46,8 +46,8 @@ mod encryption {
 mod encryption {
     use std::net::TcpStream;
 
-    use error::{Error, Result};
-    use stream::Mode;
+    use crate::error::{Error, Result};
+    use crate::stream::Mode;
 
     /// TLS support is nod compiled in, this is just standard `TcpStream`.
     pub type AutoStream = TcpStream;
