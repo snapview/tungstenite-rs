@@ -383,13 +383,15 @@ impl WebSocketContext {
                         OpCtl::Reserved(i) => Err(Error::Protocol(
                             format!("Unknown control frame type {}", i).into(),
                         )),
-                        OpCtl::Ping | OpCtl::Pong if !self.state.is_active() => {
-                            // No ping processing while closing.
+                        OpCtl::Ping | OpCtl::Pong if !self.state.can_read() => {
                             Ok(None)
                         }
                         OpCtl::Ping => {
                             let data = frame.into_data();
-                            self.pong = Some(Frame::pong(data.clone()));
+                            // No ping processing after we sent a close frame.
+                            if self.state.is_active() {
+                                self.pong = Some(Frame::pong(data.clone()));
+                            }
                             Ok(Some(Message::Ping(data)))
                         }
                         OpCtl::Pong => Ok(Some(Message::Pong(frame.into_data()))),
