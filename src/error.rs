@@ -55,8 +55,7 @@ pub enum Error {
     /// - When writing: your message is bigger than the configured max message size
     ///   (64MB by default).
     Capacity(Cow<'static, str>),
-    /// Protocol violation. Only returned from reads, if the remote caused a protocol
-    /// violation. Messages you send are currently not checked for protocol validity.
+    /// Protocol violation.
     Protocol(Cow<'static, str>),
     /// Message send queue full.
     SendQueueFull(Message),
