@@ -335,13 +335,8 @@ impl WebSocketContext {
         // If we get to this point, the send queue is empty and the underlying socket is still
         // willing to take more data.
 
-        let closing_state = match self.state {
-            WebSocketState::ClosedByPeer | WebSocketState::CloseAcknowledged => true,
-            _ => false,
-        };
-
         // If we're closing and there is nothing to send anymore, we should close the connection.
-        if self.role == Role::Server && closing_state {
+        if self.role == Role::Server && !self.state.can_read() {
             // The underlying TCP connection, in most normal cases, SHOULD be closed
             // first by the server, so that it holds the TIME_WAIT state and not the
             // client (as this would prevent it from re-opening the connection for 2
@@ -565,13 +560,10 @@ impl WebSocketContext {
         // An expected "Connection reset by peer" is not fatal
         match res {
             Err(Error::Io(err)) => Err({
-                match self.state {
-                    WebSocketState::ClosedByPeer | WebSocketState::CloseAcknowledged
-                        if err.kind() == IoErrorKind::ConnectionReset =>
-                    {
-                        Error::ConnectionClosed
-                    }
-                    _ => Error::Io(err),
+                if !self.state.can_read() && err.kind() == IoErrorKind::ConnectionReset {
+                    Error::ConnectionClosed
+                } else {
+                    Error::Io(err)
                 }
             }),
             x => x,
