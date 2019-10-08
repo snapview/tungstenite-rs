@@ -12,7 +12,7 @@ pub use self::frame::{Frame, FrameHeader};
 use crate::error::{Error, Result};
 use input_buffer::{InputBuffer, MIN_READ};
 use log::*;
-use std::io::{Read, Write};
+use std::io::{Read, Write, Error as IoError, ErrorKind as IoErrorKind};
 
 /// A reader and writer for WebSocket frames.
 #[derive(Debug)]
@@ -197,6 +197,10 @@ impl FrameCodec {
     {
         while !self.out_buffer.is_empty() {
             let len = stream.write(&self.out_buffer)?;
+            if len == 0 {
+                // This is the same as "Connection reset by peer"
+                return Err(IoError::new(IoErrorKind::ConnectionReset, "Connection reset while sending").into())
+            }
             self.out_buffer.drain(0..len);
         }
         stream.flush()?;
