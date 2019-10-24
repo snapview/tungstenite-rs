@@ -89,7 +89,7 @@ impl<S: Read + Write> ClientHandshake<S> {
                 "\
                  GET {path} HTTP/1.1\r\n\
                  Host: {host}\r\n\
-                 Connection: upgrade\r\n\
+                 Connection: Upgrade\r\n\
                  Upgrade: websocket\r\n\
                  Sec-WebSocket-Version: 13\r\n\
                  Sec-WebSocket-Key: {key}\r\n",
