@@ -91,7 +91,7 @@ pub struct ErrorResponse {
     pub error_code: StatusCode,
     /// Extra response headers, if any.
     pub headers: Option<ExtraHeaders>,
-    /// REsponse body, if any.
+    /// Response body, if any.
     pub body: Option<String>,
 }
 
