@@ -4,11 +4,12 @@ use std::borrow::Cow;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
 
+use http::HeaderMap;
 use httparse::Status;
 use log::*;
 use url::Url;
 
-use super::headers::{FromHttparse, Headers, MAX_HEADERS};
+use super::headers::{FromHttparse, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
 use crate::error::{Error, Result};
@@ -171,7 +172,10 @@ impl VerifyData {
         // _Fail the WebSocket Connection_. (RFC 6455)
         if !response
             .headers
-            .header_is_ignore_case("Upgrade", "websocket")
+            .get("Upgrade")
+            .and_then(|h| h.to_str().ok())
+            .map(|h| h.eq_ignore_ascii_case("websocket"))
+            .unwrap_or(false)
         {
             return Err(Error::Protocol(
                 "No \"Upgrade: websocket\" in server reply".into(),
@@ -183,7 +187,10 @@ impl VerifyData {
         // MUST _Fail the WebSocket Connection_. (RFC 6455)
         if !response
             .headers
-            .header_is_ignore_case("Connection", "Upgrade")
+            .get("Connection")
+            .and_then(|h| h.to_str().ok())
+            .map(|h| h.eq_ignore_ascii_case("Upgrade"))
+            .unwrap_or(false)
         {
             return Err(Error::Protocol(
                 "No \"Connection: upgrade\" in server reply".into(),
@@ -195,7 +202,9 @@ impl VerifyData {
         // Connection_. (RFC 6455)
         if !response
             .headers
-            .header_is("Sec-WebSocket-Accept", &self.accept_key)
+            .get("Sec-WebSocket-Accept")
+            .map(|h| h == &self.accept_key)
+            .unwrap_or(false)
         {
             return Err(Error::Protocol(
                 "Key mismatch in Sec-WebSocket-Accept".into(),
@@ -225,7 +234,7 @@ pub struct Response {
     /// HTTP response code of the response.
     pub code: u16,
     /// Received headers.
-    pub headers: Headers,
+    pub headers: HeaderMap,
 }
 
 impl TryParse for Response {
@@ -248,7 +257,7 @@ impl<'h, 'b: 'h> FromHttparse<httparse::Response<'h, 'b>> for Response {
         }
         Ok(Response {
             code: raw.code.expect("Bug: no HTTP response code"),
-            headers: Headers::from_httparse(raw.headers)?,
+            headers: HeaderMap::from_httparse(raw.headers)?,
         })
     }
 }
@@ -287,9 +296,6 @@ mod tests {
         const DATA: &'static [u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
         let (_, resp) = Response::try_parse(DATA).unwrap().unwrap();
         assert_eq!(resp.code, 200);
-        assert_eq!(
-            resp.headers.find_first("Content-Type"),
-            Some(&b"text/html"[..])
-        );
+        assert_eq!(resp.headers.get("Content-Type").unwrap(), &b"text/html"[..],);
     }
 }
