@@ -9,6 +9,7 @@ use std::result;
 use std::str;
 use std::string;
 
+use http;
 use httparse;
 
 use crate::protocol::Message;
@@ -64,7 +65,7 @@ pub enum Error {
     /// Invalid URL.
     Url(Cow<'static, str>),
     /// HTTP error.
-    Http(u16),
+    Http(http::StatusCode),
     /// HTTP format error.
     HttpFormat(http::Error),
 }

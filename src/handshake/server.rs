@@ -227,7 +227,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
             StageResult::DoneWriting(stream) => {
                 if let Some(err) = self.error_code.take() {
                     debug!("Server handshake failed.");
-                    return Err(Error::Http(err));
+                    return Err(Error::Http(StatusCode::from_u16(err)?));
                 } else {
                     debug!("Server handshake done.");
                     let websocket = WebSocket::from_raw_socket(stream, Role::Server, self.config);
@@ -240,10 +240,10 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::client::Response;
     use super::super::machine::TryParse;
     use super::{HeaderMap, Request};
     use http::header::HeaderName;
+    use http::Response;
 
     #[test]
     fn request_parsing() {
@@ -282,9 +282,9 @@ mod tests {
         let reply = req.reply(Some(extra_headers)).unwrap();
         let (_, req) = Response::try_parse(&reply).unwrap().unwrap();
         assert_eq!(
-            req.headers.get("MyCustomHeader").unwrap(),
+            req.headers().get("MyCustomHeader").unwrap(),
             b"MyCustomValue".as_ref()
         );
-        assert_eq!(req.headers.get("MyVersion").unwrap(), b"LOL".as_ref());
+        assert_eq!(req.headers().get("MyVersion").unwrap(), b"LOL".as_ref());
     }
 }
