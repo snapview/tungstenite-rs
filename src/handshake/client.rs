@@ -3,7 +3,7 @@
 use std::io::{Read, Write};
 use std::marker::PhantomData;
 
-use http::{HeaderMap, Request, Response, StatusCode};
+use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode};
 use httparse::Status;
 use log::*;
 
@@ -12,6 +12,12 @@ use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
 use crate::error::{Error, Result};
 use crate::protocol::{Role, WebSocket, WebSocketConfig};
+
+/// Client request type.
+pub type Request = HttpRequest<()>;
+
+/// Client response type.
+pub type Response = HttpResponse<()>;
 
 /// Client handshake role.
 #[derive(Debug)]
@@ -25,7 +31,7 @@ impl<S: Read + Write> ClientHandshake<S> {
     /// Initiate a client handshake.
     pub fn start(
         stream: S,
-        request: Request<()>,
+        request: Request,
         config: Option<WebSocketConfig>,
     ) -> Result<MidHandshake<Self>> {
         if request.method() != http::Method::GET {
@@ -93,9 +99,9 @@ impl<S: Read + Write> ClientHandshake<S> {
 }
 
 impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
-    type IncomingData = Response<()>;
+    type IncomingData = Response;
     type InternalStream = S;
-    type FinalResult = (WebSocket<S>, Response<()>);
+    type FinalResult = (WebSocket<S>, Response);
     fn stage_finished(
         &mut self,
         finish: StageResult<Self::IncomingData, Self::InternalStream>,
@@ -127,7 +133,7 @@ struct VerifyData {
 }
 
 impl VerifyData {
-    pub fn verify_response(&self, response: &Response<()>) -> Result<()> {
+    pub fn verify_response(&self, response: &Response) -> Result<()> {
         // 1. If the status code received from the server is not 101, the
         // client handles the response per HTTP [RFC2616] procedures. (RFC 6455)
         if response.status() != StatusCode::SWITCHING_PROTOCOLS {
@@ -194,7 +200,7 @@ impl VerifyData {
     }
 }
 
-impl TryParse for Response<()> {
+impl TryParse for Response {
     fn try_parse(buf: &[u8]) -> Result<Option<(usize, Self)>> {
         let mut hbuffer = [httparse::EMPTY_HEADER; MAX_HEADERS];
         let mut req = httparse::Response::new(&mut hbuffer);
@@ -205,7 +211,7 @@ impl TryParse for Response<()> {
     }
 }
 
-impl<'h, 'b: 'h> FromHttparse<httparse::Response<'h, 'b>> for Response<()> {
+impl<'h, 'b: 'h> FromHttparse<httparse::Response<'h, 'b>> for Response {
     fn from_httparse(raw: httparse::Response<'h, 'b>) -> Result<Self> {
         if raw.version.expect("Bug: no HTTP version") < /*1.*/1 {
             return Err(Error::Protocol(

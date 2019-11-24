@@ -4,11 +4,12 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::result::Result as StdResult;
 
-use http::{Request, Response, Uri};
+use http::Uri;
 use log::*;
 
 use url::Url;
 
+use crate::handshake::client::{Request, Response};
 use crate::protocol::WebSocketConfig;
 
 #[cfg(feature = "tls")]
@@ -88,8 +89,8 @@ use crate::stream::{Mode, NoDelay};
 pub fn connect_with_config<Req: IntoClientRequest>(
     request: Req,
     config: Option<WebSocketConfig>,
-) -> Result<(WebSocket<AutoStream>, Response<()>)> {
-    let request: Request<()> = request.into_client_request()?;
+) -> Result<(WebSocket<AutoStream>, Response)> {
+    let request: Request = request.into_client_request()?;
     let uri = request.uri();
     let mode = uri_mode(uri)?;
     let host = request
@@ -121,9 +122,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
 /// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
 /// use `client` instead. There is no need to enable the "tls" feature if you don't call
 /// `connect` since it's the only function that uses native_tls.
-pub fn connect<Req: IntoClientRequest>(
-    request: Req,
-) -> Result<(WebSocket<AutoStream>, Response<()>)> {
+pub fn connect<Req: IntoClientRequest>(request: Req) -> Result<(WebSocket<AutoStream>, Response)> {
     connect_with_config(request, None)
 }
 
@@ -164,7 +163,7 @@ pub fn client_with_config<Stream, Req>(
     request: Req,
     stream: Stream,
     config: Option<WebSocketConfig>,
-) -> StdResult<(WebSocket<Stream>, Response<()>), HandshakeError<ClientHandshake<Stream>>>
+) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
 where
     Stream: Read + Write,
     Req: IntoClientRequest,
@@ -180,7 +179,7 @@ where
 pub fn client<Stream, Req>(
     request: Req,
     stream: Stream,
-) -> StdResult<(WebSocket<Stream>, Response<()>), HandshakeError<ClientHandshake<Stream>>>
+) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
 where
     Stream: Read + Write,
     Req: IntoClientRequest,
@@ -193,12 +192,12 @@ where
 /// This trait is implemented by default for string slices, strings, `url::Url`, `http::Uri` and
 /// `http::Request<()>`.
 pub trait IntoClientRequest {
-    /// Convert into a `Request<()>` that can be used for a client connection.
-    fn into_client_request(self) -> Result<Request<()>>;
+    /// Convert into a `Request` that can be used for a client connection.
+    fn into_client_request(self) -> Result<Request>;
 }
 
 impl<'a> IntoClientRequest for &'a str {
-    fn into_client_request(self) -> Result<Request<()>> {
+    fn into_client_request(self) -> Result<Request> {
         let uri: Uri = self.parse()?;
 
         Ok(Request::get(uri).body(())?)
@@ -206,7 +205,7 @@ impl<'a> IntoClientRequest for &'a str {
 }
 
 impl<'a> IntoClientRequest for &'a String {
-    fn into_client_request(self) -> Result<Request<()>> {
+    fn into_client_request(self) -> Result<Request> {
         let uri: Uri = self.parse()?;
 
         Ok(Request::get(uri).body(())?)
@@ -214,7 +213,7 @@ impl<'a> IntoClientRequest for &'a String {
 }
 
 impl IntoClientRequest for String {
-    fn into_client_request(self) -> Result<Request<()>> {
+    fn into_client_request(self) -> Result<Request> {
         let uri: Uri = self.parse()?;
 
         Ok(Request::get(uri).body(())?)
@@ -222,19 +221,19 @@ impl IntoClientRequest for String {
 }
 
 impl<'a> IntoClientRequest for &'a Uri {
-    fn into_client_request(self) -> Result<Request<()>> {
+    fn into_client_request(self) -> Result<Request> {
         Ok(Request::get(self.clone()).body(())?)
     }
 }
 
 impl IntoClientRequest for Uri {
-    fn into_client_request(self) -> Result<Request<()>> {
+    fn into_client_request(self) -> Result<Request> {
         Ok(Request::get(self).body(())?)
     }
 }
 
 impl<'a> IntoClientRequest for &'a Url {
-    fn into_client_request(self) -> Result<Request<()>> {
+    fn into_client_request(self) -> Result<Request> {
         let uri: Uri = self.as_str().parse()?;
 
         Ok(Request::get(uri).body(())?)
@@ -242,22 +241,22 @@ impl<'a> IntoClientRequest for &'a Url {
 }
 
 impl IntoClientRequest for Url {
-    fn into_client_request(self) -> Result<Request<()>> {
+    fn into_client_request(self) -> Result<Request> {
         let uri: Uri = self.as_str().parse()?;
 
         Ok(Request::get(uri).body(())?)
     }
 }
 
-impl IntoClientRequest for Request<()> {
-    fn into_client_request(self) -> Result<Request<()>> {
+impl IntoClientRequest for Request {
+    fn into_client_request(self) -> Result<Request> {
         Ok(self)
     }
 }
 
 impl<'h, 'b> IntoClientRequest for httparse::Request<'h, 'b> {
-    fn into_client_request(self) -> Result<Request<()>> {
+    fn into_client_request(self) -> Result<Request> {
         use crate::handshake::headers::FromHttparse;
-        Request::<()>::from_httparse(self)
+        Request::from_httparse(self)
     }
 }

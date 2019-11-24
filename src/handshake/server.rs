@@ -4,7 +4,7 @@ use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 use std::result::Result as StdResult;
 
-use http::{HeaderMap, Request, Response, StatusCode};
+use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode};
 use httparse::Status;
 use log::*;
 
@@ -14,8 +14,17 @@ use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
 use crate::error::{Error, Result};
 use crate::protocol::{Role, WebSocket, WebSocketConfig};
 
+/// Server request type.
+pub type Request = HttpRequest<()>;
+
+/// Server response type.
+pub type Response = HttpResponse<()>;
+
+/// Server error response type.
+pub type ErrorResponse = HttpResponse<Option<String>>;
+
 /// Create a response for the request.
-pub fn create_response(request: &Request<()>) -> Result<Response<()>> {
+pub fn create_response(request: &Request) -> Result<Response> {
     if request.method() != http::Method::GET {
         return Err(Error::Protocol("Method is not GET".into()));
     }
@@ -78,7 +87,7 @@ pub fn create_response(request: &Request<()>) -> Result<Response<()>> {
 }
 
 // Assumes that this is a valid response
-fn write_response<T>(w: &mut dyn io::Write, response: &Response<T>) -> Result<()> {
+fn write_response<T>(w: &mut dyn io::Write, response: &HttpResponse<T>) -> Result<()> {
     writeln!(
         w,
         "{version:?} {status} {reason}\r",
@@ -96,7 +105,7 @@ fn write_response<T>(w: &mut dyn io::Write, response: &Response<T>) -> Result<()
     Ok(())
 }
 
-impl TryParse for Request<()> {
+impl TryParse for Request {
     fn try_parse(buf: &[u8]) -> Result<Option<(usize, Self)>> {
         let mut hbuffer = [httparse::EMPTY_HEADER; MAX_HEADERS];
         let mut req = httparse::Request::new(&mut hbuffer);
@@ -107,7 +116,7 @@ impl TryParse for Request<()> {
     }
 }
 
-impl<'h, 'b: 'h> FromHttparse<httparse::Request<'h, 'b>> for Request<()> {
+impl<'h, 'b: 'h> FromHttparse<httparse::Request<'h, 'b>> for Request {
     fn from_httparse(raw: httparse::Request<'h, 'b>) -> Result<Self> {
         if raw.method.expect("Bug: no method in header") != "GET" {
             return Err(Error::Protocol("Method is not GET".into()));
@@ -145,20 +154,20 @@ pub trait Callback: Sized {
     /// Returning an error resulting in rejecting the incoming connection.
     fn on_request(
         self,
-        request: &Request<()>,
-        response: Response<()>,
-    ) -> StdResult<Response<()>, Response<Option<String>>>;
+        request: &Request,
+        response: Response,
+    ) -> StdResult<Response, ErrorResponse>;
 }
 
 impl<F> Callback for F
 where
-    F: FnOnce(&Request<()>, Response<()>) -> StdResult<Response<()>, Response<Option<String>>>,
+    F: FnOnce(&Request, Response) -> StdResult<Response, ErrorResponse>,
 {
     fn on_request(
         self,
-        request: &Request<()>,
-        response: Response<()>,
-    ) -> StdResult<Response<()>, Response<Option<String>>> {
+        request: &Request,
+        response: Response,
+    ) -> StdResult<Response, ErrorResponse> {
         self(request, response)
     }
 }
@@ -170,9 +179,9 @@ pub struct NoCallback;
 impl Callback for NoCallback {
     fn on_request(
         self,
-        _request: &Request<()>,
-        response: Response<()>,
-    ) -> StdResult<Response<()>, Response<Option<String>>> {
+        _request: &Request,
+        response: Response,
+    ) -> StdResult<Response, ErrorResponse> {
         Ok(response)
     }
 }
@@ -213,7 +222,7 @@ impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
 }
 
 impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
-    type IncomingData = Request<()>;
+    type IncomingData = Request;
     type InternalStream = S;
     type FinalResult = WebSocket<S>;
 
