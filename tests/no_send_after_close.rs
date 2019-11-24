@@ -39,13 +39,12 @@ fn test_no_send_after_close() {
 
     client_handler.close(None).unwrap(); // send close to client
 
-    let err = client_handler
-        .write_message(Message::Text("Hello WebSocket".into()));
+    let err = client_handler.write_message(Message::Text("Hello WebSocket".into()));
 
-    assert!( err.is_err() );
+    assert!(err.is_err());
 
     match err.unwrap_err() {
-        Error::Protocol(s) => { assert_eq!( "Sending after closing is not allowed", s )}
+        Error::Protocol(s) => assert_eq!("Sending after closing is not allowed", s),
         e => panic!("unexpected error: {:?}", e),
     }
 
