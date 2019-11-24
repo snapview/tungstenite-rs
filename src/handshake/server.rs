@@ -295,7 +295,7 @@ mod tests {
 
     #[test]
     fn request_parsing() {
-        const DATA: &'static [u8] = b"GET /script.ws HTTP/1.1\r\nHost: foo.com\r\n\r\n";
+        const DATA: &[u8] = b"GET /script.ws HTTP/1.1\r\nHost: foo.com\r\n\r\n";
         let (_, req) = Request::try_parse(DATA).unwrap().unwrap();
         assert_eq!(req.uri().path(), "/script.ws");
         assert_eq!(req.headers().get("Host").unwrap(), &b"foo.com"[..]);
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn request_replying() {
-        const DATA: &'static [u8] = b"\
+        const DATA: &[u8] = b"\
             GET /script.ws HTTP/1.1\r\n\
             Host: foo.com\r\n\
             Connection: upgrade\r\n\

@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn headers() {
-        const DATA: &'static [u8] = b"Host: foo.com\r\n\
+        const DATA: &[u8] = b"Host: foo.com\r\n\
              Connection: Upgrade\r\n\
              Upgrade: websocket\r\n\
              \r\n";
@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn headers_iter() {
-        const DATA: &'static [u8] = b"Host: foo.com\r\n\
+        const DATA: &[u8] = b"Host: foo.com\r\n\
               Sec-WebSocket-Extensions: permessage-deflate\r\n\
               Connection: Upgrade\r\n\
               Sec-WebSocket-ExtenSIONS: permessage-unknown\r\n\
@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn headers_incomplete() {
-        const DATA: &'static [u8] = b"Host: foo.com\r\n\
+        const DATA: &[u8] = b"Host: foo.com\r\n\
               Connection: Upgrade\r\n\
               Upgrade: websocket\r\n";
         let hdr = HeaderMap::try_parse(DATA).unwrap();

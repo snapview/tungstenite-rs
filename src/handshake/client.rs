@@ -257,13 +257,13 @@ mod tests {
         assert_eq!(k2.len(), 24);
         assert!(k1.ends_with("=="));
         assert!(k2.ends_with("=="));
-        assert!(k1[..22].find("=").is_none());
-        assert!(k2[..22].find("=").is_none());
+        assert!(k1[..22].find('=').is_none());
+        assert!(k2[..22].find('=').is_none());
     }
 
     #[test]
     fn response_parsing() {
-        const DATA: &'static [u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
+        const DATA: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
         let (_, resp) = Response::try_parse(DATA).unwrap().unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
         assert_eq!(
