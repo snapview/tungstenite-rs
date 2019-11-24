@@ -2,30 +2,27 @@ use std::net::TcpListener;
 use std::thread::spawn;
 
 use tungstenite::accept_hdr;
-use tungstenite::handshake::server::Request;
+use tungstenite::handshake::server::{Request, Response};
 
 fn main() {
     env_logger::init();
     let server = TcpListener::bind("127.0.0.1:3012").unwrap();
     for stream in server.incoming() {
         spawn(move || {
-            let callback = |req: &Request| {
+            let callback = |req: &Request, mut response: Response| {
                 println!("Received a new ws handshake");
-                println!("The request's path is: {}", req.path);
+                println!("The request's path is: {}", req.uri().path());
                 println!("The request's headers are:");
-                for &(ref header, _ /* value */) in req.headers.iter() {
+                for (ref header, _value) in req.headers() {
                     println!("* {}", header);
                 }
 
                 // Let's add an additional header to our response to the client.
-                let extra_headers = vec![
-                    (String::from("MyCustomHeader"), String::from(":)")),
-                    (
-                        String::from("SOME_TUNGSTENITE_HEADER"),
-                        String::from("header_value"),
-                    ),
-                ];
-                Ok(Some(extra_headers))
+                let headers = response.headers_mut();
+                headers.append("MyCustomHeader", ":)".parse().unwrap());
+                headers.append("SOME_TUNGSTENITE_HEADER", "header_value".parse().unwrap());
+
+                Ok(response)
             };
             let mut websocket = accept_hdr(stream.unwrap(), callback).unwrap();
 
