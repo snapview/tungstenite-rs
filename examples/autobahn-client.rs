@@ -3,7 +3,7 @@ use url::Url;
 
 use tungstenite::{connect, Error, Message, Result};
 
-const AGENT: &'static str = "Tungstenite";
+const AGENT: &str = "Tungstenite";
 
 fn get_case_count() -> Result<u32> {
     let (mut socket, _) = connect(Url::parse("ws://localhost:9001/getCaseCount").unwrap())?;
@@ -47,7 +47,7 @@ fn main() {
 
     let total = get_case_count().unwrap();
 
-    for case in 1..(total + 1) {
+    for case in 1..=total {
         if let Err(e) = run_test(case) {
             match e {
                 Error::Protocol(_) => {}

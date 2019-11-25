@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn display() {
-        let t = Message::text(format!("test"));
+        let t = Message::text("test".to_owned());
         assert_eq!(t.to_string(), "test".to_owned());
 
         let bin = Message::binary(vec![0, 1, 3, 4, 241]);

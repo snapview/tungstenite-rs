@@ -1,56 +1,108 @@
 //! Server handshake machine.
 
-use std::fmt::Write as FmtWrite;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::marker::PhantomData;
 use std::result::Result as StdResult;
 
-use http::StatusCode;
+use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode};
 use httparse::Status;
 use log::*;
 
-use super::headers::{FromHttparse, Headers, MAX_HEADERS};
+use super::headers::{FromHttparse, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
 use crate::error::{Error, Result};
 use crate::protocol::{Role, WebSocket, WebSocketConfig};
 
-/// Request from the client.
-#[derive(Debug)]
-pub struct Request {
-    /// Path part of the URL.
-    pub path: String,
-    /// HTTP headers.
-    pub headers: Headers,
+/// Server request type.
+pub type Request = HttpRequest<()>;
+
+/// Server response type.
+pub type Response = HttpResponse<()>;
+
+/// Server error response type.
+pub type ErrorResponse = HttpResponse<Option<String>>;
+
+/// Create a response for the request.
+pub fn create_response(request: &Request) -> Result<Response> {
+    if request.method() != http::Method::GET {
+        return Err(Error::Protocol("Method is not GET".into()));
+    }
+
+    if request.version() < http::Version::HTTP_11 {
+        return Err(Error::Protocol(
+            "HTTP version should be 1.1 or higher".into(),
+        ));
+    }
+
+    if !request
+        .headers()
+        .get("Connection")
+        .and_then(|h| h.to_str().ok())
+        .map(|h| h.eq_ignore_ascii_case("Upgrade"))
+        .unwrap_or(false)
+    {
+        return Err(Error::Protocol(
+            "No \"Connection: upgrade\" in client request".into(),
+        ));
+    }
+
+    if !request
+        .headers()
+        .get("Upgrade")
+        .and_then(|h| h.to_str().ok())
+        .map(|h| h.eq_ignore_ascii_case("websocket"))
+        .unwrap_or(false)
+    {
+        return Err(Error::Protocol(
+            "No \"Upgrade: websocket\" in client request".into(),
+        ));
+    }
+
+    if !request
+        .headers()
+        .get("Sec-WebSocket-Version")
+        .map(|h| h == "13")
+        .unwrap_or(false)
+    {
+        return Err(Error::Protocol(
+            "No \"Sec-WebSocket-Version: 13\" in client request".into(),
+        ));
+    }
+
+    let key = request
+        .headers()
+        .get("Sec-WebSocket-Key")
+        .ok_or_else(|| Error::Protocol("Missing Sec-WebSocket-Key".into()))?;
+
+    let mut response = Response::builder();
+
+    response.status(StatusCode::SWITCHING_PROTOCOLS);
+    response.version(request.version());
+    response.header("Connection", "Upgrade");
+    response.header("Upgrade", "websocket");
+    response.header("Sec-WebSocket-Accept", convert_key(key.as_bytes())?);
+
+    Ok(response.body(())?)
 }
 
-impl Request {
-    /// Reply to the response.
-    pub fn reply(&self, extra_headers: Option<Vec<(String, String)>>) -> Result<Vec<u8>> {
-        let key = self
-            .headers
-            .find_first("Sec-WebSocket-Key")
-            .ok_or_else(|| Error::Protocol("Missing Sec-WebSocket-Key".into()))?;
-        let mut reply = format!(
-            "\
-             HTTP/1.1 101 Switching Protocols\r\n\
-             Connection: Upgrade\r\n\
-             Upgrade: websocket\r\n\
-             Sec-WebSocket-Accept: {}\r\n",
-            convert_key(key)?
-        );
-        add_headers(&mut reply, extra_headers);
-        Ok(reply.into())
-    }
-}
+// Assumes that this is a valid response
+fn write_response<T>(w: &mut dyn io::Write, response: &HttpResponse<T>) -> Result<()> {
+    writeln!(
+        w,
+        "{version:?} {status} {reason}\r",
+        version = response.version(),
+        status = response.status(),
+        reason = response.status().canonical_reason().unwrap_or(""),
+    )?;
 
-fn add_headers(reply: &mut impl FmtWrite, extra_headers: Option<ExtraHeaders>) {
-    if let Some(eh) = extra_headers {
-        for (k, v) in eh {
-            writeln!(reply, "{}: {}\r", k, v).unwrap();
-        }
+    for (k, v) in response.headers() {
+        writeln!(w, "{}: {}\r", k, v.to_str()?).unwrap();
     }
-    writeln!(reply, "\r").unwrap();
+
+    writeln!(w, "\r")?;
+
+    Ok(())
 }
 
 impl TryParse for Request {
@@ -69,39 +121,24 @@ impl<'h, 'b: 'h> FromHttparse<httparse::Request<'h, 'b>> for Request {
         if raw.method.expect("Bug: no method in header") != "GET" {
             return Err(Error::Protocol("Method is not GET".into()));
         }
+
         if raw.version.expect("Bug: no HTTP version") < /*1.*/1 {
             return Err(Error::Protocol(
                 "HTTP version should be 1.1 or higher".into(),
             ));
         }
-        Ok(Request {
-            path: raw.path.expect("Bug: no path in header").into(),
-            headers: Headers::from_httparse(raw.headers)?,
-        })
-    }
-}
 
-/// Extra headers for responses.
-pub type ExtraHeaders = Vec<(String, String)>;
+        let headers = HeaderMap::from_httparse(raw.headers)?;
 
-/// An error response sent to the client.
-#[derive(Debug)]
-pub struct ErrorResponse {
-    /// HTTP error code.
-    pub error_code: StatusCode,
-    /// Extra response headers, if any.
-    pub headers: Option<ExtraHeaders>,
-    /// Response body, if any.
-    pub body: Option<String>,
-}
+        let mut request = Request::new(());
+        *request.method_mut() = http::Method::GET;
+        *request.headers_mut() = headers;
+        *request.uri_mut() = raw.path.expect("Bug: no path in header").parse()?;
+        // TODO: httparse only supports HTTP 0.9/1.0/1.1 but not HTTP 2.0
+        // so the only valid value we could get in the response would be 1.1.
+        *request.version_mut() = http::Version::HTTP_11;
 
-impl From<StatusCode> for ErrorResponse {
-    fn from(error_code: StatusCode) -> Self {
-        ErrorResponse {
-            error_code,
-            headers: None,
-            body: None,
-        }
+        Ok(request)
     }
 }
 
@@ -115,15 +152,23 @@ pub trait Callback: Sized {
     /// Called whenever the server read the request from the client and is ready to reply to it.
     /// May return additional reply headers.
     /// Returning an error resulting in rejecting the incoming connection.
-    fn on_request(self, request: &Request) -> StdResult<Option<ExtraHeaders>, ErrorResponse>;
+    fn on_request(
+        self,
+        request: &Request,
+        response: Response,
+    ) -> StdResult<Response, ErrorResponse>;
 }
 
 impl<F> Callback for F
 where
-    F: FnOnce(&Request) -> StdResult<Option<ExtraHeaders>, ErrorResponse>,
+    F: FnOnce(&Request, Response) -> StdResult<Response, ErrorResponse>,
 {
-    fn on_request(self, request: &Request) -> StdResult<Option<ExtraHeaders>, ErrorResponse> {
-        self(request)
+    fn on_request(
+        self,
+        request: &Request,
+        response: Response,
+    ) -> StdResult<Response, ErrorResponse> {
+        self(request, response)
     }
 }
 
@@ -132,8 +177,12 @@ where
 pub struct NoCallback;
 
 impl Callback for NoCallback {
-    fn on_request(self, _request: &Request) -> StdResult<Option<ExtraHeaders>, ErrorResponse> {
-        Ok(None)
+    fn on_request(
+        self,
+        _request: &Request,
+        response: Response,
+    ) -> StdResult<Response, ErrorResponse> {
+        Ok(response)
     }
 }
 
@@ -191,34 +240,35 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                     return Err(Error::Protocol("Junk after client request".into()));
                 }
 
+                let response = create_response(&result)?;
                 let callback_result = if let Some(callback) = self.callback.take() {
-                    callback.on_request(&result)
+                    callback.on_request(&result, response)
                 } else {
-                    Ok(None)
+                    Ok(response)
                 };
 
                 match callback_result {
-                    Ok(extra_headers) => {
-                        let response = result.reply(extra_headers)?;
-                        ProcessingResult::Continue(HandshakeMachine::start_write(stream, response))
+                    Ok(response) => {
+                        let mut output = vec![];
+                        write_response(&mut output, &response)?;
+                        ProcessingResult::Continue(HandshakeMachine::start_write(stream, output))
                     }
 
-                    Err(ErrorResponse {
-                        error_code,
-                        headers,
-                        body,
-                    }) => {
-                        self.error_code = Some(error_code.as_u16());
-                        let mut response = format!(
-                            "HTTP/1.1 {} {}\r\n",
-                            error_code.as_str(),
-                            error_code.canonical_reason().unwrap_or("")
-                        );
-                        add_headers(&mut response, headers);
-                        if let Some(body) = body {
-                            response += &body;
+                    Err(resp) => {
+                        if resp.status().is_success() {
+                            return Err(Error::Protocol(
+                                "Custom response must not be successful".into(),
+                            ));
                         }
-                        ProcessingResult::Continue(HandshakeMachine::start_write(stream, response))
+
+                        self.error_code = Some(resp.status().as_u16());
+
+                        let mut output = vec![];
+                        write_response(&mut output, &resp)?;
+                        if let Some(body) = resp.body() {
+                            output.extend_from_slice(body.as_bytes());
+                        }
+                        ProcessingResult::Continue(HandshakeMachine::start_write(stream, output))
                     }
                 }
             }
@@ -226,7 +276,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
             StageResult::DoneWriting(stream) => {
                 if let Some(err) = self.error_code.take() {
                     debug!("Server handshake failed.");
-                    return Err(Error::Http(err));
+                    return Err(Error::Http(StatusCode::from_u16(err)?));
                 } else {
                     debug!("Server handshake done.");
                     let websocket = WebSocket::from_raw_socket(stream, Role::Server, self.config);
@@ -239,21 +289,21 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::client::Response;
     use super::super::machine::TryParse;
+    use super::create_response;
     use super::Request;
 
     #[test]
     fn request_parsing() {
-        const DATA: &'static [u8] = b"GET /script.ws HTTP/1.1\r\nHost: foo.com\r\n\r\n";
+        const DATA: &[u8] = b"GET /script.ws HTTP/1.1\r\nHost: foo.com\r\n\r\n";
         let (_, req) = Request::try_parse(DATA).unwrap().unwrap();
-        assert_eq!(req.path, "/script.ws");
-        assert_eq!(req.headers.find_first("Host"), Some(&b"foo.com"[..]));
+        assert_eq!(req.uri().path(), "/script.ws");
+        assert_eq!(req.headers().get("Host").unwrap(), &b"foo.com"[..]);
     }
 
     #[test]
     fn request_replying() {
-        const DATA: &'static [u8] = b"\
+        const DATA: &[u8] = b"\
             GET /script.ws HTTP/1.1\r\n\
             Host: foo.com\r\n\
             Connection: upgrade\r\n\
@@ -262,21 +312,11 @@ mod tests {
             Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
             \r\n";
         let (_, req) = Request::try_parse(DATA).unwrap().unwrap();
-        let _ = req.reply(None).unwrap();
+        let response = create_response(&req).unwrap();
 
-        let extra_headers = Some(vec![
-            (
-                String::from("MyCustomHeader"),
-                String::from("MyCustomValue"),
-            ),
-            (String::from("MyVersion"), String::from("LOL")),
-        ]);
-        let reply = req.reply(extra_headers).unwrap();
-        let (_, req) = Response::try_parse(&reply).unwrap().unwrap();
         assert_eq!(
-            req.headers.find_first("MyCustomHeader"),
-            Some(b"MyCustomValue".as_ref())
+            response.headers().get("Sec-WebSocket-Accept").unwrap(),
+            b"s3pPLMBiTxaQ9kYGzzhZRbK+xOo=".as_ref()
         );
-        assert_eq!(req.headers.find_first("MyVersion"), Some(b"LOL".as_ref()));
     }
 }

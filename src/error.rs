@@ -9,6 +9,7 @@ use std::result;
 use std::str;
 use std::string;
 
+use http;
 use httparse;
 
 use crate::protocol::Message;
@@ -45,7 +46,7 @@ pub enum Error {
     /// connection when it really shouldn't anymore, so this really indicates a programmer
     /// error on your part.
     AlreadyClosed,
-    /// Input-output error. Appart from WouldBlock, these are generally errors with the
+    /// Input-output error. Apart from WouldBlock, these are generally errors with the
     /// underlying connection and you should probably consider them fatal.
     Io(io::Error),
     #[cfg(feature = "tls")]
@@ -61,10 +62,12 @@ pub enum Error {
     SendQueueFull(Message),
     /// UTF coding error
     Utf8,
-    /// Invlid URL.
+    /// Invalid URL.
     Url(Cow<'static, str>),
     /// HTTP error.
-    Http(u16),
+    Http(http::StatusCode),
+    /// HTTP format error.
+    HttpFormat(http::Error),
 }
 
 impl fmt::Display for Error {
@@ -80,7 +83,8 @@ impl fmt::Display for Error {
             Error::SendQueueFull(_) => write!(f, "Send queue is full"),
             Error::Utf8 => write!(f, "UTF-8 encoding error"),
             Error::Url(ref msg) => write!(f, "URL error: {}", msg),
-            Error::Http(code) => write!(f, "HTTP code: {}", code),
+            Error::Http(code) => write!(f, "HTTP error: {}", code),
+            Error::HttpFormat(ref err) => write!(f, "HTTP format error: {}", err),
         }
     }
 }
@@ -99,6 +103,7 @@ impl ErrorTrait for Error {
             Error::Utf8 => "",
             Error::Url(ref msg) => msg.borrow(),
             Error::Http(_) => "",
+            Error::HttpFormat(ref err) => err.description(),
         }
     }
 }
@@ -118,6 +123,42 @@ impl From<str::Utf8Error> for Error {
 impl From<string::FromUtf8Error> for Error {
     fn from(_: string::FromUtf8Error) -> Self {
         Error::Utf8
+    }
+}
+
+impl From<http::header::InvalidHeaderValue> for Error {
+    fn from(err: http::header::InvalidHeaderValue) -> Self {
+        Error::HttpFormat(err.into())
+    }
+}
+
+impl From<http::header::InvalidHeaderName> for Error {
+    fn from(err: http::header::InvalidHeaderName) -> Self {
+        Error::HttpFormat(err.into())
+    }
+}
+
+impl From<http::header::ToStrError> for Error {
+    fn from(_: http::header::ToStrError) -> Self {
+        Error::Utf8
+    }
+}
+
+impl From<http::uri::InvalidUri> for Error {
+    fn from(err: http::uri::InvalidUri) -> Self {
+        Error::HttpFormat(err.into())
+    }
+}
+
+impl From<http::status::InvalidStatusCode> for Error {
+    fn from(err: http::status::InvalidStatusCode) -> Self {
+        Error::HttpFormat(err.into())
+    }
+}
+
+impl From<http::Error> for Error {
+    fn from(err: http::Error) -> Self {
+        Error::HttpFormat(err)
     }
 }
 
