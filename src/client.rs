@@ -1,4 +1,4 @@
-//! Methods to connect to an WebSocket as a client.
+//! Methods to connect to a WebSocket as a client.
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
