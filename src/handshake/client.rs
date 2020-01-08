@@ -104,6 +104,19 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
 fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
     let mut req = Vec::new();
     let uri = request.uri();
+
+    let authority = uri.authority()
+        .ok_or_else(|| Error::Url("No host name in the URL".into()))?
+        .as_str();
+    let host = if let Some(idx) = authority.find('@') { // handle possible name:password@
+        authority.split_at(idx + 1).1
+    } else {
+        authority
+    };
+    if authority.is_empty() {
+        return Err(Error::Url("URL contains empty host name".into()))
+    }
+
     write!(
         req,
         "\
@@ -114,9 +127,7 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
          Sec-WebSocket-Version: 13\r\n\
          Sec-WebSocket-Key: {key}\r\n",
         version = request.version(),
-        host = uri
-            .host()
-            .ok_or_else(|| Error::Url("No host name in the URL".into()))?,
+        host = host,
         path = uri
             .path_and_query()
             .ok_or_else(|| Error::Url("No path/query in URL".into()))?
@@ -289,6 +300,23 @@ mod tests {
     #[test]
     fn request_formatting_with_host() {
         let request = "wss://localhost:9001/getCaseCount".into_client_request().unwrap();
+        let key = "A70tsIbeMZUbJHh5BWFw6Q==";
+        let correct = b"\
+            GET /getCaseCount HTTP/1.1\r\n\
+            Host: localhost:9001\r\n\
+            Connection: Upgrade\r\n\
+            Upgrade: websocket\r\n\
+            Sec-WebSocket-Version: 13\r\n\
+            Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
+            \r\n";
+        let request = generate_request(request, key).unwrap();
+        println!("Request: {}", String::from_utf8_lossy(&request));
+        assert_eq!(&request[..], &correct[..]);
+    }
+
+    #[test]
+    fn request_formatting_with_at() {
+        let request = "wss://user:pass@localhost:9001/getCaseCount".into_client_request().unwrap();
         let key = "A70tsIbeMZUbJHh5BWFw6Q==";
         let correct = b"\
             GET /getCaseCount HTTP/1.1\r\n\
