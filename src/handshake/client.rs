@@ -52,32 +52,7 @@ impl<S: Read + Write> ClientHandshake<S> {
         let key = generate_key();
 
         let machine = {
-            let mut req = Vec::new();
-            let uri = request.uri();
-            write!(
-                req,
-                "\
-                 GET {path} {version:?}\r\n\
-                 Host: {host}\r\n\
-                 Connection: Upgrade\r\n\
-                 Upgrade: websocket\r\n\
-                 Sec-WebSocket-Version: 13\r\n\
-                 Sec-WebSocket-Key: {key}\r\n",
-                version = request.version(),
-                host = uri
-                    .host()
-                    .ok_or_else(|| Error::Url("No host name in the URL".into()))?,
-                path = uri
-                    .path_and_query()
-                    .ok_or_else(|| Error::Url("No path/query in URL".into()))?
-                    .as_str(),
-                key = key
-            )
-            .unwrap();
-            for (k, v) in request.headers() {
-                writeln!(req, "{}: {}\r", k, v.to_str()?).unwrap();
-            }
-            writeln!(req, "\r").unwrap();
+            let req = generate_request(request, &key)?;
             HandshakeMachine::start_write(stream, req)
         };
 
@@ -123,6 +98,38 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
             }
         })
     }
+}
+
+/// Generate client request.
+fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
+    let mut req = Vec::new();
+    let uri = request.uri();
+    write!(
+        req,
+        "\
+         GET {path} {version:?}\r\n\
+         Host: {host}\r\n\
+         Connection: Upgrade\r\n\
+         Upgrade: websocket\r\n\
+         Sec-WebSocket-Version: 13\r\n\
+         Sec-WebSocket-Key: {key}\r\n",
+        version = request.version(),
+        host = uri
+            .host()
+            .ok_or_else(|| Error::Url("No host name in the URL".into()))?,
+        path = uri
+            .path_and_query()
+            .ok_or_else(|| Error::Url("No path/query in URL".into()))?
+            .as_str(),
+        key = key
+    )
+    .unwrap();
+    for (k, v) in request.headers() {
+        writeln!(req, "{}: {}\r", k, v.to_str()?).unwrap();
+    }
+    writeln!(req, "\r").unwrap();
+    trace!("Request: {:?}", String::from_utf8_lossy(&req));
+    Ok(req)
 }
 
 /// Information for handshake verification.
@@ -243,7 +250,8 @@ fn generate_key() -> String {
 #[cfg(test)]
 mod tests {
     use super::super::machine::TryParse;
-    use super::{generate_key, Response};
+    use crate::client::IntoClientRequest;
+    use super::{generate_key, generate_request, Response};
 
     #[test]
     fn random_keys() {
@@ -259,6 +267,40 @@ mod tests {
         assert!(k2.ends_with("=="));
         assert!(k1[..22].find('=').is_none());
         assert!(k2[..22].find('=').is_none());
+    }
+
+    #[test]
+    fn request_formatting() {
+        let request = "ws://localhost/getCaseCount".into_client_request().unwrap();
+        let key = "A70tsIbeMZUbJHh5BWFw6Q==";
+        let correct = b"\
+            GET /getCaseCount HTTP/1.1\r\n\
+            Host: localhost\r\n\
+            Connection: Upgrade\r\n\
+            Upgrade: websocket\r\n\
+            Sec-WebSocket-Version: 13\r\n\
+            Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
+            \r\n";
+        let request = generate_request(request, key).unwrap();
+        println!("Request: {}", String::from_utf8_lossy(&request));
+        assert_eq!(&request[..], &correct[..]);
+    }
+
+    #[test]
+    fn request_formatting_with_host() {
+        let request = "wss://localhost:9001/getCaseCount".into_client_request().unwrap();
+        let key = "A70tsIbeMZUbJHh5BWFw6Q==";
+        let correct = b"\
+            GET /getCaseCount HTTP/1.1\r\n\
+            Host: localhost:9001\r\n\
+            Connection: Upgrade\r\n\
+            Upgrade: websocket\r\n\
+            Sec-WebSocket-Version: 13\r\n\
+            Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
+            \r\n";
+        let request = generate_request(request, key).unwrap();
+        println!("Request: {}", String::from_utf8_lossy(&request));
+        assert_eq!(&request[..], &correct[..]);
     }
 
     #[test]
