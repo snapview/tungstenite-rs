@@ -14,6 +14,7 @@ fn must_not_block<Role: HandshakeRole>(err: HandshakeError<Role>) -> Error {
 
 fn handle_client(stream: TcpStream) -> Result<()> {
     let mut socket = accept(stream).map_err(must_not_block)?;
+    info!("Running test");
     loop {
         match socket.read_message()? {
             msg @ Message::Text(_) | msg @ Message::Binary(_) => {
@@ -31,11 +32,13 @@ fn main() {
 
     for stream in server.incoming() {
         spawn(move || match stream {
-            Ok(stream) => match handle_client(stream) {
-                Ok(_) => (),
-                Err(e) => warn!("Error in client: {}", e),
+            Ok(stream) => if let Err(err) = handle_client(stream) {
+                match err {
+                    Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
+                    e => error!("test: {}", e),
+                }
             },
-            Err(e) => warn!("Error accepting stream: {}", e),
+            Err(e) => error!("Error accepting stream: {}", e),
         });
     }
 }
