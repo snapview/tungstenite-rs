@@ -5,7 +5,7 @@ pub mod frame;
 mod message;
 
 pub use self::frame::CloseFrame;
-pub use self::message::Message;
+pub use self::message::{Message, SharedMessage, EitherMessage};
 
 use log::*;
 use std::collections::VecDeque;
@@ -162,6 +162,13 @@ impl<Stream: Read + Write> WebSocket<Stream> {
         self.context.write_message(&mut self.socket, message)
     }
 
+    /// Send a shared message to stream, if possible.
+    ///
+    /// This is essentially the same method as `write_message` but for shared messages.
+    pub fn write_shared_message(&mut self, message: SharedMessage) -> Result<()> {
+        self.context.write_shared_message(&mut self.socket, message)
+    }
+
     /// Flush the pending send queue.
     pub fn write_pending(&mut self) -> Result<()> {
         self.context.write_pending(&mut self.socket)
@@ -275,6 +282,31 @@ impl WebSocketContext {
     where
         Stream: Read + Write,
     {
+        self.write_either_message(stream, message.into())
+    }
+
+    /// Send a shared message to the provided stream, if possible.
+    ///
+    /// This is the same method than `write_message`, but for shared messages instead.
+    pub fn write_shared_message<Stream>(
+        &mut self,
+        stream: &mut Stream,
+        message: SharedMessage,
+    ) -> Result<()>
+    where
+        Stream: Read + Write,
+    {
+        self.write_either_message(stream, message.into())
+    }
+
+    fn write_either_message<Stream>(
+        &mut self,
+        stream: &mut Stream,
+        message: EitherMessage,
+    ) -> Result<()>
+    where
+        Stream: Read + Write,
+    {
         // When terminated, return AlreadyClosed.
         self.state.check_active()?;
 
@@ -299,14 +331,19 @@ impl WebSocketContext {
         }
 
         let frame = match message {
-            Message::Text(data) => Frame::message(data.into(), OpCode::Data(OpData::Text), true),
-            Message::Binary(data) => Frame::message(data, OpCode::Data(OpData::Binary), true),
-            Message::Ping(data) => Frame::ping(data),
-            Message::Pong(data) => {
-                self.pong = Some(Frame::pong(data));
-                return self.write_pending(stream);
-            }
-            Message::Close(code) => return self.close(stream, code),
+            EitherMessage::Message(message) => match message {
+                Message::Text(data) => Frame::message(data, OpCode::Data(OpData::Text), true),
+                Message::Binary(data) => Frame::message(data, OpCode::Data(OpData::Binary), true),
+                Message::Ping(data) => Frame::ping(data),
+                Message::Pong(data) => {
+                    self.pong = Some(Frame::pong(data));
+                    return self.write_pending(stream);
+                }
+                Message::Close(code) => return self.close(stream, code),
+            },
+            EitherMessage::SharedMessage(message) => match message {
+                SharedMessage::Binary(data) => Frame::message(data, OpCode::Data(OpData::Binary), true),
+            },
         };
 
         self.send_queue.push_back(frame);
@@ -440,14 +477,14 @@ impl WebSocketContext {
                             format!("Unknown control frame type {}", i).into(),
                         )),
                         OpCtl::Ping => {
-                            let data = frame.into_data();
+                            let data = frame.into_payload().unwrap_bytes();
                             // No ping processing after we sent a close frame.
                             if self.state.is_active() {
                                 self.pong = Some(Frame::pong(data.clone()));
                             }
                             Ok(Some(Message::Ping(data)))
                         }
-                        OpCtl::Pong => Ok(Some(Message::Pong(frame.into_data()))),
+                        OpCtl::Pong => Ok(Some(Message::Pong(frame.into_payload().unwrap_bytes()))),
                     }
                 }
 
@@ -456,7 +493,10 @@ impl WebSocketContext {
                     match data {
                         OpData::Continue => {
                             if let Some(ref mut msg) = self.incomplete {
-                                msg.extend(frame.into_data(), self.config.max_message_size)?;
+                                msg.extend(
+                                    frame.into_payload().as_bytes(),
+                                    self.config.max_message_size,
+                                )?;
                             } else {
                                 return Err(Error::Protocol(
                                     "Continue frame but nothing to continue".into(),
@@ -479,7 +519,10 @@ impl WebSocketContext {
                                     _ => panic!("Bug: message is not text nor binary"),
                                 };
                                 let mut m = IncompleteMessage::new(message_type);
-                                m.extend(frame.into_data(), self.config.max_message_size)?;
+                                m.extend(
+                                    frame.into_payload().as_bytes(),
+                                    self.config.max_message_size,
+                                )?;
                                 m
                             };
                             if fin {

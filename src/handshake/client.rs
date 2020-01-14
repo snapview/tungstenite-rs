@@ -105,16 +105,18 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
     let mut req = Vec::new();
     let uri = request.uri();
 
-    let authority = uri.authority()
+    let authority = uri
+        .authority()
         .ok_or_else(|| Error::Url("No host name in the URL".into()))?
         .as_str();
-    let host = if let Some(idx) = authority.find('@') { // handle possible name:password@
+    let host = if let Some(idx) = authority.find('@') {
+        // handle possible name:password@
         authority.split_at(idx + 1).1
     } else {
         authority
     };
     if authority.is_empty() {
-        return Err(Error::Url("URL contains empty host name".into()))
+        return Err(Error::Url("URL contains empty host name".into()));
     }
 
     write!(
@@ -261,8 +263,8 @@ fn generate_key() -> String {
 #[cfg(test)]
 mod tests {
     use super::super::machine::TryParse;
-    use crate::client::IntoClientRequest;
     use super::{generate_key, generate_request, Response};
+    use crate::client::IntoClientRequest;
 
     #[test]
     fn random_keys() {
@@ -299,7 +301,9 @@ mod tests {
 
     #[test]
     fn request_formatting_with_host() {
-        let request = "wss://localhost:9001/getCaseCount".into_client_request().unwrap();
+        let request = "wss://localhost:9001/getCaseCount"
+            .into_client_request()
+            .unwrap();
         let key = "A70tsIbeMZUbJHh5BWFw6Q==";
         let correct = b"\
             GET /getCaseCount HTTP/1.1\r\n\
@@ -316,7 +320,9 @@ mod tests {
 
     #[test]
     fn request_formatting_with_at() {
-        let request = "wss://user:pass@localhost:9001/getCaseCount".into_client_request().unwrap();
+        let request = "wss://user:pass@localhost:9001/getCaseCount"
+            .into_client_request()
+            .unwrap();
         let key = "A70tsIbeMZUbJHh5BWFw6Q==";
         let correct = b"\
             GET /getCaseCount HTTP/1.1\r\n\

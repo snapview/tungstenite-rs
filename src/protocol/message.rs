@@ -6,6 +6,8 @@ use std::str;
 use super::frame::CloseFrame;
 use crate::error::{Error, Result};
 
+use bytes::Bytes;
+
 mod string_collect {
 
     use utf8;
@@ -166,6 +168,35 @@ impl IncompleteMessage {
 pub enum IncompleteMessageType {
     Text,
     Binary,
+}
+
+/// Either a owned or shard `WebSocket` message.
+#[derive(Debug, Clone)]
+pub enum EitherMessage {
+    /// A owned `WebSocket` message.
+    Message(Message),
+
+    /// A shared `WebSocket` message.
+    SharedMessage(SharedMessage),
+}
+
+impl From<Message> for EitherMessage {
+    fn from(m: Message) -> Self {
+        EitherMessage::Message(m)
+    }
+}
+
+impl From<SharedMessage> for EitherMessage {
+    fn from(m: SharedMessage) -> Self {
+        EitherMessage::SharedMessage(m)
+    }
+}
+
+/// A shared websocket message.
+#[derive(Debug, Clone)]
+pub enum SharedMessage {
+    /// A shared binary `WebSocket` message.
+    Binary(Bytes),
 }
 
 /// An enum representing the various forms of a WebSocket message.
