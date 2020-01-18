@@ -110,6 +110,21 @@ impl<Stream> WebSocket<Stream> {
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
         self.context.set_config(set_func)
     }
+
+    /// Check if it is possible to read messages.
+    ///
+    /// Reading is impossible after receiving `Message::Close`. It is still possible after
+    /// sending close frame since the peer still may send some data before confirming close.
+    pub fn can_read(&self) -> bool {
+        self.context.can_read()
+    }
+
+    /// Check if it is possible to write messages.
+    ///
+    /// Writing gets impossible immediately after sending or receiving `Message::Close`.
+    pub fn can_write(&self) -> bool {
+        self.context.can_write()
+    }
 }
 
 impl<Stream: Read + Write> WebSocket<Stream> {
@@ -237,6 +252,21 @@ impl WebSocketContext {
     /// Change the configuration.
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
         set_func(&mut self.config)
+    }
+
+    /// Check if it is possible to read messages.
+    ///
+    /// Reading is impossible after receiving `Message::Close`. It is still possible after
+    /// sending close frame since the peer still may send some data before confirming close.
+    pub fn can_read(&self) -> bool {
+        self.state.can_read()
+    }
+
+    /// Check if it is possible to write messages.
+    ///
+    /// Writing gets impossible immediately after sending or receiving `Message::Close`.
+    pub fn can_write(&self) -> bool {
+        self.state.is_active()
     }
 
     /// Read a message from the provided stream, if possible.
