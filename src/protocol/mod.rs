@@ -411,7 +411,7 @@ impl WebSocketContext {
         if let Some(mut frame) = self
             .frame
             .read_frame(stream, self.config.max_frame_size)
-            .check_connection_reset(&self.state)?
+            .check_connection_reset(self.state)?
         {
             if !self.state.can_read() {
                 return Err(Error::Protocol(
@@ -596,7 +596,7 @@ impl WebSocketContext {
         trace!("Sending frame: {:?}", frame);
         self.frame
             .write_frame(stream, frame)
-            .check_connection_reset(&self.state)
+            .check_connection_reset(self.state)
     }
 }
 
@@ -645,11 +645,11 @@ impl WebSocketState {
 
 /// Translate "Connection reset by peer" into `ConnectionClosed` if appropriate.
 trait CheckConnectionReset {
-    fn check_connection_reset(self, state: &WebSocketState) -> Self;
+    fn check_connection_reset(self, state: WebSocketState) -> Self;
 }
 
 impl<T> CheckConnectionReset for Result<T> {
-    fn check_connection_reset(self, state: &WebSocketState) -> Self {
+    fn check_connection_reset(self, state: WebSocketState) -> Self {
         match self {
             Err(Error::Io(io_error)) => Err({
                 if !state.can_read() && io_error.kind() == IoErrorKind::ConnectionReset {
