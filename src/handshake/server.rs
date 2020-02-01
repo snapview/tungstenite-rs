@@ -39,7 +39,7 @@ pub fn create_response(request: &Request) -> Result<Response> {
         .headers()
         .get("Connection")
         .and_then(|h| h.to_str().ok())
-        .map(|h| h.eq_ignore_ascii_case("Upgrade"))
+        .map(|h| h.split(|c| c == ' ' || c == ',').any(|p| p.eq_ignore_ascii_case("Upgrade")))
         .unwrap_or(false)
     {
         return Err(Error::Protocol(
