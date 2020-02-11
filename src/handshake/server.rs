@@ -75,12 +75,23 @@ pub fn create_response(request: &Request) -> Result<Response> {
         .get("Sec-WebSocket-Key")
         .ok_or_else(|| Error::Protocol("Missing Sec-WebSocket-Key".into()))?;
 
-    let builder = Response::builder()
+    let protocol_default = HeaderValue::from_static("");
+
+    let protocol = request
+        .headers()
+        .get("Sec-WebSocket-Protocol")
+        .unwrap_or(&protocol_default);
+
+    let mut builder = Response::builder()
         .status(StatusCode::SWITCHING_PROTOCOLS)
         .version(request.version())
         .header("Connection", "Upgrade")
         .header("Upgrade", "websocket")
         .header("Sec-WebSocket-Accept", convert_key(key.as_bytes())?);
+
+    if !protocol.is_empty() {
+        builder = builder.header("Sec-WebSocket-Protocol", protocol);
+    }
 
     Ok(builder.body(())?)
 }
