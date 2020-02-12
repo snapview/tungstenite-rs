@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use std::result::Result as StdResult;
 
 use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode};
+use http::header::HeaderValue;
 use httparse::Status;
 use log::*;
 
