@@ -410,9 +410,7 @@ impl WebSocketContext {
         }
         self.write_pending(stream)
     }
-}
 
-impl WebSocketContext {
     /// Try to decode one message frame. May return None.
     fn read_message_frame<Stream>(&mut self, stream: &mut Stream) -> Result<Option<Message>>
     where
