@@ -111,6 +111,11 @@ impl<Stream> WebSocket<Stream> {
         self.context.set_config(set_func)
     }
 
+    /// Read the configuration.
+    pub fn get_config(&self) -> &WebSocketConfig {
+        self.context.get_config()
+    }
+
     /// Check if it is possible to read messages.
     ///
     /// Reading is impossible after receiving `Message::Close`. It is still possible after
@@ -252,6 +257,11 @@ impl WebSocketContext {
     /// Change the configuration.
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
         set_func(&mut self.config)
+    }
+
+    /// Read the configuration.
+    pub fn get_config(&self) -> &WebSocketConfig {
+        &self.config
     }
 
     /// Check if it is possible to read messages.
@@ -400,9 +410,7 @@ impl WebSocketContext {
         }
         self.write_pending(stream)
     }
-}
 
-impl WebSocketContext {
     /// Try to decode one message frame. May return None.
     fn read_message_frame<Stream>(&mut self, stream: &mut Stream) -> Result<Option<Message>>
     where
