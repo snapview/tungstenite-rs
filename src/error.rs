@@ -1,7 +1,6 @@
 //! Error handling.
 
-use std::borrow::{Borrow, Cow};
-
+use std::borrow::Cow;
 use std::error::Error as ErrorTrait;
 use std::fmt;
 use std::io;
@@ -89,24 +88,7 @@ impl fmt::Display for Error {
     }
 }
 
-impl ErrorTrait for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::ConnectionClosed => "A close handshake is performed",
-            Error::AlreadyClosed => "Trying to read or write after getting close notification",
-            Error::Io(ref err) => err.description(),
-            #[cfg(feature = "tls")]
-            Error::Tls(ref err) => err.description(),
-            Error::Capacity(ref msg) => msg.borrow(),
-            Error::Protocol(ref msg) => msg.borrow(),
-            Error::SendQueueFull(_) => "Send queue is full",
-            Error::Utf8 => "",
-            Error::Url(ref msg) => msg.borrow(),
-            Error::Http(_) => "",
-            Error::HttpFormat(ref err) => err.description(),
-        }
-    }
-}
+impl ErrorTrait for Error {}
 
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Self {
@@ -173,7 +155,7 @@ impl From<httparse::Error> for Error {
     fn from(err: httparse::Error) -> Self {
         match err {
             httparse::Error::TooManyHeaders => Error::Capacity("Too many headers".into()),
-            e => Error::Protocol(Cow::Owned(e.description().into())),
+            e => Error::Protocol(e.to_string().into()),
         }
     }
 }

@@ -81,14 +81,7 @@ impl<Role: HandshakeRole> fmt::Display for HandshakeError<Role> {
     }
 }
 
-impl<Role: HandshakeRole> ErrorTrait for HandshakeError<Role> {
-    fn description(&self) -> &str {
-        match *self {
-            HandshakeError::Interrupted(_) => "Interrupted handshake",
-            HandshakeError::Failure(ref e) => e.description(),
-        }
-    }
-}
+impl<Role: HandshakeRole> ErrorTrait for HandshakeError<Role> {}
 
 impl<Role: HandshakeRole> From<Error> for HandshakeError<Role> {
     fn from(err: Error) -> Self {
