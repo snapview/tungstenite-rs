@@ -30,7 +30,7 @@ where
         .expect("Can't listen, is port already in use?");
 
     let client_thread = spawn(move || {
-        let (client, _) = connect(Url::parse(&format!("ws://localhost:{}/socket", port)).unwrap())
+        let (client, _) = connect(Url::parse(&format!("ws://localhost:{}/socket", port)).unwrap(), None)
             .expect("Can't connect to port");
 
         client_task(client);

@@ -9,6 +9,8 @@ use log::*;
 
 use url::Url;
 
+use std::time::Duration;
+
 use crate::handshake::client::{Request, Response};
 use crate::protocol::WebSocketConfig;
 
@@ -88,6 +90,7 @@ use crate::stream::{Mode, NoDelay};
 /// `connect` since it's the only function that uses native_tls.
 pub fn connect_with_config<Req: IntoClientRequest>(
     request: Req,
+    timeout: Option<Duration>,
     config: Option<WebSocketConfig>,
 ) -> Result<(WebSocket<AutoStream>, Response)> {
     let request: Request = request.into_client_request()?;
@@ -102,7 +105,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
         Mode::Tls => 443,
     });
     let addrs = (host, port).to_socket_addrs()?;
-    let mut stream = connect_to_some(addrs.as_slice(), &request.uri(), mode)?;
+    let mut stream = connect_to_some(addrs.as_slice(), &request.uri(), mode, timeout)?;
     NoDelay::set_nodelay(&mut stream, true)?;
     client_with_config(request, stream, config).map_err(|e| match e {
         HandshakeError::Failure(f) => f,
@@ -122,19 +125,29 @@ pub fn connect_with_config<Req: IntoClientRequest>(
 /// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
 /// use `client` instead. There is no need to enable the "tls" feature if you don't call
 /// `connect` since it's the only function that uses native_tls.
-pub fn connect<Req: IntoClientRequest>(request: Req) -> Result<(WebSocket<AutoStream>, Response)> {
-    connect_with_config(request, None)
+pub fn connect<Req: IntoClientRequest>(request: Req, timeout: Option<Duration>) -> Result<(WebSocket<AutoStream>, Response)> {
+    connect_with_config(request, timeout, None)
 }
 
-fn connect_to_some(addrs: &[SocketAddr], uri: &Uri, mode: Mode) -> Result<AutoStream> {
+fn connect_to_some(addrs: &[SocketAddr], uri: &Uri, mode: Mode, timeout: Option<Duration>) -> Result<AutoStream> {
     let domain = uri
         .host()
         .ok_or_else(|| Error::Url("No host name in the URL".into()))?;
     for addr in addrs {
         debug!("Trying to contact {} at {}...", uri, addr);
-        if let Ok(raw_stream) = TcpStream::connect(addr) {
-            if let Ok(stream) = wrap_stream(raw_stream, domain, mode) {
-                return Ok(stream);
+        let raw_stream = if let Some(timeout) = timeout {
+            TcpStream::connect_timeout(addr, timeout)
+        } else {
+            TcpStream::connect(addr)
+        };
+        if let Err(err) = raw_stream {
+            debug!("connect {} at {} error: {:?}", uri, addr, err);
+        } else {
+            let stream = wrap_stream(raw_stream.unwrap(), domain, mode);
+            if let Err(err) = stream {
+                debug!("warp_stream error: {:?}", err);
+            } else {
+                return Ok(stream.unwrap());
             }
         }
     }
