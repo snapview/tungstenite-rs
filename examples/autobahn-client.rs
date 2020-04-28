@@ -6,7 +6,7 @@ use tungstenite::{connect, Error, Message, Result};
 const AGENT: &str = "Tungstenite";
 
 fn get_case_count() -> Result<u32> {
-    let (mut socket, _) = connect(Url::parse("ws://localhost:9001/getCaseCount").unwrap())?;
+    let (mut socket, _) = connect(Url::parse("ws://localhost:9001/getCaseCount").unwrap(), None)?;
     let msg = socket.read_message()?;
     socket.close(None)?;
     Ok(msg.into_text()?.parse::<u32>().unwrap())
@@ -19,6 +19,7 @@ fn update_reports() -> Result<()> {
             AGENT
         ))
         .unwrap(),
+        None
     )?;
     socket.close(None)?;
     Ok(())
@@ -31,7 +32,7 @@ fn run_test(case: u32) -> Result<()> {
         case, AGENT
     ))
     .unwrap();
-    let (mut socket, _) = connect(case_url)?;
+    let (mut socket, _) = connect(case_url, None)?;
     loop {
         match socket.read_message()? {
             msg @ Message::Text(_) | msg @ Message::Binary(_) => {
