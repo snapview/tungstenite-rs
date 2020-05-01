@@ -51,7 +51,7 @@ pub struct FrameHeader {
     /// WebSocket protocol opcode.
     pub opcode: OpCode,
     /// A frame mask, if any.
-    mask: Option<[u8; 4]>,
+    pub mask: Option<[u8; 4]>,
 }
 
 impl Default for FrameHeader {
