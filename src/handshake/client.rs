@@ -138,7 +138,7 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
 
     for (k, v) in request.headers() {
         let mut k = k.as_str();
-        if  k == "sec-websocket-protocol".to_string(){
+        if  k == "sec-websocket-protocol" {
             k = "Sec-WebSocket-Protocol";
         }
         writeln!(req, "{}: {}\r", k, v.to_str()?).unwrap();
