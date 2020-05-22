@@ -202,9 +202,9 @@ impl fmt::Display for CloseCode {
     }
 }
 
-impl<'t> Into<u16> for &'t CloseCode {
-    fn into(self) -> u16 {
-        match *self {
+impl From<CloseCode> for u16 {
+    fn from(code: CloseCode) -> u16 {
+        match code {
             Normal => 1000,
             Away => 1001,
             Protocol => 1002,
@@ -227,9 +227,9 @@ impl<'t> Into<u16> for &'t CloseCode {
     }
 }
 
-impl Into<u16> for CloseCode {
-    fn into(self) -> u16 {
-        (&self).into()
+impl<'t> From<&'t CloseCode> for u16 {
+    fn from(code: &'t CloseCode) -> u16 {
+        (*code).into()
     }
 }
 
@@ -287,5 +287,6 @@ mod tests {
         let text = CloseCode::Away;
         let byte: u16 = text.into();
         assert_eq!(byte, 1001u16);
+        assert_eq!(u16::from(text), 1001u16);
     }
 }
