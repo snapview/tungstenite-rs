@@ -1,4 +1,3 @@
-use rand;
 use std::cmp::min;
 #[allow(deprecated)]
 use std::mem::uninitialized;
@@ -87,8 +86,7 @@ unsafe fn xor_mem(ptr: *mut u8, mask: u32, len: usize) {
 
 #[cfg(test)]
 mod tests {
-
-    use super::{apply_mask_fallback, apply_mask_fast32};
+    use super::*;
 
     #[test]
     fn test_apply_mask() {
@@ -98,26 +96,21 @@ mod tests {
             0x12, 0x03,
         ];
 
-        // Check masking with proper alignment.
-        {
-            let mut masked = unmasked.clone();
-            apply_mask_fallback(&mut masked, mask);
+        for data_len in 0..=unmasked.len() {
+            let unmasked = &unmasked[0..data_len];
+            // Check masking with different alignment.
+            for off in 0..=3 {
+                if unmasked.len() < off {
+                    continue;
+                }
+                let mut masked = unmasked.to_vec();
+                apply_mask_fallback(&mut masked[off..], mask);
 
-            let mut masked_fast = unmasked.clone();
-            apply_mask_fast32(&mut masked_fast, mask);
+                let mut masked_fast = unmasked.to_vec();
+                apply_mask_fast32(&mut masked_fast[off..], mask);
 
-            assert_eq!(masked, masked_fast);
-        }
-
-        // Check masking without alignment.
-        {
-            let mut masked = unmasked.clone();
-            apply_mask_fallback(&mut masked[1..], mask);
-
-            let mut masked_fast = unmasked.clone();
-            apply_mask_fast32(&mut masked_fast[1..], mask);
-
-            assert_eq!(masked, masked_fast);
+                assert_eq!(masked, masked_fast);
+            }
         }
     }
 }
