@@ -15,6 +15,7 @@ edition = "2018"
 [features]
 default = ["tls"]
 tls = ["native-tls"]
+tls-vendored = ["native-tls", "native-tls/vendored"]
 
 [dependencies]
 base64 = "0.12.0"
