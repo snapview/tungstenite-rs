@@ -34,12 +34,12 @@ pub struct WebSocketConfig {
     /// means here that the size of the queue is unlimited. The default value is the unlimited
     /// queue.
     pub max_send_queue: Option<usize>,
-    /// The maximum size of a message. `None` means no size limit. The default value is 64 megabytes
+    /// The maximum size of a message. `None` means no size limit. The default value is 64 MiB
     /// which should be reasonably big for all normal use-cases but small enough to prevent
     /// memory eating by a malicious user.
     pub max_message_size: Option<usize>,
     /// The maximum size of a single message frame. `None` means no size limit. The limit is for
-    /// frame payload NOT including the frame header. The default value is 16 megabytes which should
+    /// frame payload NOT including the frame header. The default value is 16 MiB which should
     /// be reasonably big for all normal use-cases but small enough to prevent memory eating
     /// by a malicious user.
     pub max_frame_size: Option<usize>,
