@@ -187,6 +187,7 @@ impl FrameCodec {
         frame
             .format(&mut self.out_buffer)
             .expect("Bug: can't write to vector");
+
         self.write_pending(stream)
     }
 

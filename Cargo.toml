@@ -29,10 +29,13 @@ rand = "0.7.2"
 sha-1 = "0.9"
 url = "2.1.0"
 utf-8 = "0.7.5"
+flate2 = { version = "1.0", features = ["zlib"], default-features = false }
 
 [dependencies.native-tls]
 optional = true
 version = "0.2.3"
+
+
 
 [dev-dependencies]
 env_logger = "0.7.1"

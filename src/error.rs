@@ -67,6 +67,8 @@ pub enum Error {
     Http(http::StatusCode),
     /// HTTP format error.
     HttpFormat(http::Error),
+    /// An error from a WebSocket extension.
+    ExtensionError(Box<dyn std::error::Error + Send + Sync>),
 }
 
 impl fmt::Display for Error {
@@ -84,6 +86,7 @@ impl fmt::Display for Error {
             Error::Url(ref msg) => write!(f, "URL error: {}", msg),
             Error::Http(code) => write!(f, "HTTP error: {}", code),
             Error::HttpFormat(ref err) => write!(f, "HTTP format error: {}", err),
+            Error::ExtensionError(ref e) => write!(f, "{}", e),
         }
     }
 }

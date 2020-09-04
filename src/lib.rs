@@ -1,8 +1,8 @@
 //! Lightweight, flexible WebSockets for Rust.
 #![deny(
-    missing_docs,
-    missing_copy_implementations,
-    missing_debug_implementations,
+    // missing_docs,
+    // missing_copy_implementations,
+    // missing_debug_implementations,
     trivial_casts,
     trivial_numeric_casts,
     unstable_features,
@@ -16,6 +16,7 @@ pub use http;
 
 pub mod client;
 pub mod error;
+pub mod extensions;
 pub mod handshake;
 pub mod protocol;
 pub mod server;

@@ -16,6 +16,8 @@ use self::frame::coding::{CloseCode, Control as OpCtl, Data as OpData, OpCode};
 use self::frame::{Frame, FrameCodec};
 use self::message::{IncompleteMessage, IncompleteMessageType};
 use crate::error::{Error, Result};
+use crate::extensions::compression::{CompressionConfig, CompressionStrategy};
+use crate::extensions::WebSocketExtension;
 use crate::util::NonBlockingResult;
 
 /// Indicates a Client or Server role of the websocket
@@ -28,7 +30,7 @@ pub enum Role {
 }
 
 /// The configuration for WebSocket connection.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Copy, Clone)]
 pub struct WebSocketConfig {
     /// The size of the send queue. You can use it to turn on/off the backpressure features. `None`
     /// means here that the size of the queue is unlimited. The default value is the unlimited
@@ -43,6 +45,8 @@ pub struct WebSocketConfig {
     /// be reasonably big for all normal use-cases but small enough to prevent memory eating
     /// by a malicious user.
     pub max_frame_size: Option<usize>,
+    /// Permessage compression strategy.
+    pub compression_config: CompressionConfig,
 }
 
 impl Default for WebSocketConfig {
@@ -51,6 +55,7 @@ impl Default for WebSocketConfig {
             max_send_queue: None,
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
+            compression_config: CompressionConfig::Uncompressed,
         }
     }
 }
@@ -101,6 +106,7 @@ impl<Stream> WebSocket<Stream> {
     pub fn get_ref(&self) -> &Stream {
         &self.socket
     }
+
     /// Returns a mutable reference to the inner stream.
     pub fn get_mut(&mut self) -> &mut Stream {
         &mut self.socket
@@ -230,11 +236,16 @@ pub struct WebSocketContext {
     pong: Option<Frame>,
     /// The configuration for the websocket session.
     config: WebSocketConfig,
+    /// WebSocket compression strategy.
+    compressor: CompressionStrategy,
 }
 
 impl WebSocketContext {
     /// Create a WebSocket context that manages a post-handshake stream.
     pub fn new(role: Role, config: Option<WebSocketConfig>) -> Self {
+        let config = config.unwrap_or_else(WebSocketConfig::default);
+        let compressor = config.compression_config.into_strategy();
+
         WebSocketContext {
             role,
             frame: FrameCodec::new(),
@@ -242,7 +253,8 @@ impl WebSocketContext {
             incomplete: None,
             send_queue: VecDeque::new(),
             pong: None,
-            config: config.unwrap_or_else(WebSocketConfig::default),
+            config,
+            compressor,
         }
     }
 
@@ -426,17 +438,6 @@ impl WebSocketContext {
                     "Remote sent frame after having sent a Close Frame".into(),
                 ));
             }
-            // MUST be 0 unless an extension is negotiated that defines meanings
-            // for non-zero values.  If a nonzero value is received and none of
-            // the negotiated extensions defines the meaning of such a nonzero
-            // value, the receiving endpoint MUST _Fail the WebSocket
-            // Connection_.
-            {
-                let hdr = frame.header();
-                if hdr.rsv1 || hdr.rsv2 || hdr.rsv3 {
-                    return Err(Error::Protocol("Reserved bits are non-zero".into()));
-                }
-            }
 
             match self.role {
                 Role::Server => {
@@ -491,6 +492,12 @@ impl WebSocketContext {
 
                 OpCode::Data(data) => {
                     let fin = frame.header().is_final;
+                    let compressor = &mut self.compressor;
+                    let frame = match compressor.on_receive_frame(frame)? {
+                        Some(frame) => frame,
+                        None => return Ok(None),
+                    };
+
                     match data {
                         OpData::Continue => {
                             if let Some(ref mut msg) = self.incomplete {
@@ -600,6 +607,8 @@ impl WebSocketContext {
                 frame.set_random_mask();
             }
         }
+
+        let frame = self.compressor.on_send_frame(frame)?;
 
         trace!("Sending frame: {:?}", frame);
         self.frame
