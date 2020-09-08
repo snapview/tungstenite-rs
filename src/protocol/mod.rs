@@ -439,6 +439,16 @@ impl WebSocketContext {
                 ));
             }
 
+            {
+                let hdr = frame.header();
+
+                if !self.compressor.is_enabled() && hdr.rsv1 || hdr.rsv2 || hdr.rsv3 {
+                    return Err(Error::Protocol(
+                        "Reserved bits are non-zero and no WebSocket extensions are enabled".into(),
+                    ));
+                }
+            }
+
             match self.role {
                 Role::Server => {
                     if frame.is_masked() {
@@ -492,14 +502,23 @@ impl WebSocketContext {
 
                 OpCode::Data(data) => {
                     let fin = frame.header().is_final;
-                    let compressor = &mut self.compressor;
-                    let frame = match compressor.on_receive_frame(frame)? {
+                    let frame = match self.compressor.on_receive_frame(frame)? {
                         Some(frame) => frame,
                         None => return Ok(None),
                     };
 
                     match data {
                         OpData::Continue => {
+                            if self.compressor.is_enabled() {
+                                let message_type = match frame.header().opcode {
+                                    OpCode::Data(OpData::Text) => IncompleteMessageType::Text,
+                                    OpCode::Data(OpData::Binary) => IncompleteMessageType::Binary,
+                                    _ => panic!("Bug: message is not text nor binary"),
+                                };
+
+                                self.incomplete = Some(IncompleteMessage::new(message_type));
+                            }
+
                             if let Some(ref mut msg) = self.incomplete {
                                 msg.extend(frame.into_data(), self.config.max_message_size)?;
                             } else {

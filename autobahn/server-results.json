@@ -120,1512 +120,1512 @@
          "reportfile": "rust_websocket_case_10_1_1.json"
       },
       "12.1.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_1.json"
       },
       "12.1.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_10.json"
       },
       "12.1.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_11.json"
       },
       "12.1.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_12.json"
       },
       "12.1.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_13.json"
       },
       "12.1.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_14.json"
       },
       "12.1.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_15.json"
       },
       "12.1.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_16.json"
       },
       "12.1.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_17.json"
       },
       "12.1.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_18.json"
       },
       "12.1.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_2.json"
       },
       "12.1.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_3.json"
       },
       "12.1.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_4.json"
       },
       "12.1.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_5.json"
       },
       "12.1.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_6.json"
       },
       "12.1.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_7.json"
       },
       "12.1.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_8.json"
       },
       "12.1.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_1_9.json"
       },
       "12.2.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_1.json"
       },
       "12.2.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_10.json"
       },
       "12.2.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_11.json"
       },
       "12.2.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_12.json"
       },
       "12.2.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_13.json"
       },
       "12.2.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_14.json"
       },
       "12.2.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_15.json"
       },
       "12.2.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_16.json"
       },
       "12.2.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_17.json"
       },
       "12.2.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_18.json"
       },
       "12.2.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_2.json"
       },
       "12.2.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_3.json"
       },
       "12.2.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_4.json"
       },
       "12.2.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_5.json"
       },
       "12.2.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_6.json"
       },
       "12.2.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_7.json"
       },
       "12.2.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_8.json"
       },
       "12.2.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_2_9.json"
       },
       "12.3.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_1.json"
       },
       "12.3.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_10.json"
       },
       "12.3.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_11.json"
       },
       "12.3.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_12.json"
       },
       "12.3.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_13.json"
       },
       "12.3.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_14.json"
       },
       "12.3.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_15.json"
       },
       "12.3.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_16.json"
       },
       "12.3.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_17.json"
       },
       "12.3.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_18.json"
       },
       "12.3.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_2.json"
       },
       "12.3.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_3.json"
       },
       "12.3.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_4.json"
       },
       "12.3.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_5.json"
       },
       "12.3.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_6.json"
       },
       "12.3.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_7.json"
       },
       "12.3.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_8.json"
       },
       "12.3.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_3_9.json"
       },
       "12.4.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_1.json"
       },
       "12.4.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_10.json"
       },
       "12.4.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_11.json"
       },
       "12.4.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_12.json"
       },
       "12.4.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_13.json"
       },
       "12.4.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_14.json"
       },
       "12.4.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_15.json"
       },
       "12.4.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_16.json"
       },
       "12.4.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_17.json"
       },
       "12.4.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_18.json"
       },
       "12.4.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_2.json"
       },
       "12.4.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_3.json"
       },
       "12.4.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_4.json"
       },
       "12.4.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_5.json"
       },
       "12.4.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_6.json"
       },
       "12.4.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_7.json"
       },
       "12.4.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_8.json"
       },
       "12.4.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_4_9.json"
       },
       "12.5.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_1.json"
       },
       "12.5.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_10.json"
       },
       "12.5.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_11.json"
       },
       "12.5.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_12.json"
       },
       "12.5.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_13.json"
       },
       "12.5.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_14.json"
       },
       "12.5.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_15.json"
       },
       "12.5.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_16.json"
       },
       "12.5.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_17.json"
       },
       "12.5.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_18.json"
       },
       "12.5.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_2.json"
       },
       "12.5.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_3.json"
       },
       "12.5.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_4.json"
       },
       "12.5.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_5.json"
       },
       "12.5.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_6.json"
       },
       "12.5.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_7.json"
       },
       "12.5.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_8.json"
       },
       "12.5.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_12_5_9.json"
       },
       "13.1.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_1.json"
       },
       "13.1.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_10.json"
       },
       "13.1.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_11.json"
       },
       "13.1.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_12.json"
       },
       "13.1.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_13.json"
       },
       "13.1.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_14.json"
       },
       "13.1.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_15.json"
       },
       "13.1.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_16.json"
       },
       "13.1.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_17.json"
       },
       "13.1.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_18.json"
       },
       "13.1.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_2.json"
       },
       "13.1.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_3.json"
       },
       "13.1.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_4.json"
       },
       "13.1.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_5.json"
       },
       "13.1.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_6.json"
       },
       "13.1.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_7.json"
       },
       "13.1.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_8.json"
       },
       "13.1.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_1_9.json"
       },
       "13.2.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_1.json"
       },
       "13.2.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_10.json"
       },
       "13.2.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_11.json"
       },
       "13.2.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_12.json"
       },
       "13.2.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_13.json"
       },
       "13.2.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_14.json"
       },
       "13.2.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_15.json"
       },
       "13.2.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_16.json"
       },
       "13.2.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_17.json"
       },
       "13.2.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_18.json"
       },
       "13.2.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_2.json"
       },
       "13.2.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_3.json"
       },
       "13.2.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_4.json"
       },
       "13.2.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_5.json"
       },
       "13.2.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_6.json"
       },
       "13.2.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_7.json"
       },
       "13.2.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_8.json"
       },
       "13.2.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_2_9.json"
       },
       "13.3.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_1.json"
       },
       "13.3.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_10.json"
       },
       "13.3.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_11.json"
       },
       "13.3.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_12.json"
       },
       "13.3.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_13.json"
       },
       "13.3.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_14.json"
       },
       "13.3.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_15.json"
       },
       "13.3.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_16.json"
       },
       "13.3.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_17.json"
       },
       "13.3.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_18.json"
       },
       "13.3.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_2.json"
       },
       "13.3.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_3.json"
       },
       "13.3.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_4.json"
       },
       "13.3.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_5.json"
       },
       "13.3.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_6.json"
       },
       "13.3.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_7.json"
       },
       "13.3.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_8.json"
       },
       "13.3.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_3_9.json"
       },
       "13.4.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_1.json"
       },
       "13.4.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_10.json"
       },
       "13.4.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_11.json"
       },
       "13.4.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_12.json"
       },
       "13.4.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_13.json"
       },
       "13.4.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_14.json"
       },
       "13.4.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_15.json"
       },
       "13.4.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_16.json"
       },
       "13.4.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_17.json"
       },
       "13.4.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_18.json"
       },
       "13.4.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_2.json"
       },
       "13.4.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_3.json"
       },
       "13.4.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_4.json"
       },
       "13.4.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_5.json"
       },
       "13.4.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_6.json"
       },
       "13.4.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_7.json"
       },
       "13.4.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_8.json"
       },
       "13.4.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_4_9.json"
       },
       "13.5.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_1.json"
       },
       "13.5.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_10.json"
       },
       "13.5.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_11.json"
       },
       "13.5.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_12.json"
       },
       "13.5.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_13.json"
       },
       "13.5.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_14.json"
       },
       "13.5.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_15.json"
       },
       "13.5.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_16.json"
       },
       "13.5.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_17.json"
       },
       "13.5.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_18.json"
       },
       "13.5.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_2.json"
       },
       "13.5.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_3.json"
       },
       "13.5.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_4.json"
       },
       "13.5.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_5.json"
       },
       "13.5.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_6.json"
       },
       "13.5.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_7.json"
       },
       "13.5.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_8.json"
       },
       "13.5.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_5_9.json"
       },
       "13.6.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_1.json"
       },
       "13.6.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_10.json"
       },
       "13.6.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_11.json"
       },
       "13.6.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 1,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_12.json"
       },
       "13.6.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_13.json"
       },
       "13.6.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_14.json"
       },
       "13.6.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_15.json"
       },
       "13.6.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_16.json"
       },
       "13.6.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_17.json"
       },
       "13.6.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_18.json"
       },
       "13.6.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_2.json"
       },
       "13.6.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_3.json"
       },
       "13.6.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_4.json"
       },
       "13.6.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_5.json"
       },
       "13.6.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_6.json"
       },
       "13.6.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_7.json"
       },
       "13.6.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_8.json"
       },
       "13.6.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_6_9.json"
       },
       "13.7.1": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_1.json"
       },
       "13.7.10": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_10.json"
       },
       "13.7.11": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_11.json"
       },
       "13.7.12": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_12.json"
       },
       "13.7.13": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_13.json"
       },
       "13.7.14": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_14.json"
       },
       "13.7.15": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_15.json"
       },
       "13.7.16": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_16.json"
       },
       "13.7.17": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_17.json"
       },
       "13.7.18": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_18.json"
       },
       "13.7.2": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_2.json"
       },
       "13.7.3": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_3.json"
       },
       "13.7.4": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_4.json"
       },
       "13.7.5": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_5.json"
       },
       "13.7.6": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_6.json"
       },
       "13.7.7": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_7.json"
       },
       "13.7.8": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_case_13_7_8.json"
       },
       "13.7.9": {
-         "behavior": "UNIMPLEMENTED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "duration": 0,
          "remoteCloseCode": null,

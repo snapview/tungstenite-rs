@@ -1,0 +1,11 @@
+{
+   "WS-RS": {
+      "12.5.4": {
+         "behavior": "OK",
+         "behaviorClose": "OK",
+         "duration": 452,
+         "remoteCloseCode": 1000,
+         "reportfile": "ws_rs_case_12_5_4.json"
+      }
+   }
+}

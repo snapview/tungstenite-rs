@@ -36,6 +36,16 @@ pub enum CompressionStrategy {
     Deflate(DeflateExtension),
 }
 
+impl PartialEq for CompressionStrategy {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (CompressionStrategy::Uncompressed, CompressionStrategy::Uncompressed) => true,
+            (CompressionStrategy::Deflate(_), CompressionStrategy::Deflate(_)) => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CompressionExtensionError(String);
 
@@ -50,6 +60,12 @@ impl Display for CompressionExtensionError {
 impl From<CompressionExtensionError> for crate::Error {
     fn from(e: CompressionExtensionError) -> Self {
         crate::Error::ExtensionError(Box::new(e))
+    }
+}
+
+impl CompressionStrategy {
+    pub fn is_enabled(&self) -> bool {
+        *self != CompressionStrategy::Uncompressed
     }
 }
 
@@ -129,9 +145,28 @@ impl WebSocketExtension for CompressionConfig {
 
     fn on_request<T>(&mut self, mut request: Request<T>) -> Request<T> {
         if let Some(header_value) = self.as_header_value() {
-            request
-                .headers_mut()
-                .append(SEC_WEBSOCKET_EXTENSIONS, header_value);
+            match self {
+                CompressionConfig::Deflate(config) => {
+                    let mut header_value: String = header_value.to_str().unwrap().into();
+                    if config.max_window_bits < 15 {
+                        header_value.push_str(&format!(
+                            "; client_max_window_bits={}; server_max_window_bits={}",
+                            config.max_window_bits, config.max_window_bits
+                        ))
+                    } else {
+                        header_value.push_str("; client_max_window_bits")
+                    }
+                    if config.request_no_context_takeover {
+                        header_value.push_str("; server_no_context_takeover")
+                    }
+                    request.headers_mut().append(
+                        SEC_WEBSOCKET_EXTENSIONS,
+                        HeaderValue::from_str(&header_value).unwrap(),
+                    );
+                }
+
+                CompressionConfig::Uncompressed => {}
+            }
         }
 
         request
