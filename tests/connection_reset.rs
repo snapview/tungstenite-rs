@@ -1,22 +1,23 @@
 //! Verifies that the server returns a `ConnectionClosed` error when the connection
 //! is closedd from the server's point of view and drop the underlying tcp socket.
 
-use std::net::{TcpStream, TcpListener};
+use std::net::{TcpListener, TcpStream};
 use std::process::exit;
 use std::thread::{sleep, spawn};
 use std::time::Duration;
 
-use tungstenite::{accept, connect, Error, Message, WebSocket, stream::Stream};
 use native_tls::TlsStream;
-use url::Url;
 use net2::TcpStreamExt;
+use tungstenite::ext::uncompressed::UncompressedExt;
+use tungstenite::{accept, connect, stream::Stream, Error, Message, WebSocket};
+use url::Url;
 
-type Sock = WebSocket<Stream<TcpStream, TlsStream<TcpStream>>>;
+type Sock<E> = WebSocket<Stream<TcpStream, TlsStream<TcpStream>>, E>;
 
 fn do_test<CT, ST>(port: u16, client_task: CT, server_task: ST)
 where
-    CT: FnOnce(Sock) + Send + 'static,
-    ST: FnOnce(WebSocket<TcpStream>),
+    CT: FnOnce(Sock<UncompressedExt>) + Send + 'static,
+    ST: FnOnce(WebSocket<TcpStream, UncompressedExt>),
 {
     env_logger::try_init().ok();
 
@@ -26,8 +27,8 @@ where
         exit(1);
     });
 
-    let server = TcpListener::bind(("127.0.0.1", port))
-        .expect("Can't listen, is port already in use?");
+    let server =
+        TcpListener::bind(("127.0.0.1", port)).expect("Can't listen, is port already in use?");
 
     let client_thread = spawn(move || {
         let (client, _) = connect(Url::parse(&format!("ws://localhost:{}/socket", port)).unwrap())
@@ -46,7 +47,8 @@ where
 
 #[test]
 fn test_server_close() {
-    do_test(3012,
+    do_test(
+        3012,
         |mut cli_sock| {
             cli_sock
                 .write_message(Message::Text("Hello WebSocket".into()))
@@ -75,12 +77,14 @@ fn test_server_close() {
                 Error::ConnectionClosed => {}
                 _ => panic!("unexpected error: {:?}", err),
             }
-        });
+        },
+    );
 }
 
 #[test]
 fn test_evil_server_close() {
-    do_test(3013,
+    do_test(
+        3013,
         |mut cli_sock| {
             cli_sock
                 .write_message(Message::Text("Hello WebSocket".into()))
@@ -106,14 +110,19 @@ fn test_evil_server_close() {
             let message = srv_sock.read_message().unwrap(); // receive acknowledgement
             assert!(message.is_close());
             // and now just drop the connection without waiting for `ConnectionClosed`
-            srv_sock.get_mut().set_linger(Some(Duration::from_secs(0))).unwrap();
+            srv_sock
+                .get_mut()
+                .set_linger(Some(Duration::from_secs(0)))
+                .unwrap();
             drop(srv_sock);
-        });
+        },
+    );
 }
 
 #[test]
 fn test_client_close() {
-    do_test(3014,
+    do_test(
+        3014,
         |mut cli_sock| {
             cli_sock
                 .write_message(Message::Text("Hello WebSocket".into()))
@@ -137,7 +146,9 @@ fn test_client_close() {
             let message = srv_sock.read_message().unwrap();
             assert_eq!(message.into_data(), b"Hello WebSocket");
 
-            srv_sock.write_message(Message::Text("From Server".into())).unwrap();
+            srv_sock
+                .write_message(Message::Text("From Server".into()))
+                .unwrap();
 
             let message = srv_sock.read_message().unwrap(); // receive close from client
             assert!(message.is_close());
@@ -147,6 +158,6 @@ fn test_client_close() {
                 Error::ConnectionClosed => {}
                 _ => panic!("unexpected error: {:?}", err),
             }
-        });
-
+        },
+    );
 }

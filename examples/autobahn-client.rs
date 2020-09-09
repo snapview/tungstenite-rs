@@ -2,21 +2,17 @@ use log::*;
 use url::Url;
 
 use tungstenite::client::connect_with_config;
-use tungstenite::extensions::compression::CompressionConfig;
+use tungstenite::ext::deflate::DeflateExtension;
+use tungstenite::ext::uncompressed::UncompressedExt;
 use tungstenite::protocol::WebSocketConfig;
-use tungstenite::{connect, Error, Message, Result};
+use tungstenite::{connect, Error, Message, Result, WebSocket};
 
 const AGENT: &str = "Tungstenite";
 
 fn get_case_count() -> Result<u32> {
-    let (mut socket, _) = connect_with_config(
+    let (mut socket, _): (WebSocket<_, UncompressedExt>, _) = connect_with_config(
         Url::parse("ws://localhost:9001/getCaseCount").unwrap(),
-        Some(WebSocketConfig {
-            max_send_queue: None,
-            max_message_size: Some(64 << 20),
-            max_frame_size: Some(16 << 20),
-            compression_config: CompressionConfig::deflate(),
-        }),
+        None,
     )?;
     let msg = socket.read_message()?;
     socket.close(None)?;
@@ -48,7 +44,7 @@ fn run_test(case: u32) -> Result<()> {
             max_send_queue: None,
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
-            compression_config: CompressionConfig::deflate(),
+            encoder: DeflateExtension::default(),
         }),
     )?;
 
@@ -67,16 +63,16 @@ fn main() {
 
     env_logger::init();
 
-    let total = get_case_count().unwrap();
+    let _total = get_case_count().unwrap();
 
-    for case in 1..=total {
-        if let Err(e) = run_test(case) {
-            match e {
-                Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
-                err => error!("test: {}", err),
-            }
+    // for case in 1..=total {
+    if let Err(e) = run_test(334) {
+        match e {
+            Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
+            err => error!("test: {}", err),
         }
     }
+    // }
 
     update_reports().unwrap();
 }

@@ -66,6 +66,8 @@ use self::encryption::wrap_stream;
 pub use self::encryption::AutoStream;
 
 use crate::error::{Error, Result};
+use crate::ext::uncompressed::UncompressedExt;
+use crate::ext::WebSocketExtension;
 use crate::handshake::client::ClientHandshake;
 use crate::handshake::HandshakeError;
 use crate::protocol::WebSocket;
@@ -86,10 +88,13 @@ use crate::stream::{Mode, NoDelay};
 /// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
 /// use `client` instead. There is no need to enable the "tls" feature if you don't call
 /// `connect` since it's the only function that uses native_tls.
-pub fn connect_with_config<Req: IntoClientRequest>(
+pub fn connect_with_config<Req: IntoClientRequest, E>(
     request: Req,
-    config: Option<WebSocketConfig>,
-) -> Result<(WebSocket<AutoStream>, Response)> {
+    config: Option<WebSocketConfig<E>>,
+) -> Result<(WebSocket<AutoStream, E>, Response)>
+where
+    E: WebSocketExtension,
+{
     let request: Request = request.into_client_request()?;
     let uri = request.uri();
     let mode = uri_mode(uri)?;
@@ -122,7 +127,9 @@ pub fn connect_with_config<Req: IntoClientRequest>(
 /// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
 /// use `client` instead. There is no need to enable the "tls" feature if you don't call
 /// `connect` since it's the only function that uses native_tls.
-pub fn connect<Req: IntoClientRequest>(request: Req) -> Result<(WebSocket<AutoStream>, Response)> {
+pub fn connect<Req: IntoClientRequest>(
+    request: Req,
+) -> Result<(WebSocket<AutoStream, UncompressedExt>, Response)> {
     connect_with_config(request, None)
 }
 
@@ -159,14 +166,15 @@ pub fn uri_mode(uri: &Uri) -> Result<Mode> {
 /// Use this function if you need a nonblocking handshake support or if you
 /// want to use a custom stream like `mio::tcp::TcpStream` or `openssl::ssl::SslStream`.
 /// Any stream supporting `Read + Write` will do.
-pub fn client_with_config<Stream, Req>(
+pub fn client_with_config<Stream, Req, E>(
     request: Req,
     stream: Stream,
-    config: Option<WebSocketConfig>,
-) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
+    config: Option<WebSocketConfig<E>>,
+) -> StdResult<(WebSocket<Stream, E>, Response), HandshakeError<ClientHandshake<Stream, E>>>
 where
     Stream: Read + Write,
     Req: IntoClientRequest,
+    E: WebSocketExtension,
 {
     ClientHandshake::start(stream, request.into_client_request()?, config)?.handshake()
 }
@@ -179,7 +187,10 @@ where
 pub fn client<Stream, Req>(
     request: Req,
     stream: Stream,
-) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
+) -> StdResult<
+    (WebSocket<Stream, UncompressedExt>, Response),
+    HandshakeError<ClientHandshake<Stream, UncompressedExt>>,
+>
 where
     Stream: Read + Write,
     Req: IntoClientRequest,

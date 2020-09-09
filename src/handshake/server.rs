@@ -12,6 +12,7 @@ use super::headers::{FromHttparse, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
 use crate::error::{Error, Result};
+use crate::ext::WebSocketExtension;
 use crate::protocol::{Role, WebSocket, WebSocketConfig};
 
 /// Server request type.
@@ -39,7 +40,10 @@ pub fn create_response(request: &Request) -> Result<Response> {
         .headers()
         .get("Connection")
         .and_then(|h| h.to_str().ok())
-        .map(|h| h.split(|c| c == ' ' || c == ',').any(|p| p.eq_ignore_ascii_case("Upgrade")))
+        .map(|h| {
+            h.split(|c| c == ' ' || c == ',')
+                .any(|p| p.eq_ignore_ascii_case("Upgrade"))
+        })
         .unwrap_or(false)
     {
         return Err(Error::Protocol(
@@ -188,25 +192,31 @@ impl Callback for NoCallback {
 /// Server handshake role.
 #[allow(missing_copy_implementations)]
 #[derive(Debug)]
-pub struct ServerHandshake<S, C> {
+pub struct ServerHandshake<S, C, E>
+where
+    E: WebSocketExtension,
+{
     /// Callback which is called whenever the server read the request from the client and is ready
     /// to reply to it. The callback returns an optional headers which will be added to the reply
     /// which the server sends to the user.
     callback: Option<C>,
     /// WebSocket configuration.
-    config: Option<WebSocketConfig>,
+    config: Option<WebSocketConfig<E>>,
     /// Error code/flag. If set, an error will be returned after sending response to the client.
     error_code: Option<u16>,
     /// Internal stream type.
     _marker: PhantomData<S>,
 }
 
-impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
+impl<S: Read + Write, C: Callback, E> ServerHandshake<S, C, E>
+where
+    E: WebSocketExtension,
+{
     /// Start server handshake. `callback` specifies a custom callback which the user can pass to
     /// the handshake, this callback will be called when the a websocket client connnects to the
     /// server, you can specify the callback if you want to add additional header to the client
     /// upon join based on the incoming headers.
-    pub fn start(stream: S, callback: C, config: Option<WebSocketConfig>) -> MidHandshake<Self> {
+    pub fn start(stream: S, callback: C, config: Option<WebSocketConfig<E>>) -> MidHandshake<Self> {
         trace!("Server handshake initiated.");
         MidHandshake {
             machine: HandshakeMachine::start_read(stream),
@@ -220,10 +230,13 @@ impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
     }
 }
 
-impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
+impl<S: Read + Write, C: Callback, E> HandshakeRole for ServerHandshake<S, C, E>
+where
+    E: WebSocketExtension,
+{
     type IncomingData = Request;
     type InternalStream = S;
-    type FinalResult = WebSocket<S>;
+    type FinalResult = WebSocket<S, E>;
 
     fn stage_finished(
         &mut self,
@@ -278,7 +291,8 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                     return Err(Error::Http(StatusCode::from_u16(err)?));
                 } else {
                     debug!("Server handshake done.");
-                    let websocket = WebSocket::from_raw_socket(stream, Role::Server, self.config);
+                    let websocket =
+                        WebSocket::from_raw_socket(stream, Role::Server, self.config.clone());
                     ProcessingResult::Done(websocket)
                 }
             }

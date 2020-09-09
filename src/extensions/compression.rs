@@ -3,7 +3,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use crate::extensions::deflate::{DeflateConfig, DeflateExtension};
-use crate::extensions::WebSocketExtension;
+use crate::extensions::WebSocketExtensionOld;
 use crate::protocol::frame::Frame;
 use http::header::SEC_WEBSOCKET_EXTENSIONS;
 use http::{HeaderValue, Request, Response};
@@ -69,7 +69,7 @@ impl CompressionStrategy {
     }
 }
 
-impl WebSocketExtension for CompressionStrategy {
+impl WebSocketExtensionOld for CompressionStrategy {
     type Error = CompressionExtensionError;
 
     fn on_request<T>(&mut self, request: Request<T>) -> Request<T> {
@@ -140,7 +140,7 @@ impl From<CompressionSelectorError> for crate::Error {
     }
 }
 
-impl WebSocketExtension for CompressionConfig {
+impl WebSocketExtensionOld for CompressionConfig {
     type Error = CompressionSelectorError;
 
     fn on_request<T>(&mut self, mut request: Request<T>) -> Request<T> {

@@ -11,7 +11,7 @@ use super::headers::{FromHttparse, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
 use crate::error::{Error, Result};
-use crate::extensions::WebSocketExtension;
+use crate::ext::WebSocketExtension;
 use crate::protocol::{Role, WebSocket, WebSocketConfig};
 
 /// Client request type.
@@ -22,18 +22,24 @@ pub type Response = HttpResponse<()>;
 
 /// Client handshake role.
 #[derive(Debug)]
-pub struct ClientHandshake<S> {
+pub struct ClientHandshake<S, E>
+where
+    E: WebSocketExtension,
+{
     verify_data: VerifyData,
-    config: Option<WebSocketConfig>,
+    config: Option<WebSocketConfig<E>>,
     _marker: PhantomData<S>,
 }
 
-impl<S: Read + Write> ClientHandshake<S> {
+impl<S: Read + Write, E> ClientHandshake<S, E>
+where
+    E: WebSocketExtension,
+{
     /// Initiate a client handshake.
     pub fn start(
         stream: S,
         request: Request,
-        mut config: Option<WebSocketConfig>,
+        mut config: Option<WebSocketConfig<E>>,
     ) -> Result<MidHandshake<Self>> {
         if request.method() != http::Method::GET {
             return Err(Error::Protocol(
@@ -74,10 +80,14 @@ impl<S: Read + Write> ClientHandshake<S> {
     }
 }
 
-impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
+impl<S: Read + Write, E> HandshakeRole for ClientHandshake<S, E>
+where
+    E: WebSocketExtension,
+{
     type IncomingData = Response;
     type InternalStream = S;
-    type FinalResult = (WebSocket<S>, Response);
+    type FinalResult = (WebSocket<S, E>, Response);
+
     fn stage_finished(
         &mut self,
         finish: StageResult<Self::IncomingData, Self::InternalStream>,
@@ -95,7 +105,7 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
                     .verify_response(&result, &mut self.config)?;
                 debug!("Client handshake done.");
                 let websocket =
-                    WebSocket::from_partially_read(stream, tail, Role::Client, self.config);
+                    WebSocket::from_partially_read(stream, tail, Role::Client, self.config.clone());
                 ProcessingResult::Done((websocket, result))
             }
         })
@@ -103,13 +113,16 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
 }
 
 /// Generate client request.
-fn generate_request(
+fn generate_request<E>(
     request: Request,
     key: &str,
-    config: &mut Option<WebSocketConfig>,
-) -> Result<Vec<u8>> {
-    let request = match &config {
-        Some(mut config) => config.compression_config.on_request(request),
+    config: &mut Option<WebSocketConfig<E>>,
+) -> Result<Vec<u8>>
+where
+    E: WebSocketExtension,
+{
+    let request = match config {
+        Some(ref mut config) => config.encoder.on_request(request),
         None => request,
     };
     let mut req = Vec::new();
@@ -168,11 +181,14 @@ struct VerifyData {
 }
 
 impl VerifyData {
-    pub fn verify_response(
+    pub fn verify_response<E>(
         &self,
         response: &Response,
-        config: &mut Option<WebSocketConfig>,
-    ) -> Result<()> {
+        config: &mut Option<WebSocketConfig<E>>,
+    ) -> Result<()>
+    where
+        E: WebSocketExtension,
+    {
         // 1. If the status code received from the server is not 101, the
         // client handles the response per HTTP [RFC2616] procedures. (RFC 6455)
         if response.status() != StatusCode::SWITCHING_PROTOCOLS {
@@ -229,7 +245,7 @@ impl VerifyData {
         // MUST _Fail the WebSocket Connection_. (RFC 6455)
 
         if let Some(config) = config {
-            config.compression_config.on_response(response);
+            config.encoder.on_response(response);
         }
 
         // 6.  If the response includes a |Sec-WebSocket-Protocol| header field
@@ -288,6 +304,7 @@ mod tests {
     use super::super::machine::TryParse;
     use super::{generate_key, generate_request, Response};
     use crate::client::IntoClientRequest;
+    use crate::ext::uncompressed::UncompressedExt;
 
     #[test]
     fn random_keys() {
@@ -317,7 +334,9 @@ mod tests {
             Sec-WebSocket-Version: 13\r\n\
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
-        let request = generate_request(request, key, &mut Some(Default::default())).unwrap();
+        let request =
+            generate_request::<UncompressedExt>(request, key, &mut Some(Default::default()))
+                .unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }
@@ -336,7 +355,9 @@ mod tests {
             Sec-WebSocket-Version: 13\r\n\
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
-        let request = generate_request(request, key, &mut Some(Default::default())).unwrap();
+        let request =
+            generate_request::<UncompressedExt>(request, key, &mut Some(Default::default()))
+                .unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }
@@ -355,7 +376,9 @@ mod tests {
             Sec-WebSocket-Version: 13\r\n\
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
-        let request = generate_request(request, key, &mut Some(Default::default())).unwrap();
+        let request =
+            generate_request::<UncompressedExt>(request, key, &mut Some(Default::default()))
+                .unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }
