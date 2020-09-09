@@ -234,58 +234,37 @@ impl Deflator {
     pub fn compress(&mut self, input: &[u8], output: &mut Vec<u8>) -> Result<usize, CompressError> {
         let mut read_buff = Vec::from(input);
         let mut output_size;
-        let mut eof = false;
-
-        if output.len() != output.capacity() {
-            unsafe {
-                output.set_len(output.capacity());
-            }
-        }
 
         loop {
             output_size = output.len();
 
             if output_size == output.capacity() {
                 output.reserve(input.len());
-                unsafe {
-                    output.set_len(output.capacity());
-                }
             }
 
             let before_out = self.compress.total_out();
             let before_in = self.compress.total_in();
 
-            let out_slice = unsafe {
-                slice::from_raw_parts_mut(
-                    output.as_mut_ptr().offset(output_size as isize),
-                    output.capacity() - output_size,
-                )
-            };
-
-            let flush_strategy = if eof {
-                FlushCompress::Finish
-            } else {
-                FlushCompress::None
-            };
-
             let status = self
                 .compress
-                .compress(&read_buff, out_slice, flush_strategy)?;
+                .compress_vec(&read_buff, output, FlushCompress::Sync)?;
 
             let consumed = (self.compress.total_in() - before_in) as usize;
             read_buff = read_buff.split_off(consumed);
 
+            let new_size = (self.compress.total_out() - before_out) as usize + output_size;
+
             unsafe {
-                output.set_len((self.compress.total_out() - before_out) as usize + output_size);
+                output.set_len(new_size);
             }
 
-            if !eof && read_buff.len() == 0 {
-                eof = true;
-                continue;
-            }
-
-            if read_buff.len() == 0 && output.len() > 0 {
-                return Ok(consumed);
+            match status {
+                Status::Ok | Status::BufError => {
+                    if before_out == self.compress.total_out() && read_buff.is_empty() {
+                        return Ok(consumed);
+                    }
+                }
+                s => panic!(s),
             }
         }
     }
@@ -319,9 +298,6 @@ impl Inflator {
 
             if output_size == output.capacity() {
                 output.reserve(input.len());
-                unsafe {
-                    output.set_len(output.capacity());
-                }
             }
 
             let before_out = self.decompress.total_out();
@@ -336,7 +312,7 @@ impl Inflator {
 
             let status =
                 self.decompress
-                    .decompress(&read_buff, out_slice, FlushDecompress::Finish)?;
+                    .decompress(&read_buff, out_slice, FlushDecompress::Sync)?;
 
             let consumed = (self.decompress.total_in() - before_in) as usize;
             read_buff = read_buff.split_off(consumed);
@@ -347,7 +323,7 @@ impl Inflator {
 
             match status {
                 Status::Ok | Status::BufError => {
-                    if read_buff.len() == 0 && output.len() > 0 {
+                    if before_out == self.decompress.total_out() && read_buff.is_empty() {
                         return Ok(consumed);
                     } else {
                         continue;
@@ -528,13 +504,13 @@ fn t() {
     let mut compressor = Deflator::new(Compression::best());
 
     let mut f = |v: Vec<_>| {
-        let mut compressed = Vec::with_capacity(10);
+        let mut compressed = Vec::with_capacity(v.len());
         let r = compressor.compress(&v, &mut compressed);
         println!("{:?}", r);
 
         let len = compressed.len();
         compressed.truncate(len - 4);
-
+        println!("Output capacity: {}", compressed.capacity());
         println!("Compressed to: {:?}", compressed.len());
     };
 

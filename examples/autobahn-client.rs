@@ -67,16 +67,16 @@ fn main() {
 
     env_logger::init();
 
-    // let total = get_case_count().unwrap();
+    let total = get_case_count().unwrap();
 
-    // for case in 1..=total {
-    if let Err(e) = run_test(377) {
-        match e {
-            Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
-            err => error!("test: {}", err),
+    for case in 1..=total {
+        if let Err(e) = run_test(case) {
+            match e {
+                Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
+                err => error!("test: {}", err),
+            }
         }
     }
-    // }
 
     update_reports().unwrap();
 }
