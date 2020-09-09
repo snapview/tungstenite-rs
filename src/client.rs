@@ -66,8 +66,8 @@ use self::encryption::wrap_stream;
 pub use self::encryption::AutoStream;
 
 use crate::error::{Error, Result};
-use crate::ext::uncompressed::UncompressedExt;
-use crate::ext::WebSocketExtension;
+use crate::extensions::uncompressed::PlainTextExt;
+use crate::extensions::WebSocketExtension;
 use crate::handshake::client::ClientHandshake;
 use crate::handshake::HandshakeError;
 use crate::protocol::WebSocket;
@@ -129,7 +129,7 @@ where
 /// `connect` since it's the only function that uses native_tls.
 pub fn connect<Req: IntoClientRequest>(
     request: Req,
-) -> Result<(WebSocket<AutoStream, UncompressedExt>, Response)> {
+) -> Result<(WebSocket<AutoStream, PlainTextExt>, Response)> {
     connect_with_config(request, None)
 }
 
@@ -188,8 +188,8 @@ pub fn client<Stream, Req>(
     request: Req,
     stream: Stream,
 ) -> StdResult<
-    (WebSocket<Stream, UncompressedExt>, Response),
-    HandshakeError<ClientHandshake<Stream, UncompressedExt>>,
+    (WebSocket<Stream, PlainTextExt>, Response),
+    HandshakeError<ClientHandshake<Stream, PlainTextExt>>,
 >
 where
     Stream: Read + Write,

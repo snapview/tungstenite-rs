@@ -1,14 +1,15 @@
 #![no_main]
-#[macro_use] extern crate libfuzzer_sys;
+#[macro_use]
+extern crate libfuzzer_sys;
 extern crate tungstenite;
 
 use std::io;
 use std::io::Cursor;
-use tungstenite::WebSocket;
 use tungstenite::protocol::Role;
+use tungstenite::WebSocket;
 //use std::result::Result;
 
-// FIXME: copypasted from tungstenite's protocol/mod.rs
+// FIXME: copypasted from tungstenite's protocol/extensions
 
 struct WriteMoc<Stream>(Stream);
 

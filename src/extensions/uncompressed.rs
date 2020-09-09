@@ -1,4 +1,4 @@
-use crate::ext::WebSocketExtension;
+use crate::extensions::WebSocketExtension;
 use crate::protocol::frame::coding::{Data, OpCode};
 use crate::protocol::frame::Frame;
 use crate::protocol::message::{IncompleteMessage, IncompleteMessageType};
@@ -6,36 +6,36 @@ use crate::protocol::MAX_MESSAGE_SIZE;
 use crate::{Error, Message};
 
 #[derive(Debug)]
-pub struct UncompressedExt {
+pub struct PlainTextExt {
     incomplete: Option<IncompleteMessage>,
     max_message_size: Option<usize>,
 }
 
-impl UncompressedExt {
-    pub fn new(max_message_size: Option<usize>) -> UncompressedExt {
-        UncompressedExt {
+impl PlainTextExt {
+    pub fn new(max_message_size: Option<usize>) -> PlainTextExt {
+        PlainTextExt {
             incomplete: None,
             max_message_size,
         }
     }
 }
 
-impl Clone for UncompressedExt {
+impl Clone for PlainTextExt {
     fn clone(&self) -> Self {
         Self::default()
     }
 }
 
-impl Default for UncompressedExt {
+impl Default for PlainTextExt {
     fn default() -> Self {
-        UncompressedExt {
+        PlainTextExt {
             incomplete: None,
             max_message_size: Some(MAX_MESSAGE_SIZE),
         }
     }
 }
 
-impl WebSocketExtension for UncompressedExt {
+impl WebSocketExtension for PlainTextExt {
     type Error = Error;
 
     fn enabled(&self) -> bool {

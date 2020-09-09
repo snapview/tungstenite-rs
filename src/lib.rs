@@ -16,14 +16,13 @@ pub use http;
 
 pub mod client;
 pub mod error;
-pub mod extensions;
 pub mod handshake;
 pub mod protocol;
 pub mod server;
 pub mod stream;
 pub mod util;
 
-pub mod ext;
+pub mod extensions;
 
 pub use crate::client::{client, connect};
 pub use crate::error::{Error, Result};

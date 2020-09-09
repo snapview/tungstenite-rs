@@ -11,7 +11,7 @@ use super::headers::{FromHttparse, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
 use crate::error::{Error, Result};
-use crate::ext::WebSocketExtension;
+use crate::extensions::WebSocketExtension;
 use crate::protocol::{Role, WebSocket, WebSocketConfig};
 
 /// Client request type.
@@ -304,7 +304,7 @@ mod tests {
     use super::super::machine::TryParse;
     use super::{generate_key, generate_request, Response};
     use crate::client::IntoClientRequest;
-    use crate::ext::uncompressed::UncompressedExt;
+    use crate::extensions::uncompressed::PlainTextExt;
 
     #[test]
     fn random_keys() {
@@ -335,8 +335,7 @@ mod tests {
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
         let request =
-            generate_request::<UncompressedExt>(request, key, &mut Some(Default::default()))
-                .unwrap();
+            generate_request::<PlainTextExt>(request, key, &mut Some(Default::default())).unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }
@@ -356,8 +355,7 @@ mod tests {
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
         let request =
-            generate_request::<UncompressedExt>(request, key, &mut Some(Default::default()))
-                .unwrap();
+            generate_request::<PlainTextExt>(request, key, &mut Some(Default::default())).unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }
@@ -377,8 +375,7 @@ mod tests {
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
         let request =
-            generate_request::<UncompressedExt>(request, key, &mut Some(Default::default()))
-                .unwrap();
+            generate_request::<PlainTextExt>(request, key, &mut Some(Default::default())).unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }

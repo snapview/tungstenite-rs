@@ -7,8 +7,8 @@ use crate::handshake::HandshakeError;
 
 use crate::protocol::{WebSocket, WebSocketConfig};
 
-use crate::ext::uncompressed::UncompressedExt;
-use crate::ext::WebSocketExtension;
+use crate::extensions::uncompressed::PlainTextExt;
+use crate::extensions::WebSocketExtension;
 use std::io::{Read, Write};
 
 /// Accept the given Stream as a WebSocket.
@@ -38,10 +38,8 @@ where
 /// those from `Mio` and others.
 pub fn accept<S: Read + Write>(
     stream: S,
-) -> Result<
-    WebSocket<S, UncompressedExt>,
-    HandshakeError<ServerHandshake<S, NoCallback, UncompressedExt>>,
-> {
+) -> Result<WebSocket<S, PlainTextExt>, HandshakeError<ServerHandshake<S, NoCallback, PlainTextExt>>>
+{
     accept_with_config(stream, None)
 }
 
@@ -72,6 +70,6 @@ where
 pub fn accept_hdr<S: Read + Write, C: Callback>(
     stream: S,
     callback: C,
-) -> Result<WebSocket<S, UncompressedExt>, HandshakeError<ServerHandshake<S, C, UncompressedExt>>> {
+) -> Result<WebSocket<S, PlainTextExt>, HandshakeError<ServerHandshake<S, C, PlainTextExt>>> {
     accept_hdr_with_config(stream, callback, None)
 }

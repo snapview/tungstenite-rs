@@ -2,15 +2,15 @@ use log::*;
 use url::Url;
 
 use tungstenite::client::connect_with_config;
-use tungstenite::ext::deflate::DeflateExtension;
-use tungstenite::ext::uncompressed::UncompressedExt;
+use tungstenite::extensions::deflate::DeflateExt;
+use tungstenite::extensions::uncompressed::PlainTextExt;
 use tungstenite::protocol::WebSocketConfig;
 use tungstenite::{connect, Error, Message, Result, WebSocket};
 
 const AGENT: &str = "Tungstenite";
 
 fn get_case_count() -> Result<u32> {
-    let (mut socket, _): (WebSocket<_, UncompressedExt>, _) = connect_with_config(
+    let (mut socket, _): (WebSocket<_, PlainTextExt>, _) = connect_with_config(
         Url::parse("ws://localhost:9001/getCaseCount").unwrap(),
         None,
     )?;
@@ -44,7 +44,7 @@ fn run_test(case: u32) -> Result<()> {
             max_send_queue: None,
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
-            encoder: DeflateExtension::default(),
+            encoder: DeflateExt::default(),
         }),
     )?;
 

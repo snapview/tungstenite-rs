@@ -86,7 +86,7 @@ impl fmt::Display for Error {
             Error::Url(ref msg) => write!(f, "URL error: {}", msg),
             Error::Http(code) => write!(f, "HTTP error: {}", code),
             Error::HttpFormat(ref err) => write!(f, "HTTP format error: {}", err),
-            Error::ExtensionError(ref e) => write!(f, "{}", e),
+            Error::ExtensionError(ref e) => write!(f, "Extension error: {}", e),
         }
     }
 }

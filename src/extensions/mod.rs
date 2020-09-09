@@ -3,12 +3,22 @@
 use http::{Request, Response};
 
 use crate::protocol::frame::Frame;
+use crate::Message;
 
-pub mod compression;
+#[cfg(feature = "deflate")]
 pub mod deflate;
+pub mod uncompressed;
 
-pub trait WebSocketExtensionOld {
+pub trait WebSocketExtension: Default + Clone {
     type Error: Into<crate::Error>;
+
+    fn enabled(&self) -> bool {
+        false
+    }
+
+    fn rsv1(&self) -> bool {
+        false
+    }
 
     fn on_request<T>(&mut self, request: Request<T>) -> Request<T> {
         request
@@ -20,7 +30,5 @@ pub trait WebSocketExtensionOld {
         Ok(frame)
     }
 
-    fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Frame>, Self::Error> {
-        Ok(Some(frame))
-    }
+    fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Message>, Self::Error>;
 }

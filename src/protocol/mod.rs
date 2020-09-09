@@ -16,8 +16,8 @@ use self::frame::coding::{CloseCode, Control as OpCtl, Data as OpData, OpCode};
 use self::frame::{Frame, FrameCodec};
 use self::message::IncompleteMessage;
 use crate::error::{Error, Result};
-use crate::ext::uncompressed::UncompressedExt;
-use crate::ext::WebSocketExtension;
+use crate::extensions::uncompressed::PlainTextExt;
+use crate::extensions::WebSocketExtension;
 use crate::util::NonBlockingResult;
 
 pub(crate) const MAX_MESSAGE_SIZE: usize = 64 << 20;
@@ -33,7 +33,7 @@ pub enum Role {
 
 /// The configuration for WebSocket connection.
 #[derive(Debug, Copy, Clone)]
-pub struct WebSocketConfig<E = UncompressedExt>
+pub struct WebSocketConfig<E = PlainTextExt>
 where
     E: WebSocketExtension,
 {
@@ -64,6 +64,20 @@ where
             max_message_size: Some(MAX_MESSAGE_SIZE),
             max_frame_size: Some(16 << 20),
             encoder: Default::default(),
+        }
+    }
+}
+
+impl<E> WebSocketConfig<E>
+where
+    E: WebSocketExtension,
+{
+    pub fn default_with_encoder(encoder: E) -> WebSocketConfig<E> {
+        WebSocketConfig {
+            max_send_queue: None,
+            max_message_size: Some(MAX_MESSAGE_SIZE),
+            max_frame_size: Some(16 << 20),
+            encoder,
         }
     }
 }
@@ -238,7 +252,7 @@ where
 
 /// A context for managing WebSocket stream.
 #[derive(Debug)]
-pub struct WebSocketContext<E = UncompressedExt>
+pub struct WebSocketContext<E = PlainTextExt>
 where
     E: WebSocketExtension,
 {
@@ -264,7 +278,7 @@ where
 {
     /// Create a WebSocket context that manages a post-handshake stream.
     pub fn new(role: Role, config: Option<WebSocketConfig<E>>) -> Self {
-        let config = config.unwrap_or_else(|| Default::default());
+        let config = config.unwrap_or_else(Default::default);
 
         WebSocketContext {
             role,
@@ -672,7 +686,7 @@ impl<T> CheckConnectionReset for Result<T> {
 mod tests {
     use super::{Message, Role, WebSocket, WebSocketConfig};
 
-    use crate::ext::uncompressed::UncompressedExt;
+    use crate::extensions::uncompressed::PlainTextExt;
     use std::io;
     use std::io::Cursor;
 
@@ -700,7 +714,7 @@ mod tests {
             0x2c, 0x20, 0x80, 0x06, 0x57, 0x6f, 0x72, 0x6c, 0x64, 0x21, 0x82, 0x03, 0x01, 0x02,
             0x03,
         ]);
-        let mut socket: WebSocket<_, UncompressedExt> =
+        let mut socket: WebSocket<_, PlainTextExt> =
             WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, None);
         assert_eq!(socket.read_message().unwrap(), Message::Ping(vec![1, 2]));
         assert_eq!(socket.read_message().unwrap(), Message::Pong(vec![3]));
@@ -724,7 +738,7 @@ mod tests {
             max_message_size: Some(10),
             ..WebSocketConfig::default()
         };
-        let mut socket: WebSocket<_, UncompressedExt> =
+        let mut socket: WebSocket<_, PlainTextExt> =
             WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
         assert_eq!(
             socket.read_message().unwrap_err().to_string(),
@@ -739,7 +753,7 @@ mod tests {
             max_message_size: Some(2),
             ..WebSocketConfig::default()
         };
-        let mut socket: WebSocket<_, UncompressedExt> =
+        let mut socket: WebSocket<_, PlainTextExt> =
             WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
         assert_eq!(
             socket.read_message().unwrap_err().to_string(),
