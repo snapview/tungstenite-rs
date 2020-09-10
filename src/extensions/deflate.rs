@@ -69,6 +69,37 @@ impl DeflateExt {
         incomplete_message.extend(data, self.config.max_message_size)?;
         incomplete_message.complete()
     }
+
+    fn parse_window_parameter<'a>(
+        &self,
+        mut param_iter: impl Iterator<Item = &'a str>,
+    ) -> Result<Option<u8>, String> {
+        if let Some(window_bits_str) = param_iter.next() {
+            match window_bits_str.trim().parse() {
+                Ok(mut window_bits) => {
+                    if window_bits == 8 {
+                        window_bits = 9;
+                    }
+
+                    if window_bits >= 9 && window_bits <= 15 {
+                        if window_bits as u8 != self.config.max_window_bits {
+                            Ok(Some(window_bits))
+                        } else {
+                            Ok(None)
+                        }
+                    } else {
+                        Err(format!(
+                            "Invalid server_max_window_bits parameter: {}",
+                            window_bits
+                        ))
+                    }
+                }
+                Err(e) => Err(e.to_string()),
+            }
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -181,45 +212,44 @@ impl WebSocketExtension for DeflateExt {
     }
 
     fn on_response<T>(&mut self, response: &Response<T>) -> Result<(), Self::Error> {
-        let mut name = false;
-        let mut s_takeover = false;
-        let mut c_takeover = false;
-        let mut s_max = false;
-        let mut c_max = false;
+        let mut extension_name = false;
+        let mut server_takeover = false;
+        let mut client_takeover = false;
+        let mut server_max_window_bits = false;
+        let mut client_max_window_bits = false;
 
         for header in response.headers().get_all(SEC_WEBSOCKET_EXTENSIONS) {
-            self.enabled = true;
-
             match header.to_str() {
                 Ok(header) => {
                     for param in header.split(';') {
                         match param.trim() {
                             "permessage-deflate" => {
-                                if name {
+                                if extension_name {
                                     return Err(DeflateExtensionError::NegotiationError(format!(
                                         "Duplicate extension name permessage-deflate"
                                     )));
                                 } else {
-                                    name = true;
+                                    self.enabled = true;
+                                    extension_name = true;
                                 }
                             }
                             "server_no_context_takeover" => {
-                                if s_takeover {
+                                if server_takeover {
                                     return Err(DeflateExtensionError::NegotiationError(format!(
                                         "Duplicate extension parameter server_no_context_takeover"
                                     )));
                                 } else {
-                                    s_takeover = true;
+                                    server_takeover = true;
                                     self.config.decompress_reset = true;
                                 }
                             }
                             "client_no_context_takeover" => {
-                                if c_takeover {
+                                if client_takeover {
                                     return Err(DeflateExtensionError::NegotiationError(format!(
                                         "Duplicate extension parameter client_no_context_takeover"
                                     )));
                                 } else {
-                                    c_takeover = true;
+                                    client_takeover = true;
 
                                     if self.config.accept_no_context_takeover {
                                         self.config.compress_reset = true;
@@ -231,101 +261,66 @@ impl WebSocketExtension for DeflateExt {
                                 }
                             }
                             param if param.starts_with("server_max_window_bits") => {
-                                if s_max {
+                                if server_max_window_bits {
                                     return Err(DeflateExtensionError::NegotiationError(format!(
                                         "Duplicate extension parameter server_max_window_bits"
                                     )));
                                 } else {
-                                    s_max = true;
+                                    server_max_window_bits = true;
 
-                                    let mut param_iter = param.split('=');
-                                    param_iter.next(); // we already know the name
-
-                                    if let Some(window_bits_str) = param_iter.next() {
-                                        if let Ok(window_bits) = window_bits_str.trim().parse() {
-                                            if window_bits >= 9 && window_bits <= 15 {
-                                                if window_bits as u8 != self.config.max_window_bits
-                                                {
-                                                    self.inflator = Inflator {
-                                                        decompress:
-                                                            Decompress::new_with_window_bits(
-                                                                false,
-                                                                window_bits,
-                                                            ),
-                                                    };
-                                                }
-                                            } else {
-                                                return Err(
-                                                    DeflateExtensionError::NegotiationError(
-                                                        format!(
-                                                    "Invalid server_max_window_bits parameter: {}",
-                                                    window_bits
+                                    match self.parse_window_parameter(param.split("=").skip(1)) {
+                                        Ok(Some(bits)) => {
+                                            self.deflator = Deflator {
+                                                compress: Compress::new_with_window_bits(
+                                                    self.config.compression_level,
+                                                    false,
+                                                    bits,
                                                 ),
-                                                    ),
-                                                );
-                                            }
-                                        } else {
+                                            };
+                                        }
+                                        Ok(None) => {}
+                                        Err(e) => {
                                             return Err(DeflateExtensionError::NegotiationError(
                                                 format!(
-                                                    "Invalid server_max_window_bits parameter: {}",
-                                                    window_bits_str
+                                                    "server_max_window_bits parameter error: {}",
+                                                    e
                                                 ),
-                                            ));
+                                            ))
                                         }
                                     }
                                 }
                             }
                             param if param.starts_with("client_max_window_bits") => {
-                                if c_max {
+                                if client_max_window_bits {
                                     return Err(DeflateExtensionError::NegotiationError(format!(
                                         "Duplicate extension parameter client_max_window_bits"
                                     )));
                                 } else {
-                                    c_max = true;
-                                    let mut param_iter = param.split('=');
-                                    param_iter.next(); // we already know the name
-                                    if let Some(window_bits_str) = param_iter.next() {
-                                        if let Ok(mut window_bits) = window_bits_str.trim().parse()
-                                        {
-                                            if window_bits == 8 {
-                                                window_bits = 9;
-                                            }
+                                    client_max_window_bits = true;
 
-                                            if window_bits >= 9 && window_bits <= 15 {
-                                                if window_bits as u8 != self.config.max_window_bits
-                                                {
-                                                    self.inflator = Inflator {
-                                                        decompress:
-                                                            Decompress::new_with_window_bits(
-                                                                false,
-                                                                window_bits,
-                                                            ),
-                                                    };
-                                                }
-                                            } else {
-                                                return Err(
-                                                    DeflateExtensionError::NegotiationError(
-                                                        format!(
-                                                    "Invalid client_max_window_bits parameter: {}",
-                                                    window_bits
+                                    match self.parse_window_parameter(param.split("=").skip(1)) {
+                                        Ok(Some(bits)) => {
+                                            self.inflator = Inflator {
+                                                decompress: Decompress::new_with_window_bits(
+                                                    false, bits,
                                                 ),
-                                                    ),
-                                                );
-                                            }
-                                        } else {
+                                            };
+                                        }
+                                        Ok(None) => {}
+                                        Err(e) => {
                                             return Err(DeflateExtensionError::NegotiationError(
                                                 format!(
-                                                    "Invalid client_max_window_bits parameter: {}",
-                                                    window_bits_str
+                                                    "client_max_window_bits parameter error: {}",
+                                                    e
                                                 ),
-                                            ));
+                                            ))
                                         }
                                     }
                                 }
                             }
                             param => {
                                 return Err(DeflateExtensionError::NegotiationError(format!(
-                                    "Unknown extension parameter: {}",
+                                    "Unknown permessage-deflate parameter: {}",
                                     param
                                 )));
                             }
@@ -333,6 +328,8 @@ impl WebSocketExtension for DeflateExt {
                     }
                 }
                 Err(e) => {
+                    self.enabled = false;
+
                     return Err(DeflateExtensionError::NegotiationError(format!(
                         "Failed to parse extension parameter: {}",
                         e
