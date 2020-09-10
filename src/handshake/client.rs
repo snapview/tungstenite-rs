@@ -245,7 +245,9 @@ impl VerifyData {
         // MUST _Fail the WebSocket Connection_. (RFC 6455)
 
         if let Some(config) = config {
-            config.encoder.on_response(response);
+            if let Err(e) = config.encoder.on_response(response) {
+                return Err(e.into());
+            }
         }
 
         // 6.  If the response includes a |Sec-WebSocket-Protocol| header field

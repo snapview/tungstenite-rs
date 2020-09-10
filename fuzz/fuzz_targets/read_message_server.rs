@@ -9,7 +9,7 @@ use tungstenite::protocol::Role;
 use tungstenite::WebSocket;
 //use std::result::Result;
 
-// FIXME: copypasted from tungstenite's protocol/extensions
+// FIXME: copypasted from tungstenite's protocol/mod.rs
 
 struct WriteMoc<Stream>(Stream);
 

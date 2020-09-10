@@ -24,7 +24,9 @@ pub trait WebSocketExtension: Default + Clone {
         request
     }
 
-    fn on_response<T>(&mut self, _response: &Response<T>) {}
+    fn on_response<T>(&mut self, _response: &Response<T>) -> Result<(), Self::Error> {
+        Ok(())
+    }
 
     fn on_send_frame(&mut self, frame: Frame) -> Result<Frame, Self::Error> {
         Ok(frame)

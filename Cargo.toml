@@ -43,3 +43,7 @@ net2 = "0.2.33"
 [[example]]
 name = "autobahn-client"
 required-features = ["deflate"]
+
+[[example]]
+name = "autobahn-server"
+required-features = ["deflate"]

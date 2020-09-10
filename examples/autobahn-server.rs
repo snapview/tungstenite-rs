@@ -2,8 +2,11 @@ use std::net::{TcpListener, TcpStream};
 use std::thread::spawn;
 
 use log::*;
+use tungstenite::extensions::deflate::DeflateExt;
 use tungstenite::handshake::HandshakeRole;
-use tungstenite::{accept, Error, HandshakeError, Message, Result};
+use tungstenite::protocol::WebSocketConfig;
+use tungstenite::server::accept_with_config;
+use tungstenite::{Error, HandshakeError, Message, Result};
 
 fn must_not_block<Role: HandshakeRole>(err: HandshakeError<Role>) -> Error {
     match err {
@@ -13,7 +16,16 @@ fn must_not_block<Role: HandshakeRole>(err: HandshakeError<Role>) -> Error {
 }
 
 fn handle_client(stream: TcpStream) -> Result<()> {
-    let mut socket = accept(stream).map_err(must_not_block)?;
+    let mut socket = accept_with_config(
+        stream,
+        Some(WebSocketConfig {
+            max_send_queue: None,
+            max_message_size: Some(64 << 20),
+            max_frame_size: Some(16 << 20),
+            encoder: DeflateExt::default(),
+        }),
+    )
+    .map_err(must_not_block)?;
     info!("Running test");
     loop {
         match socket.read_message()? {
@@ -32,12 +44,14 @@ fn main() {
 
     for stream in server.incoming() {
         spawn(move || match stream {
-            Ok(stream) => if let Err(err) = handle_client(stream) {
-                match err {
-                    Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
-                    e => error!("test: {}", e),
+            Ok(stream) => {
+                if let Err(err) = handle_client(stream) {
+                    match err {
+                        Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
+                        e => error!("test: {}", e),
+                    }
                 }
-            },
+            }
             Err(e) => error!("Error accepting stream: {}", e),
         });
     }
