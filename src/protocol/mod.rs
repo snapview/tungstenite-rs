@@ -736,10 +736,11 @@ mod tests {
         ]);
         let limit = WebSocketConfig {
             max_message_size: Some(10),
-            ..WebSocketConfig::default()
+            max_send_queue: None,
+            max_frame_size: Some(16 << 20),
+            encoder: PlainTextExt::new(Some(10)),
         };
-        let mut socket: WebSocket<_, PlainTextExt> =
-            WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
+        let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
         assert_eq!(
             socket.read_message().unwrap_err().to_string(),
             "Space limit exceeded: Message too big: 7 + 6 > 10"
@@ -751,10 +752,11 @@ mod tests {
         let incoming = Cursor::new(vec![0x82, 0x03, 0x01, 0x02, 0x03]);
         let limit = WebSocketConfig {
             max_message_size: Some(2),
-            ..WebSocketConfig::default()
+            max_send_queue: None,
+            max_frame_size: Some(16 << 20),
+            encoder: PlainTextExt::new(Some(2)),
         };
-        let mut socket: WebSocket<_, PlainTextExt> =
-            WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
+        let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
         assert_eq!(
             socket.read_message().unwrap_err().to_string(),
             "Space limit exceeded: Message too big: 0 + 3 > 2"
