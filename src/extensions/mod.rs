@@ -20,8 +20,16 @@ pub trait WebSocketExtension: Default + Clone {
         false
     }
 
-    fn on_request<T>(&mut self, request: Request<T>) -> Request<T> {
+    fn on_make_request<T>(&mut self, request: Request<T>) -> Request<T> {
         request
+    }
+
+    fn on_receive_request<T>(
+        &mut self,
+        _request: &Request<T>,
+        _response: &mut Response<T>,
+    ) -> Result<(), Self::Error> {
+        Ok(())
     }
 
     fn on_response<T>(&mut self, _response: &Response<T>) -> Result<(), Self::Error> {

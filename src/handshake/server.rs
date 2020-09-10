@@ -245,16 +245,23 @@ where
         Ok(match finish {
             StageResult::DoneReading {
                 stream,
-                result,
+                result: request,
                 tail,
             } => {
                 if !tail.is_empty() {
                     return Err(Error::Protocol("Junk after client request".into()));
                 }
 
-                let response = create_response(&result)?;
+                let mut response = create_response(&request)?;
+
+                if let Some(ref mut config) = self.config {
+                    if let Err(e) = config.encoder.on_receive_request(&request, &mut response) {
+                        return Err(e.into());
+                    }
+                }
+
                 let callback_result = if let Some(callback) = self.callback.take() {
-                    callback.on_request(&result, response)
+                    callback.on_request(&request, response)
                 } else {
                     Ok(response)
                 };

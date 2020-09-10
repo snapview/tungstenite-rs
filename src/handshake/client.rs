@@ -122,7 +122,7 @@ where
     E: WebSocketExtension,
 {
     let request = match config {
-        Some(ref mut config) => config.encoder.on_request(request),
+        Some(ref mut config) => config.encoder.on_make_request(request),
         None => request,
     };
     let mut req = Vec::new();
