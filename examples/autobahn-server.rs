@@ -20,7 +20,6 @@ fn handle_client(stream: TcpStream) -> Result<()> {
         stream,
         Some(WebSocketConfig {
             max_send_queue: None,
-            max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
             encoder: DeflateExt::default(),
         }),

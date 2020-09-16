@@ -42,7 +42,6 @@ fn run_test(case: u32) -> Result<()> {
         case_url,
         Some(WebSocketConfig {
             max_send_queue: None,
-            max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
             encoder: DeflateExt::default(),
         }),

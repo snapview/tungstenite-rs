@@ -41,10 +41,6 @@ where
     /// means here that the size of the queue is unlimited. The default value is the unlimited
     /// queue.
     pub max_send_queue: Option<usize>,
-    /// The maximum size of a message. `None` means no size limit. The default value is 64 MiB
-    /// which should be reasonably big for all normal use-cases but small enough to prevent
-    /// memory eating by a malicious user.
-    pub max_message_size: Option<usize>,
     /// The maximum size of a single message frame. `None` means no size limit. The limit is for
     /// frame payload NOT including the frame header. The default value is 16 MiB which should
     /// be reasonably big for all normal use-cases but small enough to prevent memory eating
@@ -61,9 +57,8 @@ where
     fn default() -> Self {
         WebSocketConfig {
             max_send_queue: None,
-            max_message_size: Some(MAX_MESSAGE_SIZE),
             max_frame_size: Some(16 << 20),
-            encoder: Default::default(),
+            encoder: E::new(Some(MAX_MESSAGE_SIZE)),
         }
     }
 }
@@ -72,10 +67,11 @@ impl<E> WebSocketConfig<E>
 where
     E: WebSocketExtension,
 {
+    /// Creates a `WebSocketConfig` instance using the default configuration and the provided
+    /// encoder for new connections.
     pub fn default_with_encoder(encoder: E) -> WebSocketConfig<E> {
         WebSocketConfig {
             max_send_queue: None,
-            max_message_size: Some(MAX_MESSAGE_SIZE),
             max_frame_size: Some(16 << 20),
             encoder,
         }
@@ -476,16 +472,6 @@ where
                 ));
             }
 
-            {
-                let hdr = frame.header();
-
-                if !self.get_config().encoder.rsv1() && hdr.rsv1 || hdr.rsv2 || hdr.rsv3 {
-                    return Err(Error::Protocol(
-                        "Reserved bits are non-zero and no WebSocket extensions are enabled".into(),
-                    ));
-                }
-            }
-
             match self.role {
                 Role::Server => {
                     if frame.is_masked() {
@@ -735,7 +721,6 @@ mod tests {
             0x6c, 0x64, 0x21,
         ]);
         let limit = WebSocketConfig {
-            max_message_size: Some(10),
             max_send_queue: None,
             max_frame_size: Some(16 << 20),
             encoder: PlainTextExt::new(Some(10)),
@@ -751,7 +736,6 @@ mod tests {
     fn size_limiting_binary() {
         let incoming = Cursor::new(vec![0x82, 0x03, 0x01, 0x02, 0x03]);
         let limit = WebSocketConfig {
-            max_message_size: Some(2),
             max_send_queue: None,
             max_frame_size: Some(16 << 20),
             encoder: PlainTextExt::new(Some(2)),

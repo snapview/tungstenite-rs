@@ -5,6 +5,7 @@ use crate::protocol::message::{IncompleteMessage, IncompleteMessageType};
 use crate::protocol::MAX_MESSAGE_SIZE;
 use crate::{Error, Message};
 
+/// An uncompressed message handler for a WebSocket.
 #[derive(Debug)]
 pub struct PlainTextExt {
     incomplete: Option<IncompleteMessage>,
@@ -12,6 +13,8 @@ pub struct PlainTextExt {
 }
 
 impl PlainTextExt {
+    /// Builds a new `PlainTextExt` that will permit a maximum message size of `max_message_size`
+    /// or will be unbounded if `None`.
     pub fn new(max_message_size: Option<usize>) -> PlainTextExt {
         PlainTextExt {
             incomplete: None,
@@ -38,16 +41,27 @@ impl Default for PlainTextExt {
 impl WebSocketExtension for PlainTextExt {
     type Error = Error;
 
+    fn new(max_message_size: Option<usize>) -> Self {
+        PlainTextExt {
+            incomplete: None,
+            max_message_size,
+        }
+    }
+
     fn enabled(&self) -> bool {
         true
     }
 
-    fn rsv1(&self) -> bool {
-        false
-    }
-
     fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Message>, Self::Error> {
         let fin = frame.header().is_final;
+
+        let hdr = frame.header();
+
+        if hdr.rsv1 || hdr.rsv2 || hdr.rsv3 {
+            return Err(Error::Protocol(
+                "Reserved bits are non-zero and no WebSocket extensions are enabled".into(),
+            ));
+        }
 
         match frame.header().opcode {
             OpCode::Data(data) => match data {
