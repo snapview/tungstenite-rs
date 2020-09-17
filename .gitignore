@@ -3,3 +3,5 @@ Cargo.lock
 
 autobahn/client/*
 autobahn/server/*
+
+.idea
