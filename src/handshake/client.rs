@@ -22,24 +22,25 @@ pub type Response = HttpResponse<()>;
 
 /// Client handshake role.
 #[derive(Debug)]
-pub struct ClientHandshake<S, E>
+pub struct ClientHandshake<S, Extension>
 where
-    E: WebSocketExtension,
+    Extension: WebSocketExtension,
 {
     verify_data: VerifyData,
-    config: Option<WebSocketConfig<E>>,
+    config: Option<Option<WebSocketConfig<Extension>>>,
     _marker: PhantomData<S>,
 }
 
-impl<S: Read + Write, E> ClientHandshake<S, E>
+impl<Stream, Ext> ClientHandshake<Stream, Ext>
 where
-    E: WebSocketExtension,
+    Stream: Read + Write,
+    Ext: WebSocketExtension,
 {
     /// Initiate a client handshake.
     pub fn start(
-        stream: S,
+        stream: Stream,
         request: Request,
-        mut config: Option<WebSocketConfig<E>>,
+        mut config: Option<WebSocketConfig<Ext>>,
     ) -> Result<MidHandshake<Self>> {
         if request.method() != http::Method::GET {
             return Err(Error::Protocol(
@@ -67,7 +68,7 @@ where
             let accept_key = convert_key(key.as_ref()).unwrap();
             ClientHandshake {
                 verify_data: VerifyData { accept_key },
-                config,
+                config: Some(config),
                 _marker: PhantomData,
             }
         };
@@ -80,13 +81,14 @@ where
     }
 }
 
-impl<S: Read + Write, E> HandshakeRole for ClientHandshake<S, E>
+impl<Stream, Ext> HandshakeRole for ClientHandshake<Stream, Ext>
 where
-    E: WebSocketExtension,
+    Stream: Read + Write,
+    Ext: WebSocketExtension,
 {
     type IncomingData = Response;
-    type InternalStream = S;
-    type FinalResult = (WebSocket<S, E>, Response);
+    type InternalStream = Stream;
+    type FinalResult = (WebSocket<Stream, Ext>, Response);
 
     fn stage_finished(
         &mut self,
@@ -101,11 +103,11 @@ where
                 result,
                 tail,
             } => {
-                self.verify_data
-                    .verify_response(&result, &mut self.config)?;
+                let mut config = self.config.take().unwrap();
+
+                self.verify_data.verify_response(&result, &mut config)?;
                 debug!("Client handshake done.");
-                let websocket =
-                    WebSocket::from_partially_read(stream, tail, Role::Client, self.config.clone());
+                let websocket = WebSocket::from_partially_read(stream, tail, Role::Client, config);
                 ProcessingResult::Done((websocket, result))
             }
         })
@@ -113,13 +115,13 @@ where
 }
 
 /// Generate client request.
-fn generate_request<E>(
+fn generate_request<Ext>(
     request: Request,
     key: &str,
-    config: &mut Option<WebSocketConfig<E>>,
+    config: &mut Option<WebSocketConfig<Ext>>,
 ) -> Result<Vec<u8>>
 where
-    E: WebSocketExtension,
+    Ext: WebSocketExtension,
 {
     let request = match config {
         Some(ref mut config) => config.encoder.on_make_request(request),
@@ -181,13 +183,13 @@ struct VerifyData {
 }
 
 impl VerifyData {
-    pub fn verify_response<E>(
+    pub fn verify_response<Ext>(
         &self,
         response: &Response,
-        config: &mut Option<WebSocketConfig<E>>,
+        config: &mut Option<WebSocketConfig<Ext>>,
     ) -> Result<()>
     where
-        E: WebSocketExtension,
+        Ext: WebSocketExtension,
     {
         // 1. If the status code received from the server is not 101, the
         // client handles the response per HTTP [RFC2616] procedures. (RFC 6455)
@@ -306,7 +308,7 @@ mod tests {
     use super::super::machine::TryParse;
     use super::{generate_key, generate_request, Response};
     use crate::client::IntoClientRequest;
-    use crate::extensions::uncompressed::PlainTextExt;
+    use crate::extensions::uncompressed::UncompressedExt;
 
     #[test]
     fn random_keys() {
@@ -337,7 +339,8 @@ mod tests {
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
         let request =
-            generate_request::<PlainTextExt>(request, key, &mut Some(Default::default())).unwrap();
+            generate_request::<UncompressedExt>(request, key, &mut Some(Default::default()))
+                .unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }
@@ -357,7 +360,8 @@ mod tests {
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
         let request =
-            generate_request::<PlainTextExt>(request, key, &mut Some(Default::default())).unwrap();
+            generate_request::<UncompressedExt>(request, key, &mut Some(Default::default()))
+                .unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }
@@ -377,7 +381,8 @@ mod tests {
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
         let request =
-            generate_request::<PlainTextExt>(request, key, &mut Some(Default::default())).unwrap();
+            generate_request::<UncompressedExt>(request, key, &mut Some(Default::default()))
+                .unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }

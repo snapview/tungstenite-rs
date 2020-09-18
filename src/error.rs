@@ -68,7 +68,7 @@ pub enum Error {
     /// HTTP format error.
     HttpFormat(http::Error),
     /// An error from a WebSocket extension.
-    ExtensionError(Box<dyn std::error::Error + Send + Sync>),
+    ExtensionError(Cow<'static, str>),
 }
 
 impl fmt::Display for Error {

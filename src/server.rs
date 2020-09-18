@@ -7,7 +7,7 @@ use crate::handshake::HandshakeError;
 
 use crate::protocol::{WebSocket, WebSocketConfig};
 
-use crate::extensions::uncompressed::PlainTextExt;
+use crate::extensions::uncompressed::UncompressedExt;
 use crate::extensions::WebSocketExtension;
 use std::io::{Read, Write};
 
@@ -20,12 +20,13 @@ use std::io::{Read, Write};
 /// If you want TLS support, use `native_tls::TlsStream` or `openssl::ssl::SslStream`
 /// for the stream here. Any `Read + Write` streams are supported, including
 /// those from `Mio` and others.
-pub fn accept_with_config<S: Read + Write, E>(
-    stream: S,
-    config: Option<WebSocketConfig<E>>,
-) -> Result<WebSocket<S, E>, HandshakeError<ServerHandshake<S, NoCallback, E>>>
+pub fn accept_with_config<Stream, Ext>(
+    stream: Stream,
+    config: Option<WebSocketConfig<Ext>>,
+) -> Result<WebSocket<Stream, Ext>, HandshakeError<ServerHandshake<Stream, NoCallback, Ext>>>
 where
-    E: WebSocketExtension,
+    Stream: Read + Write,
+    Ext: WebSocketExtension,
 {
     accept_hdr_with_config(stream, NoCallback, config)
 }
@@ -38,8 +39,10 @@ where
 /// those from `Mio` and others.
 pub fn accept<S: Read + Write>(
     stream: S,
-) -> Result<WebSocket<S, PlainTextExt>, HandshakeError<ServerHandshake<S, NoCallback, PlainTextExt>>>
-{
+) -> Result<
+    WebSocket<S, UncompressedExt>,
+    HandshakeError<ServerHandshake<S, NoCallback, UncompressedExt>>,
+> {
     accept_with_config(stream, None)
 }
 
@@ -51,13 +54,15 @@ pub fn accept<S: Read + Write>(
 /// This function does the same as `accept()` but accepts an extra callback
 /// for header processing. The callback receives headers of the incoming
 /// requests and is able to add extra headers to the reply.
-pub fn accept_hdr_with_config<S: Read + Write, C: Callback, E>(
+pub fn accept_hdr_with_config<S, C, Ext>(
     stream: S,
     callback: C,
-    config: Option<WebSocketConfig<E>>,
-) -> Result<WebSocket<S, E>, HandshakeError<ServerHandshake<S, C, E>>>
+    config: Option<WebSocketConfig<Ext>>,
+) -> Result<WebSocket<S, Ext>, HandshakeError<ServerHandshake<S, C, Ext>>>
 where
-    E: WebSocketExtension,
+    S: Read + Write,
+    C: Callback,
+    Ext: WebSocketExtension,
 {
     ServerHandshake::start(stream, callback, config).handshake()
 }
@@ -70,6 +75,6 @@ where
 pub fn accept_hdr<S: Read + Write, C: Callback>(
     stream: S,
     callback: C,
-) -> Result<WebSocket<S, PlainTextExt>, HandshakeError<ServerHandshake<S, C, PlainTextExt>>> {
+) -> Result<WebSocket<S, UncompressedExt>, HandshakeError<ServerHandshake<S, C, UncompressedExt>>> {
     accept_hdr_with_config(stream, callback, None)
 }

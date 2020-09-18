@@ -8,16 +8,16 @@ use std::time::Duration;
 
 use native_tls::TlsStream;
 use net2::TcpStreamExt;
-use tungstenite::extensions::uncompressed::PlainTextExt;
+use tungstenite::extensions::uncompressed::UncompressedExt;
 use tungstenite::{accept, connect, stream::Stream, Error, Message, WebSocket};
 use url::Url;
 
-type Sock<E> = WebSocket<Stream<TcpStream, TlsStream<TcpStream>>, E>;
+type Sock<Ext> = WebSocket<Stream<TcpStream, TlsStream<TcpStream>>, Ext>;
 
 fn do_test<CT, ST>(port: u16, client_task: CT, server_task: ST)
 where
-    CT: FnOnce(Sock<PlainTextExt>) + Send + 'static,
-    ST: FnOnce(WebSocket<TcpStream, PlainTextExt>),
+    CT: FnOnce(Sock<UncompressedExt>) + Send + 'static,
+    ST: FnOnce(WebSocket<TcpStream, UncompressedExt>),
 {
     env_logger::try_init().ok();
 

@@ -2,7 +2,7 @@
 
 use std::fmt::{Display, Formatter};
 
-use crate::extensions::uncompressed::PlainTextExt;
+use crate::extensions::uncompressed::UncompressedExt;
 use crate::extensions::WebSocketExtension;
 use crate::protocol::frame::coding::{Data, OpCode};
 use crate::protocol::frame::Frame;
@@ -15,10 +15,20 @@ use flate2::{
 };
 use http::header::{InvalidHeaderValue, SEC_WEBSOCKET_EXTENSIONS};
 use http::{HeaderValue, Request, Response};
+use std::borrow::Cow;
 use std::mem::replace;
 use std::slice;
 
-const EXT_NAME: &str = "permessage-deflate";
+/// The WebSocket Extension Identifier as per the IANA registry.
+const EXT_IDENT: &str = "permessage-deflate";
+
+/// The minimum size of the LZ77 sliding window size.
+const LZ77_MIN_WINDOW_SIZE: u8 = 9;
+
+/// The maximum size of the LZ77 sliding window size. Absence of the `max_window_bits` parameter
+/// indicates that the client can receive messages compressed using an LZ77 sliding window of up to
+/// 32,768 bytes. RFC 7692 7.1.2.1.
+const LZ77_MAX_WINDOW_SIZE: u8 = 15;
 
 /// A permessage-deflate configuration.
 #[derive(Clone, Copy, Debug)]
@@ -33,9 +43,14 @@ pub struct DeflateConfig {
     max_window_bits: u8,
     /// Request that the server resets the LZ77 sliding window between messages - RFC 7692 7.1.1.1.
     request_no_context_takeover: bool,
+    /// Whether to accept `no_context_takeover`.
     accept_no_context_takeover: bool,
+    // Whether the compressor should be reset after usage.
     compress_reset: bool,
+    // Whether the decompressor should be reset after usage.
     decompress_reset: bool,
+    /// The active compression level. The integer here is typically on a scale of 0-9 where 0 means
+    /// "no compression" and 9 means "take as long as you'd like".
     compression_level: Compression,
 }
 
@@ -91,7 +106,7 @@ impl DeflateConfig {
 
     /// Sets the LZ77 sliding window size.
     pub fn set_max_window_bits(&mut self, max_window_bits: u8) {
-        assert!((9u8..=15u8).contains(&max_window_bits));
+        assert!((LZ77_MIN_WINDOW_SIZE..=LZ77_MAX_WINDOW_SIZE).contains(&max_window_bits));
         self.max_window_bits = max_window_bits;
     }
 
@@ -110,7 +125,7 @@ impl Default for DeflateConfig {
     fn default() -> Self {
         DeflateConfig {
             max_message_size: Some(MAX_MESSAGE_SIZE),
-            max_window_bits: 15,
+            max_window_bits: LZ77_MAX_WINDOW_SIZE,
             request_no_context_takeover: false,
             accept_no_context_takeover: true,
             compress_reset: false,
@@ -135,7 +150,7 @@ impl Default for DeflateConfigBuilder {
     fn default() -> Self {
         DeflateConfigBuilder {
             max_message_size: Some(MAX_MESSAGE_SIZE),
-            max_window_bits: 15,
+            max_window_bits: LZ77_MAX_WINDOW_SIZE,
             request_no_context_takeover: false,
             accept_no_context_takeover: true,
             fragments_grow: true,
@@ -154,7 +169,7 @@ impl DeflateConfigBuilder {
     /// Sets the LZ77 sliding window size. Panics if the provided size is not in `9..=15`.
     pub fn max_window_bits(mut self, max_window_bits: u8) -> DeflateConfigBuilder {
         assert!(
-            (9u8..=15u8).contains(&max_window_bits),
+            (LZ77_MIN_WINDOW_SIZE..=LZ77_MAX_WINDOW_SIZE).contains(&max_window_bits),
             "max window bits must be in range 9..=15"
         );
         self.max_window_bits = max_window_bits;
@@ -207,26 +222,7 @@ pub struct DeflateExt {
     /// The deflate compressor.
     deflator: Deflator,
     /// If this deflate extension is not used, messages will be forwarded to this extension.
-    uncompressed_extension: PlainTextExt,
-}
-
-impl Clone for DeflateExt {
-    fn clone(&self) -> Self {
-        DeflateExt {
-            enabled: self.enabled,
-            config: self.config,
-            fragments: vec![],
-            inflator: Inflator::new(),
-            deflator: Deflator::new(self.config.compression_level()),
-            uncompressed_extension: PlainTextExt::new(self.config.max_message_size()),
-        }
-    }
-}
-
-impl Default for DeflateExt {
-    fn default() -> Self {
-        DeflateExt::new(Default::default())
-    }
+    uncompressed_extension: UncompressedExt,
 }
 
 impl DeflateExt {
@@ -238,7 +234,7 @@ impl DeflateExt {
             fragments: vec![],
             inflator: Inflator::new(),
             deflator: Deflator::new(Compression::fast()),
-            uncompressed_extension: PlainTextExt::new(config.max_message_size()),
+            uncompressed_extension: UncompressedExt::new(config.max_message_size()),
         }
     }
 
@@ -262,10 +258,10 @@ impl DeflateExt {
             match window_bits_str.trim().parse() {
                 Ok(mut window_bits) => {
                     if window_bits == 8 {
-                        window_bits = 9;
+                        window_bits = LZ77_MIN_WINDOW_SIZE;
                     }
 
-                    if window_bits >= 9 && window_bits <= 15 {
+                    if window_bits >= LZ77_MIN_WINDOW_SIZE && window_bits <= LZ77_MAX_WINDOW_SIZE {
                         if window_bits != self.config.max_window_bits() {
                             Ok(Some(window_bits))
                         } else {
@@ -284,7 +280,7 @@ impl DeflateExt {
 
     fn decline<T>(&mut self, res: &mut Response<T>) {
         self.enabled = false;
-        res.headers_mut().remove(EXT_NAME);
+        res.headers_mut().remove(EXT_IDENT);
     }
 }
 
@@ -319,13 +315,19 @@ impl std::error::Error for DeflateExtensionError {}
 
 impl From<DeflateExtensionError> for crate::Error {
     fn from(e: DeflateExtensionError) -> Self {
-        crate::Error::ExtensionError(Box::new(e))
+        crate::Error::ExtensionError(Cow::from(e.to_string()))
     }
 }
 
 impl From<InvalidHeaderValue> for DeflateExtensionError {
     fn from(e: InvalidHeaderValue) -> Self {
         DeflateExtensionError::NegotiationError(e.to_string())
+    }
+}
+
+impl Default for DeflateExt {
+    fn default() -> Self {
+        DeflateExt::new(Default::default())
     }
 }
 
@@ -344,14 +346,14 @@ impl WebSocketExtension for DeflateExt {
     }
 
     fn on_make_request<T>(&mut self, mut request: Request<T>) -> Request<T> {
-        let mut header_value = String::from(EXT_NAME);
+        let mut header_value = String::from(EXT_IDENT);
         let DeflateConfig {
             max_window_bits,
             request_no_context_takeover,
             ..
         } = self.config;
 
-        if max_window_bits < 15 {
+        if max_window_bits < LZ77_MAX_WINDOW_SIZE {
             header_value.push_str(&format!(
                 "; client_max_window_bits={}; server_max_window_bits={}",
                 max_window_bits, max_window_bits
@@ -486,7 +488,7 @@ impl WebSocketExtension for DeflateExt {
                     }
 
                     if !response_str.contains("client_max_window_bits")
-                        && self.config.max_window_bits() < 15
+                        && self.config.max_window_bits() < LZ77_MAX_WINDOW_SIZE
                     {
                         continue;
                     }
@@ -671,7 +673,7 @@ impl WebSocketExtension for DeflateExt {
                 if self.enabled && (!self.fragments.is_empty() || frame.header().rsv1) {
                     if !frame.header().is_final {
                         self.fragments.push(frame);
-                        return Ok(None);
+                        Ok(None)
                     } else {
                         let message = if let OpCode::Data(Data::Continue) = frame.header().opcode {
                             self.fragments.push(frame);

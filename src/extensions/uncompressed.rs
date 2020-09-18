@@ -2,47 +2,31 @@ use crate::extensions::WebSocketExtension;
 use crate::protocol::frame::coding::{Data, OpCode};
 use crate::protocol::frame::Frame;
 use crate::protocol::message::{IncompleteMessage, IncompleteMessageType};
-use crate::protocol::MAX_MESSAGE_SIZE;
 use crate::{Error, Message};
 
 /// An uncompressed message handler for a WebSocket.
 #[derive(Debug)]
-pub struct PlainTextExt {
+pub struct UncompressedExt {
     incomplete: Option<IncompleteMessage>,
     max_message_size: Option<usize>,
 }
 
-impl PlainTextExt {
-    /// Builds a new `PlainTextExt` that will permit a maximum message size of `max_message_size`
+impl UncompressedExt {
+    /// Builds a new `UncompressedExt` that will permit a maximum message size of `max_message_size`
     /// or will be unbounded if `None`.
-    pub fn new(max_message_size: Option<usize>) -> PlainTextExt {
-        PlainTextExt {
+    pub fn new(max_message_size: Option<usize>) -> UncompressedExt {
+        UncompressedExt {
             incomplete: None,
             max_message_size,
         }
     }
 }
 
-impl Clone for PlainTextExt {
-    fn clone(&self) -> Self {
-        Self::default()
-    }
-}
-
-impl Default for PlainTextExt {
-    fn default() -> Self {
-        PlainTextExt {
-            incomplete: None,
-            max_message_size: Some(MAX_MESSAGE_SIZE),
-        }
-    }
-}
-
-impl WebSocketExtension for PlainTextExt {
+impl WebSocketExtension for UncompressedExt {
     type Error = Error;
 
     fn new(max_message_size: Option<usize>) -> Self {
-        PlainTextExt {
+        UncompressedExt {
             incomplete: None,
             max_message_size,
         }

@@ -16,7 +16,7 @@ use self::frame::coding::{CloseCode, Control as OpCtl, Data as OpData, OpCode};
 use self::frame::{Frame, FrameCodec};
 use self::message::IncompleteMessage;
 use crate::error::{Error, Result};
-use crate::extensions::uncompressed::PlainTextExt;
+use crate::extensions::uncompressed::UncompressedExt;
 use crate::extensions::WebSocketExtension;
 use crate::util::NonBlockingResult;
 
@@ -33,7 +33,7 @@ pub enum Role {
 
 /// The configuration for WebSocket connection.
 #[derive(Debug, Copy, Clone)]
-pub struct WebSocketConfig<E = PlainTextExt>
+pub struct WebSocketConfig<E = UncompressedExt>
 where
     E: WebSocketExtension,
 {
@@ -83,26 +83,30 @@ where
 /// This is THE structure you want to create to be able to speak the WebSocket protocol.
 /// It may be created by calling `connect`, `accept` or `client` functions.
 #[derive(Debug)]
-pub struct WebSocket<Stream, E>
+pub struct WebSocket<Stream, Ext>
 where
-    E: WebSocketExtension,
+    Ext: WebSocketExtension,
 {
     /// The underlying socket.
     socket: Stream,
     /// The context for managing a WebSocket.
-    context: WebSocketContext<E>,
+    context: WebSocketContext<Ext>,
 }
 
-impl<Stream, E> WebSocket<Stream, E>
+impl<Stream, Ext> WebSocket<Stream, Ext>
 where
-    E: WebSocketExtension,
+    Ext: WebSocketExtension,
 {
     /// Convert a raw socket into a WebSocket without performing a handshake.
     ///
     /// Call this function if you're using Tungstenite as a part of a web framework
     /// or together with an existing one. If you need an initial handshake, use
     /// `connect()` or `accept()` functions of the crate to construct a websocket.
-    pub fn from_raw_socket(stream: Stream, role: Role, config: Option<WebSocketConfig<E>>) -> Self {
+    pub fn from_raw_socket(
+        stream: Stream,
+        role: Role,
+        config: Option<WebSocketConfig<Ext>>,
+    ) -> Self {
         WebSocket {
             socket: stream,
             context: WebSocketContext::new(role, config),
@@ -118,7 +122,7 @@ where
         stream: Stream,
         part: Vec<u8>,
         role: Role,
-        config: Option<WebSocketConfig<E>>,
+        config: Option<WebSocketConfig<Ext>>,
     ) -> Self {
         WebSocket {
             socket: stream,
@@ -137,12 +141,12 @@ where
     }
 
     /// Change the configuration.
-    pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig<E>)) {
+    pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig<Ext>)) {
         self.context.set_config(set_func)
     }
 
     /// Read the configuration.
-    pub fn get_config(&self) -> &WebSocketConfig<E> {
+    pub fn get_config(&self) -> &WebSocketConfig<Ext> {
         self.context.get_config()
     }
 
@@ -162,9 +166,10 @@ where
     }
 }
 
-impl<Stream: Read + Write, E> WebSocket<Stream, E>
+impl<Stream, Ext> WebSocket<Stream, Ext>
 where
-    E: WebSocketExtension,
+    Stream: Read + Write,
+    Ext: WebSocketExtension,
 {
     /// Read a message from stream, if possible.
     ///
@@ -248,9 +253,9 @@ where
 
 /// A context for managing WebSocket stream.
 #[derive(Debug)]
-pub struct WebSocketContext<E = PlainTextExt>
+pub struct WebSocketContext<Ext = UncompressedExt>
 where
-    E: WebSocketExtension,
+    Ext: WebSocketExtension,
 {
     /// Server or client?
     role: Role,
@@ -265,15 +270,15 @@ where
     /// Send: an OOB pong message.
     pong: Option<Frame>,
     /// The configuration for the websocket session.
-    config: WebSocketConfig<E>,
+    config: WebSocketConfig<Ext>,
 }
 
-impl<E> WebSocketContext<E>
+impl<Ext> WebSocketContext<Ext>
 where
-    E: WebSocketExtension,
+    Ext: WebSocketExtension,
 {
     /// Create a WebSocket context that manages a post-handshake stream.
-    pub fn new(role: Role, config: Option<WebSocketConfig<E>>) -> Self {
+    pub fn new(role: Role, config: Option<WebSocketConfig<Ext>>) -> Self {
         let config = config.unwrap_or_else(Default::default);
 
         WebSocketContext {
@@ -291,7 +296,7 @@ where
     pub fn from_partially_read(
         part: Vec<u8>,
         role: Role,
-        config: Option<WebSocketConfig<E>>,
+        config: Option<WebSocketConfig<Ext>>,
     ) -> Self {
         WebSocketContext {
             frame: FrameCodec::from_partially_read(part),
@@ -300,12 +305,12 @@ where
     }
 
     /// Change the configuration.
-    pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig<E>)) {
+    pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig<Ext>)) {
         set_func(&mut self.config)
     }
 
     /// Read the configuration.
-    pub fn get_config(&self) -> &WebSocketConfig<E> {
+    pub fn get_config(&self) -> &WebSocketConfig<Ext> {
         &self.config
     }
 
@@ -672,7 +677,7 @@ impl<T> CheckConnectionReset for Result<T> {
 mod tests {
     use super::{Message, Role, WebSocket, WebSocketConfig};
 
-    use crate::extensions::uncompressed::PlainTextExt;
+    use crate::extensions::uncompressed::UncompressedExt;
     use std::io;
     use std::io::Cursor;
 
@@ -700,7 +705,7 @@ mod tests {
             0x2c, 0x20, 0x80, 0x06, 0x57, 0x6f, 0x72, 0x6c, 0x64, 0x21, 0x82, 0x03, 0x01, 0x02,
             0x03,
         ]);
-        let mut socket: WebSocket<_, PlainTextExt> =
+        let mut socket: WebSocket<_, UncompressedExt> =
             WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, None);
         assert_eq!(socket.read_message().unwrap(), Message::Ping(vec![1, 2]));
         assert_eq!(socket.read_message().unwrap(), Message::Pong(vec![3]));
@@ -723,7 +728,7 @@ mod tests {
         let limit = WebSocketConfig {
             max_send_queue: None,
             max_frame_size: Some(16 << 20),
-            encoder: PlainTextExt::new(Some(10)),
+            encoder: UncompressedExt::new(Some(10)),
         };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
         assert_eq!(
@@ -738,7 +743,7 @@ mod tests {
         let limit = WebSocketConfig {
             max_send_queue: None,
             max_frame_size: Some(16 << 20),
-            encoder: PlainTextExt::new(Some(2)),
+            encoder: UncompressedExt::new(Some(2)),
         };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
         assert_eq!(

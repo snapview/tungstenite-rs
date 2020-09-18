@@ -13,7 +13,7 @@ pub mod uncompressed;
 
 /// A trait for defining WebSocket extensions. Extensions may be stacked by nesting them inside
 /// one another.
-pub trait WebSocketExtension: Default + Clone {
+pub trait WebSocketExtension {
     /// An error type that the extension produces.
     type Error: Into<crate::Error>;
 

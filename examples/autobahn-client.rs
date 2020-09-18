@@ -3,17 +3,13 @@ use url::Url;
 
 use tungstenite::client::connect_with_config;
 use tungstenite::extensions::deflate::DeflateExt;
-use tungstenite::extensions::uncompressed::PlainTextExt;
 use tungstenite::protocol::WebSocketConfig;
-use tungstenite::{connect, Error, Message, Result, WebSocket};
+use tungstenite::{connect, Error, Message, Result};
 
 const AGENT: &str = "Tungstenite";
 
 fn get_case_count() -> Result<u32> {
-    let (mut socket, _): (WebSocket<_, PlainTextExt>, _) = connect_with_config(
-        Url::parse("ws://localhost:9001/getCaseCount").unwrap(),
-        None,
-    )?;
+    let (mut socket, _) = connect(Url::parse("ws://localhost:9001/getCaseCount").unwrap())?;
     let msg = socket.read_message()?;
     socket.close(None)?;
     Ok(msg.into_text()?.parse::<u32>().unwrap())
