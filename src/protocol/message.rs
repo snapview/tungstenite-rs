@@ -37,20 +37,16 @@ mod string_collect {
             let mut input: &[u8] = tail.as_ref();
 
             if let Some(mut incomplete) = self.incomplete.take() {
-                let fin = if let Some((result, rest)) = incomplete.try_complete(input) {
+                if let Some((result, rest)) = incomplete.try_complete(input) {
                     input = rest;
                     if let Ok(text) = result {
                         self.data.push_str(text);
                     } else {
                         return Err(Error::Utf8);
                     }
-                    true
                 } else {
                     input = &[];
-                    false
-                };
-                if !fin {
-                    self.incomplete = Some(incomplete)
+                    self.incomplete = Some(incomplete);
                 }
             }
 
