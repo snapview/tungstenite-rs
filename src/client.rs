@@ -218,7 +218,7 @@ impl IntoClientRequest for String {
 
 impl<'a> IntoClientRequest for &'a Uri {
     fn into_client_request(self) -> Result<Request> {
-        Ok(Request::get(self.clone()).body(())?)
+        self.clone().into_client_request()
     }
 }
 
