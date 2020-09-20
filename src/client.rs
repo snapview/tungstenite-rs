@@ -230,17 +230,13 @@ impl IntoClientRequest for Uri {
 
 impl<'a> IntoClientRequest for &'a Url {
     fn into_client_request(self) -> Result<Request> {
-        let uri: Uri = self.as_str().parse()?;
-
-        Ok(Request::get(uri).body(())?)
+        self.as_str().into_client_request()
     }
 }
 
 impl IntoClientRequest for Url {
     fn into_client_request(self) -> Result<Request> {
-        let uri: Uri = self.as_str().parse()?;
-
-        Ok(Request::get(uri).body(())?)
+        self.as_str().into_client_request()
     }
 }
 
