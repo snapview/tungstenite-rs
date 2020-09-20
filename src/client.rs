@@ -198,9 +198,7 @@ pub trait IntoClientRequest {
 
 impl<'a> IntoClientRequest for &'a str {
     fn into_client_request(self) -> Result<Request> {
-        let uri: Uri = self.parse()?;
-
-        Ok(Request::get(uri).body(())?)
+        self.parse::<Uri>()?.into_client_request()
     }
 }
 
