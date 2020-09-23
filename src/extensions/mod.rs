@@ -11,8 +11,8 @@ pub mod deflate;
 /// An uncompressed message handler for a WebSocket.
 pub mod uncompressed;
 
-/// A trait for defining WebSocket extensions. Extensions may be stacked by nesting them inside
-/// one another.
+/// A trait for defining WebSocket extensions for both WebSocket clients and servers. Extensions
+/// may be stacked by nesting them inside one another.
 pub trait WebSocketExtension {
     /// An error type that the extension produces.
     type Error: Into<crate::Error>;
@@ -50,6 +50,7 @@ pub trait WebSocketExtension {
         Ok(frame)
     }
 
-    /// Called when a frame has been received.
+    /// Called when a frame has been received and unmasked. The frame provided frame will be of the
+    /// type `OpCode::Data`.
     fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Message>, Self::Error>;
 }

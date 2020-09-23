@@ -601,7 +601,12 @@ where
             }
         }
 
-        // let frame = self.config.encoder.on_send_frame(frame)?;
+        if frame.header().is_final {
+            frame = match self.config.encoder.on_send_frame(frame) {
+                Ok(frame) => frame,
+                Err(e) => return Err(e.into()),
+            };
+        }
 
         trace!("Sending frame: {:?}", frame);
         self.frame
