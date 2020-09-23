@@ -3,12 +3,22 @@ use crate::protocol::frame::coding::{Data, OpCode};
 use crate::protocol::frame::Frame;
 use crate::protocol::message::{IncompleteMessage, IncompleteMessageType};
 use crate::{Error, Message};
+use crate::protocol::MAX_MESSAGE_SIZE;
 
 /// An uncompressed message handler for a WebSocket.
 #[derive(Debug)]
 pub struct UncompressedExt {
     incomplete: Option<IncompleteMessage>,
     max_message_size: Option<usize>,
+}
+
+impl Default for UncompressedExt {
+    fn default() -> Self {
+        UncompressedExt {
+            incomplete: None,
+            max_message_size: Some(MAX_MESSAGE_SIZE)
+        }
+    }
 }
 
 impl UncompressedExt {
