@@ -51,26 +51,26 @@ where
     pub encoder: E,
 }
 
-impl<E> Default for WebSocketConfig<E>
+impl<Ext> Default for WebSocketConfig<Ext>
 where
-    E: WebSocketExtension,
+    Ext: WebSocketExtension,
 {
     fn default() -> Self {
         WebSocketConfig {
             max_send_queue: None,
             max_frame_size: Some(16 << 20),
-            encoder: E::new(Some(MAX_MESSAGE_SIZE)),
+            encoder: Ext::new(Some(MAX_MESSAGE_SIZE)),
         }
     }
 }
 
-impl<E> WebSocketConfig<E>
+impl<Ext> WebSocketConfig<Ext>
 where
-    E: WebSocketExtension,
+    Ext: WebSocketExtension,
 {
     /// Creates a `WebSocketConfig` instance using the default configuration and the provided
     /// encoder for new connections.
-    pub fn default_with_encoder(encoder: E) -> WebSocketConfig<E> {
+    pub fn default_with_encoder(encoder: Ext) -> WebSocketConfig<Ext> {
         WebSocketConfig {
             max_send_queue: None,
             max_frame_size: Some(16 << 20),
