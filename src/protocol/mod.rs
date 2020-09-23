@@ -611,10 +611,7 @@ where
 
         let max_frame_size = self.config.max_frame_size.unwrap_or_else(usize::max_value);
         if frame.payload().len() > max_frame_size {
-            let mut chunks = frame
-                .payload()
-                .chunks(self.config.max_frame_size.unwrap_or_else(usize::max_value))
-                .peekable();
+            let mut chunks = frame.payload().chunks(max_frame_size).peekable();
             let data_frame = Frame::message(
                 Vec::from(chunks.next().unwrap()),
                 frame.header().opcode,
