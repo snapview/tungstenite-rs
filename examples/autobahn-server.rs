@@ -2,7 +2,7 @@ use std::net::{TcpListener, TcpStream};
 use std::thread::spawn;
 
 use log::*;
-use tungstenite::extensions::deflate::DeflateExt;
+use tungstenite::extensions::deflate::{DeflateExt, DeflateConfigBuilder};
 use tungstenite::handshake::HandshakeRole;
 use tungstenite::protocol::WebSocketConfig;
 use tungstenite::server::accept_with_config;
@@ -16,12 +16,16 @@ fn must_not_block<Role: HandshakeRole>(err: HandshakeError<Role>) -> Error {
 }
 
 fn handle_client(stream: TcpStream) -> Result<()> {
+    let deflate_config = DeflateConfigBuilder::default()
+        .max_message_size(None)
+        .build();
+
     let mut socket = accept_with_config(
         stream,
         Some(WebSocketConfig {
             max_send_queue: None,
             max_frame_size: Some(16 << 20),
-            encoder: DeflateExt::default(),
+            encoder: DeflateExt::new(deflate_config),
         }),
     )
     .map_err(must_not_block)?;
