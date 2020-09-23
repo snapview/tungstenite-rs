@@ -916,6 +916,7 @@ impl FragmentBuffer {
 
     /// Drains the buffer and resets it to an initial capacity of 10 elements.
     fn reset(&mut self) -> Vec<Frame> {
+        self.fragments_len = 0;
         replace(&mut self.fragments, Vec::with_capacity(10))
     }
 }
