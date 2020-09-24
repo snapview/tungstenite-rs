@@ -1,6 +1,9 @@
 use log::*;
 use url::Url;
 
+use tungstenite::client::connect_with_config;
+use tungstenite::extensions::deflate::{DeflateConfigBuilder, DeflateExt};
+use tungstenite::protocol::WebSocketConfig;
 use tungstenite::{connect, Error, Message, Result};
 
 const AGENT: &str = "Tungstenite";
@@ -31,7 +34,19 @@ fn run_test(case: u32) -> Result<()> {
         case, AGENT
     ))
     .unwrap();
-    let (mut socket, _) = connect(case_url)?;
+    let deflate_config = DeflateConfigBuilder::default()
+        .max_message_size(None)
+        .build();
+
+    let (mut socket, _) = connect_with_config(
+        case_url,
+        Some(WebSocketConfig {
+            max_send_queue: None,
+            max_frame_size: Some(16 << 20),
+            encoder: DeflateExt::new(deflate_config),
+        }),
+    )?;
+
     loop {
         match socket.read_message()? {
             msg @ Message::Text(_) | msg @ Message::Binary(_) => {

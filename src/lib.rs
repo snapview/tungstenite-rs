@@ -22,6 +22,8 @@ pub mod server;
 pub mod stream;
 pub mod util;
 
+pub mod extensions;
+
 pub use crate::client::{client, connect};
 pub use crate::error::{Error, Result};
 pub use crate::handshake::client::ClientHandshake;

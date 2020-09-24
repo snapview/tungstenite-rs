@@ -12,6 +12,7 @@ use super::headers::{FromHttparse, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
 use crate::error::{Error, Result};
+use crate::extensions::WebSocketExtension;
 use crate::protocol::{Role, WebSocket, WebSocketConfig};
 
 /// Server request type.
@@ -39,7 +40,10 @@ pub fn create_response(request: &Request) -> Result<Response> {
         .headers()
         .get("Connection")
         .and_then(|h| h.to_str().ok())
-        .map(|h| h.split(|c| c == ' ' || c == ',').any(|p| p.eq_ignore_ascii_case("Upgrade")))
+        .map(|h| {
+            h.split(|c| c == ' ' || c == ',')
+                .any(|p| p.eq_ignore_ascii_case("Upgrade"))
+        })
         .unwrap_or(false)
     {
         return Err(Error::Protocol(
@@ -187,31 +191,43 @@ impl Callback for NoCallback {
 /// Server handshake role.
 #[allow(missing_copy_implementations)]
 #[derive(Debug)]
-pub struct ServerHandshake<S, C> {
+pub struct ServerHandshake<S, C, Ext>
+where
+    Ext: WebSocketExtension,
+{
     /// Callback which is called whenever the server read the request from the client and is ready
     /// to reply to it. The callback returns an optional headers which will be added to the reply
     /// which the server sends to the user.
     callback: Option<C>,
     /// WebSocket configuration.
-    config: Option<WebSocketConfig>,
+    config: Option<Option<WebSocketConfig<Ext>>>,
     /// Error code/flag. If set, an error will be returned after sending response to the client.
     error_code: Option<u16>,
     /// Internal stream type.
     _marker: PhantomData<S>,
 }
 
-impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
+impl<S, C, Ext> ServerHandshake<S, C, Ext>
+where
+    S: Read + Write,
+    C: Callback,
+    Ext: WebSocketExtension,
+{
     /// Start server handshake. `callback` specifies a custom callback which the user can pass to
     /// the handshake, this callback will be called when the a websocket client connnects to the
     /// server, you can specify the callback if you want to add additional header to the client
     /// upon join based on the incoming headers.
-    pub fn start(stream: S, callback: C, config: Option<WebSocketConfig>) -> MidHandshake<Self> {
+    pub fn start(
+        stream: S,
+        callback: C,
+        config: Option<WebSocketConfig<Ext>>,
+    ) -> MidHandshake<Self> {
         trace!("Server handshake initiated.");
         MidHandshake {
             machine: HandshakeMachine::start_read(stream),
             role: ServerHandshake {
                 callback: Some(callback),
-                config,
+                config: Some(config),
                 error_code: None,
                 _marker: PhantomData,
             },
@@ -219,10 +235,15 @@ impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
     }
 }
 
-impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
+impl<S, C, Ext> HandshakeRole for ServerHandshake<S, C, Ext>
+where
+    S: Read + Write,
+    C: Callback,
+    Ext: WebSocketExtension,
+{
     type IncomingData = Request;
     type InternalStream = S;
-    type FinalResult = WebSocket<S>;
+    type FinalResult = WebSocket<S, Ext>;
 
     fn stage_finished(
         &mut self,
@@ -231,16 +252,23 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
         Ok(match finish {
             StageResult::DoneReading {
                 stream,
-                result,
+                result: request,
                 tail,
             } => {
                 if !tail.is_empty() {
                     return Err(Error::Protocol("Junk after client request".into()));
                 }
 
-                let response = create_response(&result)?;
+                let mut response = create_response(&request)?;
+
+                if let Some(ref mut config) = self.config.as_mut().unwrap() {
+                    if let Err(e) = config.encoder.on_receive_request(&request, &mut response) {
+                        return Err(e.into());
+                    }
+                }
+
                 let callback_result = if let Some(callback) = self.callback.take() {
-                    callback.on_request(&result, response)
+                    callback.on_request(&request, response)
                 } else {
                     Ok(response)
                 };
@@ -277,7 +305,11 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                     return Err(Error::Http(StatusCode::from_u16(err)?));
                 } else {
                     debug!("Server handshake done.");
-                    let websocket = WebSocket::from_raw_socket(stream, Role::Server, self.config);
+                    let websocket = WebSocket::from_raw_socket(
+                        stream,
+                        Role::Server,
+                        self.config.take().unwrap(),
+                    );
                     ProcessingResult::Done(websocket)
                 }
             }

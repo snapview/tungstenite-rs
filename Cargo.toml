@@ -16,6 +16,7 @@ edition = "2018"
 default = ["tls"]
 tls = ["native-tls"]
 tls-vendored = ["native-tls", "native-tls/vendored"]
+deflate = ["flate2"]
 
 [dependencies]
 base64 = "0.12.0"
@@ -30,6 +31,12 @@ sha-1 = "0.9"
 url = "2.1.0"
 utf-8 = "0.7.5"
 
+[dependencies.flate2]
+optional = true
+version = "1.0"
+default-features = false
+features = ["zlib"]
+
 [dependencies.native-tls]
 optional = true
 version = "0.2.3"
@@ -37,3 +44,11 @@ version = "0.2.3"
 [dev-dependencies]
 env_logger = "0.7.1"
 net2 = "0.2.33"
+
+[[example]]
+name = "autobahn-client"
+required-features = ["deflate"]
+
+[[example]]
+name = "autobahn-server"
+required-features = ["deflate"]
