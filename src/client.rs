@@ -210,31 +210,25 @@ pub trait IntoClientRequest {
 
 impl<'a> IntoClientRequest for &'a str {
     fn into_client_request(self) -> Result<Request> {
-        let uri: Uri = self.parse()?;
-
-        Ok(Request::get(uri).body(())?)
+        self.parse::<Uri>()?.into_client_request()
     }
 }
 
 impl<'a> IntoClientRequest for &'a String {
     fn into_client_request(self) -> Result<Request> {
-        let uri: Uri = self.parse()?;
-
-        Ok(Request::get(uri).body(())?)
+        <&str as IntoClientRequest>::into_client_request(self)
     }
 }
 
 impl IntoClientRequest for String {
     fn into_client_request(self) -> Result<Request> {
-        let uri: Uri = self.parse()?;
-
-        Ok(Request::get(uri).body(())?)
+        <&str as IntoClientRequest>::into_client_request(&self)
     }
 }
 
 impl<'a> IntoClientRequest for &'a Uri {
     fn into_client_request(self) -> Result<Request> {
-        Ok(Request::get(self.clone()).body(())?)
+        self.clone().into_client_request()
     }
 }
 
@@ -246,17 +240,13 @@ impl IntoClientRequest for Uri {
 
 impl<'a> IntoClientRequest for &'a Url {
     fn into_client_request(self) -> Result<Request> {
-        let uri: Uri = self.as_str().parse()?;
-
-        Ok(Request::get(uri).body(())?)
+        self.as_str().into_client_request()
     }
 }
 
 impl IntoClientRequest for Url {
     fn into_client_request(self) -> Result<Request> {
-        let uri: Uri = self.as_str().parse()?;
-
-        Ok(Request::get(uri).body(())?)
+        self.as_str().into_client_request()
     }
 }
 
