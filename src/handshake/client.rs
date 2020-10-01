@@ -160,7 +160,12 @@ impl VerifyData {
         // 1. If the status code received from the server is not 101, the
         // client handles the response per HTTP [RFC2616] procedures. (RFC 6455)
         if response.status() != StatusCode::SWITCHING_PROTOCOLS {
-            return Err(Error::Http(response.status()));
+            if response.status().is_redirection() {
+                let value = response.headers().get("Location").unwrap();
+                return Err(Error::Redirection(value.to_str()?.parse()?))
+            } else {
+                return Err(Error::Http(response.status()));
+            }
         }
         let headers = response.headers();
 

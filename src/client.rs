@@ -91,6 +91,12 @@ pub fn connect_with_config<Req: IntoClientRequest>(
     config: Option<WebSocketConfig>,
 ) -> Result<(WebSocket<AutoStream>, Response)> {
     let request: Request = request.into_client_request()?;
+    // Copy all the fields from the initial reqeust **except** the URI. This will be used in the event of a redirection code
+    // Have to manually clone Method because there is one field that contains a Box,
+    // but in the case of normal request methods it is Copy
+    let request2 = Request::builder()
+        .method(request.method().clone())
+        .version(request.version());
     let uri = request.uri();
     let mode = uri_mode(uri)?;
     let host = request
@@ -104,10 +110,20 @@ pub fn connect_with_config<Req: IntoClientRequest>(
     let addrs = (host, port).to_socket_addrs()?;
     let mut stream = connect_to_some(addrs.as_slice(), &request.uri(), mode)?;
     NoDelay::set_nodelay(&mut stream, true)?;
-    client_with_config(request, stream, config).map_err(|e| match e {
+    match client_with_config(request, stream, config).map_err(|e| match e {
         HandshakeError::Failure(f) => f,
         HandshakeError::Interrupted(_) => panic!("Bug: blocking handshake not blocked"),
-    })
+    }) {
+        Ok(r) => Ok(r),
+        Err(e) => match e {
+            Error::Redirection(uri) =>  {
+                debug!("Redirecting to {}", uri);
+                let request = request2.uri(uri).body(()).unwrap();
+                connect_with_config(request, config)
+            }
+            _ => Err(e),
+        }
+    }
 }
 
 /// Connect to the given WebSocket in blocking mode.
