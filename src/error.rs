@@ -65,6 +65,8 @@ pub enum Error {
     Url(Cow<'static, str>),
     /// HTTP error.
     Http(http::StatusCode),
+    /// HTTP response error.
+    HttpResponse(http::Response<()>),
     /// HTTP format error.
     HttpFormat(http::Error),
 }
@@ -83,6 +85,7 @@ impl fmt::Display for Error {
             Error::Utf8 => write!(f, "UTF-8 encoding error"),
             Error::Url(ref msg) => write!(f, "URL error: {}", msg),
             Error::Http(code) => write!(f, "HTTP error: {}", code),
+            Error::HttpResponse(ref res) => write!(f, "HTTP response error: {}", res.status()),
             Error::HttpFormat(ref err) => write!(f, "HTTP format error: {}", err),
         }
     }
