@@ -31,7 +31,7 @@ impl<S: Read + Write> ClientHandshake<S> {
     /// Initiate a client handshake.
     pub fn start(
         stream: S,
-        request: Request,
+        mut request: Request,
         config: Option<WebSocketConfig>,
     ) -> Result<MidHandshake<Self>> {
         if request.method() != http::Method::GET {
@@ -49,7 +49,12 @@ impl<S: Read + Write> ClientHandshake<S> {
         // Check the URI scheme: only ws or wss are supported
         let _ = crate::client::uri_mode(request.uri())?;
 
-        let key = generate_key();
+        let key = if let Some(key) = request.headers_mut().remove("Sec-WebSocket-Key") {
+            key.to_str()?.to_owned()
+        }
+        else {
+            generate_key()
+        };
 
         let machine = {
             let req = generate_request(request, &key)?;
