@@ -35,5 +35,5 @@ optional = true
 version = "0.2.3"
 
 [dev-dependencies]
-env_logger = "0.7.1"
+env_logger = "0.8.1"
 net2 = "0.2.33"
