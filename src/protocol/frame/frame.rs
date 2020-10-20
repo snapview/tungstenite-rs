@@ -1,10 +1,13 @@
 use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
+use bytes::{Bytes, BytesMut};
 use log::*;
 use std::borrow::Cow;
+use std::convert::{TryFrom, TryInto};
 use std::default::Default;
 use std::fmt;
 use std::io::{Cursor, ErrorKind, Read, Write};
 use std::result::Result as StdResult;
+use std::str;
 use std::string::{FromUtf8Error, String};
 
 use super::coding::{CloseCode, Control, Data, OpCode};
@@ -205,11 +208,83 @@ impl FrameHeader {
     }
 }
 
+/// A binary payload that might or might not be shared.
+#[derive(Debug, Clone)]
+pub enum Payload {
+    Bytes(Vec<u8>),
+    ShBytes(Bytes),
+}
+
+impl Payload {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Bytes(bytes) => bytes.len(),
+            Self::ShBytes(bytes) => bytes.len(),
+        }
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::Bytes(bytes) => bytes.as_slice(),
+            Self::ShBytes(bytes) => bytes.as_ref(),
+        }
+    }
+
+    pub fn unwrap_bytes(self) -> Vec<u8> {
+        match self {
+            Self::Bytes(bytes) => bytes,
+            _ => panic!("expected variant `Payload::Bytes`"),
+        }
+    }
+}
+
+impl TryFrom<Payload> for String {
+    type Error = FromUtf8Error;
+
+    fn try_from(payload: Payload) -> std::result::Result<Self, Self::Error> {
+        let vec = match payload {
+            Payload::Bytes(bytes) => bytes,
+            Payload::ShBytes(bytes) => bytes.as_ref().to_owned(),
+        };
+        String::from_utf8(vec)
+    }
+}
+
+impl From<Vec<u8>> for Payload {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self::Bytes(bytes)
+    }
+}
+
+impl From<&[u8]> for Payload {
+    fn from(bytes: &[u8]) -> Self {
+        bytes.to_owned().into()
+    }
+}
+
+impl From<String> for Payload {
+    fn from(string: String) -> Self {
+        Self::Bytes(string.into())
+    }
+}
+
+impl From<&str> for Payload {
+    fn from(string: &str) -> Self {
+        string.to_owned().into()
+    }
+}
+
+impl From<Bytes> for Payload {
+    fn from(bytes: Bytes) -> Self {
+        Self::ShBytes(bytes)
+    }
+}
+
 /// A struct representing a WebSocket frame.
 #[derive(Debug, Clone)]
 pub struct Frame {
     header: FrameHeader,
-    payload: Vec<u8>,
+    payload: Payload,
 }
 
 impl Frame {
@@ -241,14 +316,8 @@ impl Frame {
 
     /// Get a reference to the frame's payload.
     #[inline]
-    pub fn payload(&self) -> &Vec<u8> {
-        &self.payload
-    }
-
-    /// Get a mutable reference to the frame's payload.
-    #[inline]
-    pub fn payload_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_bytes()
     }
 
     /// Test whether the frame is masked.
@@ -271,20 +340,27 @@ impl Frame {
     #[inline]
     pub(crate) fn apply_mask(&mut self) {
         if let Some(mask) = self.header.mask.take() {
-            apply_mask(&mut self.payload, mask)
+            match &mut self.payload {
+                Payload::Bytes(bytes) => apply_mask(bytes, mask),
+                Payload::ShBytes(bytes) => {
+                    let mut bytes_mut = BytesMut::from(bytes.as_ref());
+                    apply_mask(&mut bytes_mut, mask);
+                    *bytes = bytes_mut.freeze();
+                }
+            }
         }
     }
 
     /// Consume the frame into its payload as binary.
     #[inline]
-    pub fn into_data(self) -> Vec<u8> {
+    pub fn into_payload(self) -> Payload {
         self.payload
     }
 
     /// Consume the frame into its payload as string.
     #[inline]
     pub fn into_string(self) -> StdResult<String, FromUtf8Error> {
-        String::from_utf8(self.payload)
+        self.payload.try_into()
     }
 
     /// Consume the frame into a closing frame.
@@ -294,10 +370,16 @@ impl Frame {
             0 => Ok(None),
             1 => Err(Error::Protocol("Invalid close sequence".into())),
             _ => {
-                let mut data = self.payload;
-                let code = NetworkEndian::read_u16(&data[0..2]).into();
-                data.drain(0..2);
-                let text = String::from_utf8(data)?;
+                let data = self.payload;
+                let code = NetworkEndian::read_u16(&data.as_bytes()[0..2]).into();
+                let bytes = match data {
+                    Payload::Bytes(mut bytes) => {
+                        bytes.drain(0..2);
+                        bytes
+                    }
+                    Payload::ShBytes(bytes) => bytes.as_ref()[2..].to_owned(),
+                };
+                let text = String::from_utf8(bytes)?;
                 Ok(Some(CloseFrame {
                     code,
                     reason: text.into(),
@@ -308,7 +390,10 @@ impl Frame {
 
     /// Create a new data frame.
     #[inline]
-    pub fn message(data: Vec<u8>, opcode: OpCode, is_final: bool) -> Frame {
+    pub fn message<P>(payload: P, opcode: OpCode, is_final: bool) -> Frame
+    where
+        P: Into<Payload>,
+    {
         debug_assert!(
             match opcode {
                 OpCode::Data(_) => true,
@@ -323,7 +408,7 @@ impl Frame {
                 opcode,
                 ..FrameHeader::default()
             },
-            payload: data,
+            payload: payload.into(),
         }
     }
 
@@ -335,7 +420,7 @@ impl Frame {
                 opcode: OpCode::Control(Control::Pong),
                 ..FrameHeader::default()
             },
-            payload: data,
+            payload: data.into(),
         }
     }
 
@@ -347,7 +432,7 @@ impl Frame {
                 opcode: OpCode::Control(Control::Ping),
                 ..FrameHeader::default()
             },
-            payload: data,
+            payload: data.into(),
         }
     }
 
@@ -365,12 +450,12 @@ impl Frame {
 
         Frame {
             header: FrameHeader::default(),
-            payload,
+            payload: payload.into(),
         }
     }
 
     /// Create a frame from given header and data.
-    pub fn from_payload(header: FrameHeader, payload: Vec<u8>) -> Self {
+    pub fn from_payload(header: FrameHeader, payload: Payload) -> Self {
         Frame { header, payload }
     }
 
@@ -405,6 +490,7 @@ payload: 0x{}
             self.len(),
             self.payload.len(),
             self.payload
+                .as_bytes()
                 .iter()
                 .map(|byte| format!("{:x}", byte))
                 .collect::<String>()
@@ -476,11 +562,11 @@ mod tests {
             Cursor::new(vec![0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let (header, length) = FrameHeader::parse(&mut raw).unwrap().unwrap();
         assert_eq!(length, 7);
-        let mut payload = Vec::new();
-        raw.read_to_end(&mut payload).unwrap();
-        let frame = Frame::from_payload(header, payload);
+        let mut bytes = Vec::new();
+        raw.read_to_end(&mut bytes).unwrap();
+        let frame = Frame::from_payload(header, bytes.into());
         assert_eq!(
-            frame.into_data(),
+            frame.into_payload().unwrap_bytes(),
             vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
     }
@@ -495,7 +581,7 @@ mod tests {
 
     #[test]
     fn display() {
-        let f = Frame::message("hi there".into(), OpCode::Data(Data::Text), true);
+        let f = Frame::message("hi there", OpCode::Data(Data::Text), true);
         let view = format!("{}", f);
         assert!(view.contains("payload:"));
     }

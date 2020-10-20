@@ -11,7 +11,7 @@ use std::string;
 use http;
 use httparse;
 
-use crate::protocol::Message;
+use crate::protocol::EitherMessage;
 
 #[cfg(feature = "tls")]
 pub mod tls {
@@ -58,7 +58,7 @@ pub enum Error {
     /// Protocol violation.
     Protocol(Cow<'static, str>),
     /// Message send queue full.
-    SendQueueFull(Message),
+    SendQueueFull(EitherMessage),
     /// UTF coding error
     Utf8,
     /// Invalid URL.

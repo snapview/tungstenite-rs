@@ -32,12 +32,14 @@ fn main() {
 
     for stream in server.incoming() {
         spawn(move || match stream {
-            Ok(stream) => if let Err(err) = handle_client(stream) {
-                match err {
-                    Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
-                    e => error!("test: {}", e),
+            Ok(stream) => {
+                if let Err(err) = handle_client(stream) {
+                    match err {
+                        Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
+                        e => error!("test: {}", e),
+                    }
                 }
-            },
+            }
             Err(e) => error!("Error accepting stream: {}", e),
         });
     }
