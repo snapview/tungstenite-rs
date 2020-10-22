@@ -7,8 +7,6 @@ use super::frame::CloseFrame;
 use crate::error::{Error, Result};
 
 mod string_collect {
-
-    use utf8;
     use utf8::DecodeError;
 
     use crate::error::{Error, Result};
@@ -202,42 +200,27 @@ impl Message {
 
     /// Indicates whether a message is a text message.
     pub fn is_text(&self) -> bool {
-        match *self {
-            Message::Text(_) => true,
-            _ => false,
-        }
+        matches!(*self, Message::Text(_))
     }
 
     /// Indicates whether a message is a binary message.
     pub fn is_binary(&self) -> bool {
-        match *self {
-            Message::Binary(_) => true,
-            _ => false,
-        }
+        matches!(*self, Message::Binary(_))
     }
 
     /// Indicates whether a message is a ping message.
     pub fn is_ping(&self) -> bool {
-        match *self {
-            Message::Ping(_) => true,
-            _ => false,
-        }
+        matches!(*self, Message::Ping(_))
     }
 
     /// Indicates whether a message is a pong message.
     pub fn is_pong(&self) -> bool {
-        match *self {
-            Message::Pong(_) => true,
-            _ => false,
-        }
+        matches!(*self, Message::Pong(_))
     }
 
     /// Indicates whether a message ia s close message.
     pub fn is_close(&self) -> bool {
-        match *self {
-            Message::Close(_) => true,
-            _ => false,
-        }
+        matches!(*self, Message::Close(_))
     }
 
     /// Get the length of the WebSocket message.

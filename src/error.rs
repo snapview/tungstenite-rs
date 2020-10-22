@@ -8,9 +8,6 @@ use std::result;
 use std::str;
 use std::string;
 
-use http;
-use httparse;
-
 use crate::protocol::Message;
 
 #[cfg(feature = "tls")]
