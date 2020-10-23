@@ -1,8 +1,6 @@
 //! HTTP Request and response header handling.
 
-use http;
 use http::header::{HeaderMap, HeaderName, HeaderValue};
-use httparse;
 use httparse::Status;
 
 use super::machine::TryParse;

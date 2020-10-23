@@ -310,10 +310,7 @@ impl Frame {
     #[inline]
     pub fn message(data: Vec<u8>, opcode: OpCode, is_final: bool) -> Frame {
         debug_assert!(
-            match opcode {
-                OpCode::Data(_) => true,
-                _ => false,
-            },
+            matches!(opcode, OpCode::Data(_)),
             "Invalid opcode for data frame."
         );
 
