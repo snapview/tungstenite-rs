@@ -90,6 +90,11 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
                 result,
                 tail,
             } => {
+                // If the status code received from the server is not 101, the
+                // client handles the response per HTTP [RFC2616] procedures. (RFC 6455)
+                if result.status() != StatusCode::SWITCHING_PROTOCOLS {
+                    return Err(Error::Http(result));
+                }
                 self.verify_data.verify_response(&result)?;
                 debug!("Client handshake done.");
                 let websocket =
@@ -157,16 +162,6 @@ struct VerifyData {
 
 impl VerifyData {
     pub fn verify_response(&self, response: &Response) -> Result<()> {
-        // 1. If the status code received from the server is not 101, the
-        // client handles the response per HTTP [RFC2616] procedures. (RFC 6455)
-        if response.status() != StatusCode::SWITCHING_PROTOCOLS {
-            if response.status().is_redirection() {
-                let value = response.headers().get("Location").unwrap();
-                return Err(Error::Redirection(value.to_str()?.parse()?))
-            } else {
-                return Err(Error::Http(response.status()));
-            }
-        }
         let headers = response.headers();
 
         // 2. If the response lacks an |Upgrade| header field or the |Upgrade|
