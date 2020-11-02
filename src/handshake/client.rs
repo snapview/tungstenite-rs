@@ -11,7 +11,7 @@ use super::headers::{FromHttparse, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
 use crate::error::{Error, Result};
-use crate::extensions::{build_compression_headers, verify_compression_resp_headers};
+use crate::extensions::compression::{build_compression_headers, verify_compression_resp_headers};
 use crate::protocol::{Role, WebSocket, WebSocketConfig};
 
 /// Client request type.

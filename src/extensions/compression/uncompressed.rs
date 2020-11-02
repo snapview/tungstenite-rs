@@ -35,7 +35,6 @@ impl UncompressedExt {
 impl WebSocketExtension for UncompressedExt {
     fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Message>, crate::Error> {
         let fin = frame.header().is_final;
-
         let hdr = frame.header();
 
         if hdr.rsv1 || hdr.rsv2 || hdr.rsv3 {

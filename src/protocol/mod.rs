@@ -16,7 +16,8 @@ use self::frame::coding::{CloseCode, Control as OpCtl, Data as OpData, OpCode};
 use self::frame::{Frame, FrameCodec};
 use self::message::IncompleteMessage;
 use crate::error::{Error, Result};
-use crate::extensions::{CompressionSwitcher, WebSocketExtension, WsCompression};
+use crate::extensions::compression::{CompressionSwitcher, WsCompression};
+use crate::extensions::WebSocketExtension;
 use crate::util::NonBlockingResult;
 
 pub(crate) const MAX_MESSAGE_SIZE: usize = 64 << 20;
@@ -636,7 +637,7 @@ impl<T> CheckConnectionReset for Result<T> {
 mod tests {
     use super::{Message, Role, WebSocket, WebSocketConfig};
 
-    use crate::extensions::WsCompression;
+    use crate::extensions::compression::WsCompression;
     use std::io;
     use std::io::Cursor;
 

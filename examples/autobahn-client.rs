@@ -2,7 +2,8 @@ use log::*;
 use url::Url;
 
 use tungstenite::client::connect_with_config;
-use tungstenite::extensions::deflate::{DeflateConfigBuilder, DeflateExt};
+use tungstenite::extensions::compression::deflate::DeflateConfigBuilder;
+use tungstenite::extensions::compression::WsCompression;
 use tungstenite::protocol::WebSocketConfig;
 use tungstenite::{connect, Error, Message, Result};
 
@@ -43,7 +44,7 @@ fn run_test(case: u32) -> Result<()> {
         Some(WebSocketConfig {
             max_send_queue: None,
             max_frame_size: Some(16 << 20),
-            encoder: DeflateExt::new(deflate_config),
+            compression: WsCompression::Deflate(deflate_config),
         }),
     )?;
 
