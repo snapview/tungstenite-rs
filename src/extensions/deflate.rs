@@ -231,41 +231,39 @@ impl DeflateExt {
             enabled: false,
             config,
             fragment_buffer: FragmentBuffer::new(config.max_message_size),
-            inflator: Inflator::new(),
-            deflator: Deflator::new(Compression::fast()),
+            inflator: Inflator::new(config.max_window_bits),
+            deflator: Deflator::new(config.compression_level, config.max_window_bits),
             uncompressed_extension: UncompressedExt::new(Some(config.max_message_size())),
         }
     }
+}
 
-    fn parse_window_parameter<'a>(
-        &mut self,
-        mut param_iter: impl Iterator<Item = &'a str>,
-    ) -> Result<Option<u8>, String> {
-        if let Some(window_bits_str) = param_iter.next() {
-            match window_bits_str.trim().parse() {
-                Ok(window_bits) => {
-                    if window_bits >= LZ77_MIN_WINDOW_SIZE && window_bits <= LZ77_MAX_WINDOW_SIZE {
-                        if window_bits != self.config.max_window_bits() {
-                            self.config.max_window_bits = window_bits;
-                            Ok(Some(window_bits))
-                        } else {
-                            Ok(None)
-                        }
+fn parse_window_parameter<'a>(
+    mut param_iter: impl Iterator<Item = &'a str>,
+    max_window_bits: u8,
+) -> Result<Option<u8>, String> {
+    if let Some(window_bits_str) = param_iter.next() {
+        match window_bits_str.trim().parse() {
+            Ok(window_bits) => {
+                if window_bits >= LZ77_MIN_WINDOW_SIZE && window_bits <= LZ77_MAX_WINDOW_SIZE {
+                    if window_bits != max_window_bits {
+                        Ok(Some(window_bits))
                     } else {
-                        Err(format!("Invalid window parameter: {}", window_bits))
+                        Ok(None)
                     }
+                } else {
+                    Err(format!("Invalid window parameter: {}", window_bits))
                 }
-                Err(e) => Err(e.to_string()),
             }
-        } else {
-            Ok(None)
+            Err(e) => Err(e.to_string()),
         }
+    } else {
+        Ok(None)
     }
+}
 
-    fn decline<T>(&mut self, res: &mut Response<T>) {
-        self.enabled = false;
-        res.headers_mut().remove(EXT_IDENT);
-    }
+fn decline<T>(res: &mut Response<T>) {
+    res.headers_mut().remove(EXT_IDENT);
 }
 
 /// A permessage-deflate extension error.
@@ -298,6 +296,310 @@ impl Display for DeflateExtensionError {
     }
 }
 
+///
+pub fn on_response<T>(
+    response: &Response<T>,
+    config: &mut DeflateConfig,
+) -> Result<bool, DeflateExtensionError> {
+    let mut extension_name = false;
+    let mut server_takeover = false;
+    let mut client_takeover = false;
+    let mut server_max_window_bits = false;
+    let mut client_max_window_bits = false;
+    let mut enabled = false;
+
+    let DeflateConfig {
+        max_window_bits,
+        accept_no_context_takeover,
+        compress_reset,
+        decompress_reset,
+        ..
+    } = config;
+
+    for header in response.headers().get_all(SEC_WEBSOCKET_EXTENSIONS).iter() {
+        match header.to_str() {
+            Ok(header) => {
+                for param in header.split(';') {
+                    match param.trim().to_lowercase().as_str() {
+                        "permessage-deflate" => {
+                            if extension_name {
+                                return Err(DeflateExtensionError::NegotiationError(format!(
+                                    "Duplicate extension parameter: permessage-deflate"
+                                )));
+                            } else {
+                                enabled = true;
+                                extension_name = true;
+                            }
+                        }
+                        "server_no_context_takeover" => {
+                            if server_takeover {
+                                return Err(DeflateExtensionError::NegotiationError(format!(
+                                    "Duplicate extension parameter: server_no_context_takeover"
+                                )));
+                            } else {
+                                server_takeover = true;
+                                *decompress_reset = true;
+                            }
+                        }
+                        "client_no_context_takeover" => {
+                            if client_takeover {
+                                return Err(DeflateExtensionError::NegotiationError(format!(
+                                    "Duplicate extension parameter: client_no_context_takeover"
+                                )));
+                            } else {
+                                client_takeover = true;
+
+                                if *accept_no_context_takeover {
+                                    *compress_reset = true;
+                                } else {
+                                    return Err(DeflateExtensionError::NegotiationError(format!(
+                                        "The client requires context takeover."
+                                    )));
+                                }
+                            }
+                        }
+                        param if param.starts_with("server_max_window_bits") => {
+                            if server_max_window_bits {
+                                return Err(DeflateExtensionError::NegotiationError(format!(
+                                    "Duplicate extension parameter: server_max_window_bits"
+                                )));
+                            } else {
+                                server_max_window_bits = true;
+
+                                match parse_window_parameter(
+                                    param.split("=").skip(1),
+                                    *max_window_bits,
+                                ) {
+                                    Ok(Some(bits)) => {
+                                        *max_window_bits = bits;
+                                    }
+                                    Ok(None) => {}
+                                    Err(e) => {
+                                        return Err(DeflateExtensionError::NegotiationError(
+                                            format!(
+                                                "server_max_window_bits parameter error: {}",
+                                                e
+                                            ),
+                                        ))
+                                    }
+                                }
+                            }
+                        }
+                        param if param.starts_with("client_max_window_bits") => {
+                            if client_max_window_bits {
+                                return Err(DeflateExtensionError::NegotiationError(format!(
+                                    "Duplicate extension parameter: client_max_window_bits"
+                                )));
+                            } else {
+                                client_max_window_bits = true;
+
+                                match parse_window_parameter(
+                                    param.split("=").skip(1),
+                                    *max_window_bits,
+                                ) {
+                                    Ok(Some(bits)) => {
+                                        *max_window_bits = bits;
+                                    }
+                                    Ok(None) => {}
+                                    Err(e) => {
+                                        return Err(DeflateExtensionError::NegotiationError(
+                                            format!(
+                                                "client_max_window_bits parameter error: {}",
+                                                e
+                                            ),
+                                        ))
+                                    }
+                                }
+                            }
+                        }
+                        p => {
+                            return Err(DeflateExtensionError::NegotiationError(format!(
+                                "Unknown permessage-deflate parameter: {}",
+                                p
+                            )));
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                return Err(DeflateExtensionError::NegotiationError(format!(
+                    "Failed to parse extension parameter: {}",
+                    e
+                )));
+            }
+        }
+    }
+
+    Ok(enabled)
+}
+
+///
+pub fn on_request<T>(mut request: Request<T>, config: &DeflateConfig) -> Request<T> {
+    let mut header_value = String::from(EXT_IDENT);
+
+    let DeflateConfig {
+        max_window_bits,
+        request_no_context_takeover,
+        ..
+    } = config;
+
+    if *max_window_bits < LZ77_MAX_WINDOW_SIZE {
+        header_value.push_str(&format!(
+            "; client_max_window_bits={}; server_max_window_bits={}",
+            max_window_bits, max_window_bits
+        ))
+    } else {
+        header_value.push_str("; client_max_window_bits")
+    }
+
+    if *request_no_context_takeover {
+        header_value.push_str("; server_no_context_takeover")
+    }
+
+    request.headers_mut().append(
+        SEC_WEBSOCKET_EXTENSIONS,
+        HeaderValue::from_str(&header_value).unwrap(),
+    );
+
+    request
+}
+
+///
+pub fn on_receive_request<T>(
+    request: &Request<T>,
+    response: &mut Response<T>,
+    config: &mut DeflateConfig,
+) -> Result<(), DeflateExtensionError> {
+    for header in request.headers().get_all(SEC_WEBSOCKET_EXTENSIONS) {
+        return match header.to_str() {
+            Ok(header) => {
+                let mut response_str = String::with_capacity(header.len());
+                let mut server_takeover = false;
+                let mut client_takeover = false;
+                let mut server_max_bits = false;
+                let mut client_max_bits = false;
+
+                for param in header.split(';') {
+                    match param.trim().to_lowercase().as_str() {
+                        "permessage-deflate" => response_str.push_str("permessage-deflate"),
+                        "server_no_context_takeover" => {
+                            if server_takeover {
+                                decline(response);
+                            } else {
+                                server_takeover = true;
+                                if config.accept_no_context_takeover() {
+                                    config.compress_reset = true;
+                                    response_str.push_str("; server_no_context_takeover");
+                                }
+                            }
+                        }
+                        "client_no_context_takeover" => {
+                            if client_takeover {
+                                decline(response);
+                            } else {
+                                client_takeover = true;
+                                config.decompress_reset = true;
+                                response_str.push_str("; client_no_context_takeover");
+                            }
+                        }
+                        param if param.starts_with("server_max_window_bits") => {
+                            if server_max_bits {
+                                decline(response);
+                            } else {
+                                server_max_bits = true;
+
+                                match parse_window_parameter(
+                                    param.split('=').skip(1),
+                                    config.max_window_bits,
+                                ) {
+                                    Ok(Some(bits)) => {
+                                        config.max_window_bits = bits;
+
+                                        response_str.push_str("; ");
+                                        response_str.push_str(param)
+                                    }
+                                    Ok(None) => {}
+                                    Err(_) => {
+                                        decline(response);
+                                    }
+                                }
+                            }
+                        }
+                        param if param.starts_with("client_max_window_bits") => {
+                            if client_max_bits {
+                                decline(response);
+                            } else {
+                                client_max_bits = true;
+
+                                match parse_window_parameter(
+                                    param.split('=').skip(1),
+                                    config.max_window_bits,
+                                ) {
+                                    Ok(Some(bits)) => {
+                                        config.max_window_bits = bits;
+                                        response_str.push_str("; ");
+                                        response_str.push_str(param);
+
+                                        continue;
+                                    }
+                                    Ok(None) => {}
+                                    Err(_) => {
+                                        decline(response);
+                                    }
+                                }
+
+                                response_str.push_str("; ");
+                                response_str.push_str(&format!(
+                                    "client_max_window_bits={}",
+                                    config.max_window_bits()
+                                ))
+                            }
+                        }
+                        _ => {
+                            decline(response);
+                        }
+                    }
+                }
+
+                if !response_str.contains("client_no_context_takeover")
+                    && config.request_no_context_takeover()
+                {
+                    config.decompress_reset = true;
+                    response_str.push_str("; client_no_context_takeover");
+                }
+
+                if !response_str.contains("server_max_window_bits") {
+                    response_str.push_str("; ");
+                    response_str.push_str(&format!(
+                        "server_max_window_bits={}",
+                        config.max_window_bits()
+                    ))
+                }
+
+                if !response_str.contains("client_max_window_bits")
+                    && config.max_window_bits() < LZ77_MAX_WINDOW_SIZE
+                {
+                    continue;
+                }
+
+                response.headers_mut().insert(
+                    SEC_WEBSOCKET_EXTENSIONS,
+                    HeaderValue::from_str(&response_str)?,
+                );
+
+                Ok(())
+            }
+            Err(e) => Err(DeflateExtensionError::NegotiationError(format!(
+                "Failed to parse request header: {}",
+                e,
+            ))),
+        };
+    }
+
+    decline(response);
+    Ok(())
+}
+
 impl std::error::Error for DeflateExtensionError {}
 
 impl From<DeflateExtensionError> for crate::Error {
@@ -319,307 +621,7 @@ impl Default for DeflateExt {
 }
 
 impl WebSocketExtension for DeflateExt {
-    type Error = DeflateExtensionError;
-
-    fn new(max_message_size: Option<usize>) -> Self {
-        DeflateExt::new(DeflateConfig {
-            max_message_size: max_message_size.unwrap_or_else(usize::max_value),
-            ..Default::default()
-        })
-    }
-
-    fn enabled(&self) -> bool {
-        self.enabled
-    }
-
-    fn on_make_request<T>(&mut self, mut request: Request<T>) -> Request<T> {
-        let mut header_value = String::from(EXT_IDENT);
-        let DeflateConfig {
-            max_window_bits,
-            request_no_context_takeover,
-            ..
-        } = self.config;
-
-        if max_window_bits < LZ77_MAX_WINDOW_SIZE {
-            header_value.push_str(&format!(
-                "; client_max_window_bits={}; server_max_window_bits={}",
-                max_window_bits, max_window_bits
-            ))
-        } else {
-            header_value.push_str("; client_max_window_bits")
-        }
-
-        if request_no_context_takeover {
-            header_value.push_str("; server_no_context_takeover")
-        }
-
-        request.headers_mut().append(
-            SEC_WEBSOCKET_EXTENSIONS,
-            HeaderValue::from_str(&header_value).unwrap(),
-        );
-
-        request
-    }
-
-    fn on_receive_request<T>(
-        &mut self,
-        request: &Request<T>,
-        response: &mut Response<T>,
-    ) -> Result<(), Self::Error> {
-        for header in request.headers().get_all(SEC_WEBSOCKET_EXTENSIONS) {
-            return match header.to_str() {
-                Ok(header) => {
-                    let mut response_str = String::with_capacity(header.len());
-                    let mut server_takeover = false;
-                    let mut client_takeover = false;
-                    let mut server_max_bits = false;
-                    let mut client_max_bits = false;
-
-                    for param in header.split(';') {
-                        match param.trim().to_lowercase().as_str() {
-                            "permessage-deflate" => response_str.push_str("permessage-deflate"),
-                            "server_no_context_takeover" => {
-                                if server_takeover {
-                                    self.decline(response);
-                                } else {
-                                    server_takeover = true;
-                                    if self.config.accept_no_context_takeover() {
-                                        self.config.compress_reset = true;
-                                        response_str.push_str("; server_no_context_takeover");
-                                    }
-                                }
-                            }
-                            "client_no_context_takeover" => {
-                                if client_takeover {
-                                    self.decline(response);
-                                } else {
-                                    client_takeover = true;
-                                    self.config.decompress_reset = true;
-                                    response_str.push_str("; client_no_context_takeover");
-                                }
-                            }
-                            param if param.starts_with("server_max_window_bits") => {
-                                if server_max_bits {
-                                    self.decline(response);
-                                } else {
-                                    server_max_bits = true;
-
-                                    match self.parse_window_parameter(param.split('=').skip(1)) {
-                                        Ok(Some(bits)) => {
-                                            self.deflator = Deflator::new_with_window_bits(
-                                                self.config.compression_level,
-                                                bits,
-                                            );
-                                            response_str.push_str("; ");
-                                            response_str.push_str(param)
-                                        }
-                                        Ok(None) => {}
-                                        Err(_) => {
-                                            self.decline(response);
-                                        }
-                                    }
-                                }
-                            }
-                            param if param.starts_with("client_max_window_bits") => {
-                                if client_max_bits {
-                                    self.decline(response);
-                                } else {
-                                    client_max_bits = true;
-
-                                    match self.parse_window_parameter(param.split('=').skip(1)) {
-                                        Ok(Some(bits)) => {
-                                            self.inflator = Inflator::new_with_window_bits(bits);
-
-                                            response_str.push_str("; ");
-                                            response_str.push_str(param);
-                                            continue;
-                                        }
-                                        Ok(None) => {}
-                                        Err(_) => {
-                                            self.decline(response);
-                                        }
-                                    }
-
-                                    response_str.push_str("; ");
-                                    response_str.push_str(&format!(
-                                        "client_max_window_bits={}",
-                                        self.config.max_window_bits()
-                                    ))
-                                }
-                            }
-                            _ => {
-                                self.decline(response);
-                            }
-                        }
-                    }
-
-                    if !response_str.contains("client_no_context_takeover")
-                        && self.config.request_no_context_takeover()
-                    {
-                        self.config.decompress_reset = true;
-                        response_str.push_str("; client_no_context_takeover");
-                    }
-
-                    if !response_str.contains("server_max_window_bits") {
-                        response_str.push_str("; ");
-                        response_str.push_str(&format!(
-                            "server_max_window_bits={}",
-                            self.config.max_window_bits()
-                        ))
-                    }
-
-                    if !response_str.contains("client_max_window_bits")
-                        && self.config.max_window_bits() < LZ77_MAX_WINDOW_SIZE
-                    {
-                        continue;
-                    }
-
-                    response.headers_mut().insert(
-                        SEC_WEBSOCKET_EXTENSIONS,
-                        HeaderValue::from_str(&response_str)?,
-                    );
-
-                    self.enabled = true;
-
-                    Ok(())
-                }
-                Err(e) => {
-                    self.enabled = false;
-                    Err(DeflateExtensionError::NegotiationError(format!(
-                        "Failed to parse request header: {}",
-                        e,
-                    )))
-                }
-            };
-        }
-
-        self.decline(response);
-        Ok(())
-    }
-
-    fn on_response<T>(&mut self, response: &Response<T>) -> Result<(), Self::Error> {
-        let mut extension_name = false;
-        let mut server_takeover = false;
-        let mut client_takeover = false;
-        let mut server_max_window_bits = false;
-        let mut client_max_window_bits = false;
-
-        for header in response.headers().get_all(SEC_WEBSOCKET_EXTENSIONS).iter() {
-            match header.to_str() {
-                Ok(header) => {
-                    for param in header.split(';') {
-                        match param.trim().to_lowercase().as_str() {
-                            "permessage-deflate" => {
-                                if extension_name {
-                                    return Err(DeflateExtensionError::NegotiationError(format!(
-                                        "Duplicate extension parameter: permessage-deflate"
-                                    )));
-                                } else {
-                                    self.enabled = true;
-                                    extension_name = true;
-                                }
-                            }
-                            "server_no_context_takeover" => {
-                                if server_takeover {
-                                    return Err(DeflateExtensionError::NegotiationError(format!(
-                                        "Duplicate extension parameter: server_no_context_takeover"
-                                    )));
-                                } else {
-                                    server_takeover = true;
-                                    self.config.decompress_reset = true;
-                                }
-                            }
-                            "client_no_context_takeover" => {
-                                if client_takeover {
-                                    return Err(DeflateExtensionError::NegotiationError(format!(
-                                        "Duplicate extension parameter: client_no_context_takeover"
-                                    )));
-                                } else {
-                                    client_takeover = true;
-
-                                    if self.config.accept_no_context_takeover() {
-                                        self.config.compress_reset = true;
-                                    } else {
-                                        return Err(DeflateExtensionError::NegotiationError(
-                                            format!("The client requires context takeover."),
-                                        ));
-                                    }
-                                }
-                            }
-                            param if param.starts_with("server_max_window_bits") => {
-                                if server_max_window_bits {
-                                    return Err(DeflateExtensionError::NegotiationError(format!(
-                                        "Duplicate extension parameter: server_max_window_bits"
-                                    )));
-                                } else {
-                                    server_max_window_bits = true;
-
-                                    match self.parse_window_parameter(param.split("=").skip(1)) {
-                                        Ok(Some(bits)) => {
-                                            self.inflator = Inflator::new_with_window_bits(bits);
-                                        }
-                                        Ok(None) => {}
-                                        Err(e) => {
-                                            return Err(DeflateExtensionError::NegotiationError(
-                                                format!(
-                                                    "server_max_window_bits parameter error: {}",
-                                                    e
-                                                ),
-                                            ))
-                                        }
-                                    }
-                                }
-                            }
-                            param if param.starts_with("client_max_window_bits") => {
-                                if client_max_window_bits {
-                                    return Err(DeflateExtensionError::NegotiationError(format!(
-                                        "Duplicate extension parameter: client_max_window_bits"
-                                    )));
-                                } else {
-                                    client_max_window_bits = true;
-
-                                    match self.parse_window_parameter(param.split("=").skip(1)) {
-                                        Ok(Some(bits)) => {
-                                            self.deflator = Deflator::new_with_window_bits(
-                                                self.config.compression_level,
-                                                bits,
-                                            );
-                                        }
-                                        Ok(None) => {}
-                                        Err(e) => {
-                                            return Err(DeflateExtensionError::NegotiationError(
-                                                format!(
-                                                    "client_max_window_bits parameter error: {}",
-                                                    e
-                                                ),
-                                            ))
-                                        }
-                                    }
-                                }
-                            }
-                            p => {
-                                return Err(DeflateExtensionError::NegotiationError(format!(
-                                    "Unknown permessage-deflate parameter: {}",
-                                    p
-                                )));
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    self.enabled = false;
-                    return Err(DeflateExtensionError::NegotiationError(format!(
-                        "Failed to parse extension parameter: {}",
-                        e
-                    )));
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn on_send_frame(&mut self, mut frame: Frame) -> Result<Frame, Self::Error> {
+    fn on_send_frame(&mut self, mut frame: Frame) -> Result<Frame, crate::Error> {
         if self.enabled {
             if let OpCode::Data(_) = frame.header().opcode {
                 let mut compressed = Vec::with_capacity(frame.payload().len());
@@ -640,7 +642,7 @@ impl WebSocketExtension for DeflateExt {
         Ok(frame)
     }
 
-    fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Message>, Self::Error> {
+    fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Message>, crate::Error> {
         let r = if self.enabled && (!self.fragment_buffer.is_empty() || frame.header().rsv1) {
             if !frame.header().is_final {
                 self.fragment_buffer
@@ -696,20 +698,20 @@ impl WebSocketExtension for DeflateExt {
 
         match r {
             Ok(msg) => Ok(msg),
-            Err(e) => Err(DeflateExtensionError::DeflateError(e.to_string())),
+            Err(e) => Err(crate::Error::ExtensionError(e.to_string().into())),
         }
     }
 }
 
-impl From<DecompressError> for DeflateExtensionError {
+impl From<DecompressError> for crate::Error {
     fn from(e: DecompressError) -> Self {
-        DeflateExtensionError::InflateError(e.to_string())
+        crate::Error::ExtensionError(e.to_string().into())
     }
 }
 
-impl From<CompressError> for DeflateExtensionError {
+impl From<CompressError> for crate::Error {
     fn from(e: CompressError) -> Self {
-        DeflateExtensionError::DeflateError(e.to_string())
+        crate::Error::ExtensionError(e.to_string().into())
     }
 }
 
@@ -719,13 +721,7 @@ struct Deflator {
 }
 
 impl Deflator {
-    fn new(compresion: Compression) -> Deflator {
-        Deflator {
-            compress: Compress::new(compresion, false),
-        }
-    }
-
-    fn new_with_window_bits(compression: Compression, mut window_size: u8) -> Deflator {
+    fn new(compression: Compression, mut window_size: u8) -> Deflator {
         // https://github.com/madler/zlib/blob/cacf7f1d4e3d44d871b605da3b647f07d718623f/deflate.c#L303
         if window_size == 8 {
             window_size = 9;
@@ -790,13 +786,7 @@ struct Inflator {
 }
 
 impl Inflator {
-    fn new() -> Inflator {
-        Inflator {
-            decompress: Decompress::new(false),
-        }
-    }
-
-    fn new_with_window_bits(mut window_size: u8) -> Inflator {
+    fn new(mut window_size: u8) -> Inflator {
         // https://github.com/madler/zlib/blob/cacf7f1d4e3d44d871b605da3b647f07d718623f/deflate.c#L303
         if window_size == 8 {
             window_size = 9;
@@ -888,11 +878,10 @@ impl FragmentBuffer {
         *fragments_len += frame.payload().len();
 
         if *fragments_len > *max_len || frame.len() > *max_len - *fragments_len {
-            return Err(format!(
+            Err(format!(
                 "Message too big: {} + {} > {}",
                 fragments_len, fragments_len, max_len
-            )
-            .into());
+            ))
         } else {
             fragments.push(frame);
             Ok(())

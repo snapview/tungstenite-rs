@@ -2,8 +2,8 @@ use crate::extensions::WebSocketExtension;
 use crate::protocol::frame::coding::{Data, OpCode};
 use crate::protocol::frame::Frame;
 use crate::protocol::message::{IncompleteMessage, IncompleteMessageType};
-use crate::{Error, Message};
 use crate::protocol::MAX_MESSAGE_SIZE;
+use crate::{Error, Message};
 
 /// An uncompressed message handler for a WebSocket.
 #[derive(Debug)]
@@ -16,7 +16,7 @@ impl Default for UncompressedExt {
     fn default() -> Self {
         UncompressedExt {
             incomplete: None,
-            max_message_size: Some(MAX_MESSAGE_SIZE)
+            max_message_size: Some(MAX_MESSAGE_SIZE),
         }
     }
 }
@@ -33,20 +33,7 @@ impl UncompressedExt {
 }
 
 impl WebSocketExtension for UncompressedExt {
-    type Error = Error;
-
-    fn new(max_message_size: Option<usize>) -> Self {
-        UncompressedExt {
-            incomplete: None,
-            max_message_size,
-        }
-    }
-
-    fn enabled(&self) -> bool {
-        true
-    }
-
-    fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Message>, Self::Error> {
+    fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Message>, crate::Error> {
         let fin = frame.header().is_final;
 
         let hdr = frame.header();
