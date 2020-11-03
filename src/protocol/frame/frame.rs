@@ -42,25 +42,41 @@ impl<'t> fmt::Display for CloseFrame<'t> {
 pub struct FrameHeader {
     /// Indicates that the frame is the last one of a possibly fragmented message.
     pub is_final: bool,
-    /// Reserved for protocol extensions.
-    pub rsv1: bool,
-    /// Reserved for protocol extensions.
-    pub rsv2: bool,
-    /// Reserved for protocol extensions.
-    pub rsv3: bool,
+    /// Reserved extension headers/bits.
+    pub ext_headers: ExtensionHeaders,
     /// WebSocket protocol opcode.
     pub opcode: OpCode,
     /// A frame mask, if any.
     pub mask: Option<[u8; 4]>,
 }
 
+/// A struct representing reserved extension headers from a WebSocket frame.
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone)]
+pub struct ExtensionHeaders {
+    /// Reserved for protocol extensions.
+    pub rsv1: bool,
+    /// Reserved for protocol extensions.
+    pub rsv2: bool,
+    /// Reserved for protocol extensions.
+    pub rsv3: bool,
+}
+
+impl Default for ExtensionHeaders {
+    fn default() -> Self {
+        ExtensionHeaders {
+            rsv1: false,
+            rsv2: false,
+            rsv3: false,
+        }
+    }
+}
+
 impl Default for FrameHeader {
     fn default() -> Self {
         FrameHeader {
             is_final: true,
-            rsv1: false,
-            rsv2: false,
-            rsv3: false,
+            ext_headers: Default::default(),
             opcode: OpCode::Control(Control::Close),
             mask: None,
         }
@@ -93,9 +109,9 @@ impl FrameHeader {
 
         let one = {
             code | if self.is_final { 0x80 } else { 0 }
-                | if self.rsv1 { 0x40 } else { 0 }
-                | if self.rsv2 { 0x20 } else { 0 }
-                | if self.rsv3 { 0x10 } else { 0 }
+                | if self.ext_headers.rsv1 { 0x40 } else { 0 }
+                | if self.ext_headers.rsv2 { 0x20 } else { 0 }
+                | if self.ext_headers.rsv3 { 0x10 } else { 0 }
         };
 
         let lenfmt = LengthFormat::for_length(length);
@@ -192,11 +208,10 @@ impl FrameHeader {
             _ => (),
         }
 
+        let ext_headers = ExtensionHeaders { rsv1, rsv2, rsv3 };
         let hdr = FrameHeader {
             is_final,
-            rsv1,
-            rsv2,
-            rsv3,
+            ext_headers,
             opcode,
             mask,
         };
@@ -381,6 +396,12 @@ impl Frame {
         output.write_all(self.payload())?;
         Ok(())
     }
+
+    /// Splits the frame into a tuple of its header and payload.
+    pub fn split(self) -> (FrameHeader, Vec<u8>) {
+        let Frame { header, payload } = self;
+        (header, payload)
+    }
 }
 
 impl fmt::Display for Frame {
@@ -397,9 +418,9 @@ payload length: {}
 payload: 0x{}
             ",
             self.header.is_final,
-            self.header.rsv1,
-            self.header.rsv2,
-            self.header.rsv3,
+            self.header.ext_headers.rsv1,
+            self.header.ext_headers.rsv2,
+            self.header.ext_headers.rsv3,
             self.header.opcode,
             // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
             self.len(),

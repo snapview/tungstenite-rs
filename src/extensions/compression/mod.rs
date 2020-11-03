@@ -4,7 +4,8 @@
 use crate::extensions::compression::deflate::{DeflateConfig, DeflateExt};
 use crate::extensions::compression::uncompressed::UncompressedExt;
 use crate::extensions::WebSocketExtension;
-use crate::protocol::frame::Frame;
+use crate::protocol::frame::coding::Data;
+use crate::protocol::frame::{ExtensionHeaders, Frame};
 use crate::protocol::WebSocketConfig;
 use crate::Message;
 use http::{Request, Response};
@@ -88,11 +89,21 @@ impl WebSocketExtension for CompressionSwitcher {
         }
     }
 
-    fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Message>, crate::Error> {
+    fn on_receive_frame(
+        &mut self,
+        data_opcode: Data,
+        is_final: bool,
+        header: ExtensionHeaders,
+        payload: Vec<u8>,
+    ) -> Result<Option<Message>, crate::Error> {
         match self {
-            CompressionSwitcher::Uncompressed(ext) => ext.on_receive_frame(frame),
+            CompressionSwitcher::Uncompressed(ext) => {
+                ext.on_receive_frame(data_opcode, is_final, header, payload)
+            }
             #[cfg(feature = "deflate")]
-            CompressionSwitcher::Compressed(ext) => ext.on_receive_frame(frame),
+            CompressionSwitcher::Compressed(ext) => {
+                ext.on_receive_frame(data_opcode, is_final, header, payload)
+            }
         }
     }
 }
@@ -128,8 +139,7 @@ pub fn verify_compression_resp_headers<T>(
                 match result {
                     Ok(true) => Ok(()),
                     Ok(false) => {
-                        config.compression =
-                            WsCompression::None(Some(deflate_config.max_message_size()));
+                        config.compression = WsCompression::None(deflate_config.max_message_size());
                         Ok(())
                     }
                     Err(e) => Err(e),
@@ -151,8 +161,17 @@ pub fn verify_compression_req_headers<T>(
             WsCompression::None(_) => Ok(()),
             #[cfg(feature = "deflate")]
             WsCompression::Deflate(ref mut deflate_config) => {
-                deflate::on_receive_request(_request, _response, deflate_config)
-                    .map_err(|e| CompressionError(e.to_string()))
+                let result = deflate::on_receive_request(_request, _response, deflate_config)
+                    .map_err(|e| CompressionError(e.to_string()));
+
+                match result {
+                    Ok(true) => Ok(()),
+                    Ok(false) => {
+                        config.compression = WsCompression::None(deflate_config.max_message_size());
+                        Ok(())
+                    }
+                    Err(e) => Err(e),
+                }
             }
         },
         None => Ok(()),

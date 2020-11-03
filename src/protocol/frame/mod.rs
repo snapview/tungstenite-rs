@@ -7,7 +7,7 @@ mod frame;
 mod mask;
 
 pub use self::frame::CloseFrame;
-pub use self::frame::{Frame, FrameHeader};
+pub use self::frame::{ExtensionHeaders, Frame, FrameHeader};
 
 use crate::error::{Error, Result};
 use input_buffer::{InputBuffer, MIN_READ};

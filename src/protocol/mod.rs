@@ -489,7 +489,15 @@ impl WebSocketContext {
                         OpCtl::Pong => Ok(Some(Message::Pong(frame.into_data()))),
                     }
                 }
-                _ => self.decoder.on_receive_frame(frame),
+                OpCode::Data(data) => {
+                    let (header, payload) = frame.split();
+                    self.decoder.on_receive_frame(
+                        data,
+                        header.is_final,
+                        header.ext_headers,
+                        payload,
+                    )
+                }
             }
         } else {
             // Connection closed by peer

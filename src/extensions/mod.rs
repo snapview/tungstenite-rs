@@ -2,7 +2,8 @@
 
 pub mod compression;
 
-use crate::protocol::frame::Frame;
+use crate::protocol::frame::coding::Data;
+use crate::protocol::frame::{ExtensionHeaders, Frame};
 use crate::Message;
 
 /// A trait for defining WebSocket extensions for both WebSocket clients and servers. Extensions
@@ -15,5 +16,11 @@ pub trait WebSocketExtension {
 
     /// Called when a frame has been received and unmasked. The frame provided frame will be of the
     /// type `OpCode::Data`.
-    fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Message>, crate::Error>;
+    fn on_receive_frame(
+        &mut self,
+        data_opcode: Data,
+        is_final: bool,
+        header: ExtensionHeaders,
+        payload: Vec<u8>,
+    ) -> Result<Option<Message>, crate::Error>;
 }

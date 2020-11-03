@@ -5,7 +5,8 @@ use std::fmt::{Display, Formatter};
 use crate::extensions::compression::uncompressed::UncompressedExt;
 use crate::extensions::WebSocketExtension;
 use crate::protocol::frame::coding::{Data, OpCode};
-use crate::protocol::frame::Frame;
+use crate::protocol::frame::{ExtensionHeaders, Frame};
+use crate::protocol::message::{IncompleteMessage, IncompleteMessageType};
 use crate::protocol::MAX_MESSAGE_SIZE;
 use crate::Message;
 use bytes::BufMut;
@@ -35,7 +36,7 @@ const LZ77_MAX_WINDOW_SIZE: u8 = 15;
 pub struct DeflateConfig {
     /// The maximum size of a message. The default value is 64 MiB which should be reasonably big
     /// for all normal use-cases but small enough to prevent memory eating by a malicious user.
-    max_message_size: usize,
+    max_message_size: Option<usize>,
     /// The client's LZ77 sliding window size. Negotiated during the HTTP upgrade. In client mode,
     /// this conforms to RFC 7692 7.1.2.1. In server mode, this conforms to RFC 7692 7.1.2.2. Must
     /// be in range 8..15 inclusive.
@@ -68,7 +69,7 @@ impl DeflateConfig {
     }
 
     /// Returns the maximum message size permitted.
-    pub fn max_message_size(&self) -> usize {
+    pub fn max_message_size(&self) -> Option<usize> {
         self.max_message_size
     }
 
@@ -109,7 +110,7 @@ impl DeflateConfig {
 
     /// Sets the maximum message size permitted.
     pub fn set_max_message_size(&mut self, max_message_size: Option<usize>) {
-        self.max_message_size = max_message_size.unwrap_or_else(usize::max_value);
+        self.max_message_size = max_message_size;
     }
 
     /// Sets the LZ77 sliding window size.
@@ -132,7 +133,7 @@ impl DeflateConfig {
 impl Default for DeflateConfig {
     fn default() -> Self {
         DeflateConfig {
-            max_message_size: MAX_MESSAGE_SIZE,
+            max_message_size: Some(MAX_MESSAGE_SIZE),
             server_max_window_bits: LZ77_MAX_WINDOW_SIZE,
             client_max_window_bits: LZ77_MAX_WINDOW_SIZE,
             request_no_context_takeover: false,
@@ -218,7 +219,7 @@ impl DeflateConfigBuilder {
     /// Consumes the builder and produces a `DeflateConfig.`
     pub fn build(self) -> DeflateConfig {
         DeflateConfig {
-            max_message_size: self.max_message_size.unwrap_or_else(usize::max_value),
+            max_message_size: self.max_message_size,
             server_max_window_bits: self.server_max_window_bits,
             client_max_window_bits: self.client_max_window_bits,
             request_no_context_takeover: self.request_no_context_takeover,
@@ -252,7 +253,7 @@ impl DeflateExt {
             fragment_buffer: FragmentBuffer::new(config.max_message_size),
             inflator: Inflator::new(config.server_max_window_bits),
             deflator: Deflator::new(config.compression_level, config.client_max_window_bits),
-            uncompressed_extension: UncompressedExt::new(Some(config.max_message_size())),
+            uncompressed_extension: UncompressedExt::new(config.max_message_size()),
         }
     }
 }
@@ -492,7 +493,9 @@ pub fn on_receive_request<T>(
     request: &Request<T>,
     response: &mut Response<T>,
     config: &mut DeflateConfig,
-) -> Result<(), DeflateExtensionError> {
+) -> Result<bool, DeflateExtensionError> {
+    let mut enabled = false;
+
     for header in request.headers().get_all(SEC_WEBSOCKET_EXTENSIONS) {
         return match header.to_str() {
             Ok(header) => {
@@ -504,7 +507,10 @@ pub fn on_receive_request<T>(
 
                 for param in header.split(';') {
                     match param.trim().to_lowercase().as_str() {
-                        "permessage-deflate" => response_str.push_str("permessage-deflate"),
+                        "permessage-deflate" => {
+                            enabled = true;
+                            response_str.push_str("permessage-deflate");
+                        }
                         "server_no_context_takeover" => {
                             if server_takeover {
                                 decline(response);
@@ -610,7 +616,7 @@ pub fn on_receive_request<T>(
                     HeaderValue::from_str(&response_str)?,
                 );
 
-                Ok(())
+                Ok(enabled)
             }
             Err(e) => Err(DeflateExtensionError::NegotiationError(format!(
                 "Failed to parse request header: {}",
@@ -620,7 +626,7 @@ pub fn on_receive_request<T>(
     }
 
     decline(response);
-    Ok(())
+    Ok(false)
 }
 
 impl std::error::Error for DeflateExtensionError {}
@@ -653,7 +659,7 @@ impl WebSocketExtension for DeflateExt {
             compressed.truncate(len - 4);
 
             *frame.payload_mut() = compressed;
-            frame.header_mut().rsv1 = true;
+            frame.header_mut().ext_headers.rsv1 = true;
 
             if self.config.compress_reset() {
                 self.deflator.reset();
@@ -663,39 +669,46 @@ impl WebSocketExtension for DeflateExt {
         Ok(frame)
     }
 
-    fn on_receive_frame(&mut self, frame: Frame) -> Result<Option<Message>, crate::Error> {
-        if !self.fragment_buffer.is_empty() || frame.header().rsv1 {
-            if !frame.header().is_final {
-                self.fragment_buffer
-                    .try_push_frame(frame)
-                    .map_err(|s| DeflateExtensionError::Capacity(s.into()))?;
+    fn on_receive_frame(
+        &mut self,
+        data_opcode: Data,
+        is_final: bool,
+        header: ExtensionHeaders,
+        payload: Vec<u8>,
+    ) -> Result<Option<Message>, crate::Error> {
+        if !self.fragment_buffer.is_empty() || header.rsv1 {
+            if !is_final {
+                self.fragment_buffer.try_push(data_opcode, payload)?;
                 Ok(None)
             } else {
                 let mut compressed = if self.fragment_buffer.is_empty() {
-                    Vec::with_capacity(frame.payload().len())
+                    Vec::with_capacity(payload.len())
                 } else {
-                    Vec::with_capacity(self.fragment_buffer.len() + frame.payload().len())
+                    Vec::with_capacity(self.fragment_buffer.len() + payload.len())
                 };
 
-                let mut decompressed = Vec::with_capacity(frame.payload().len() * 2);
+                let mut decompressed = Vec::with_capacity(payload.len() * 2);
 
-                let opcode = match frame.header().opcode {
-                    OpCode::Data(Data::Continue) => {
-                        self.fragment_buffer
-                            .try_push_frame(frame)
-                            .map_err(|s| DeflateExtensionError::Capacity(s.into()))?;
+                let message_type = match data_opcode {
+                    Data::Continue => {
+                        self.fragment_buffer.try_push(data_opcode, payload)?;
+                        let (opcode, payload) = self.fragment_buffer.reset();
 
-                        let opcode = self.fragment_buffer.first().unwrap().header().opcode;
-
-                        self.fragment_buffer.reset().into_iter().for_each(|f| {
-                            compressed.extend(f.into_data());
-                        });
-
+                        decompressed = payload;
                         opcode
                     }
-                    _ => {
-                        compressed.put_slice(frame.payload());
-                        frame.header().opcode
+                    Data::Binary => {
+                        compressed.put_slice(payload.as_slice());
+                        IncompleteMessageType::Binary
+                    }
+                    Data::Text => {
+                        compressed.put_slice(payload.as_slice());
+                        IncompleteMessageType::Text
+                    }
+                    Data::Reserved(_) => {
+                        return Err(crate::Error::ExtensionError(
+                            "Unexpected reserved frame received".into(),
+                        ))
                     }
                 };
 
@@ -707,14 +720,14 @@ impl WebSocketExtension for DeflateExt {
                     self.inflator.reset(false);
                 }
 
-                self.uncompressed_extension.on_receive_frame(Frame::message(
-                    decompressed,
-                    opcode,
-                    true,
-                ))
+                let mut msg = IncompleteMessage::new(message_type);
+                msg.extend(decompressed.as_slice(), self.config.max_message_size)?;
+
+                Ok(Some(msg.complete()?))
             }
         } else {
-            self.uncompressed_extension.on_receive_frame(frame)
+            self.uncompressed_extension
+                .on_receive_frame(data_opcode, is_final, header, payload)
         }
     }
 }
@@ -867,46 +880,72 @@ impl Inflator {
 /// Defaults to an initial capacity of ten frames.
 #[derive(Debug)]
 struct FragmentBuffer {
-    fragments: Vec<Frame>,
-    fragments_len: usize,
-    max_len: usize,
+    frame_opcode: Option<IncompleteMessageType>,
+    fragments: Vec<u8>,
+    max_len: Option<usize>,
 }
 
 impl FragmentBuffer {
     /// Creates a new fragment buffer that will permit a maximum length of `max_len`.
-    fn new(max_len: usize) -> FragmentBuffer {
+    fn new(max_len: Option<usize>) -> FragmentBuffer {
         FragmentBuffer {
-            fragments: Vec::with_capacity(10),
-            fragments_len: 0,
+            frame_opcode: None,
+            fragments: Vec::new(),
             max_len,
         }
     }
 
     /// Attempts to push a frame into the buffer. This will fail if the new length of the buffer's
     /// frames exceeds the maximum capacity of `max_len`.
-    fn try_push_frame(&mut self, frame: Frame) -> Result<(), String> {
+    fn try_push(&mut self, opcode: Data, payload: Vec<u8>) -> Result<(), DeflateExtensionError> {
         let FragmentBuffer {
             fragments,
-            fragments_len,
             max_len,
+            frame_opcode,
         } = self;
 
-        *fragments_len += frame.payload().len();
+        if fragments.is_empty() {
+            let ty = match opcode {
+                Data::Text => IncompleteMessageType::Text,
+                Data::Binary => IncompleteMessageType::Binary,
+                opc => {
+                    return Err(DeflateExtensionError::Capacity(
+                        format!("Expected a text or binary frame but received: {}", opc).into(),
+                    ))
+                }
+            };
 
-        if *fragments_len > *max_len || frame.len() > *max_len - *fragments_len {
-            Err(format!(
-                "Message too big: {} + {} > {}",
-                fragments_len, fragments_len, max_len
-            ))
-        } else {
-            fragments.push(frame);
-            Ok(())
+            *frame_opcode = Some(ty);
+        }
+
+        match max_len {
+            Some(max_len) => {
+                let mut fragments_len = fragments.len();
+                fragments_len += payload.len();
+
+                if fragments_len > *max_len || payload.len() > *max_len - fragments_len {
+                    return Err(DeflateExtensionError::Capacity(
+                        format!(
+                            "Message too big: {} + {} > {}",
+                            fragments_len, fragments_len, max_len
+                        )
+                        .into(),
+                    ));
+                } else {
+                    fragments.extend(payload);
+                    Ok(())
+                }
+            }
+            None => {
+                fragments.extend(payload);
+                Ok(())
+            }
         }
     }
 
-    /// Returns the total length of all of the frames that have been pushed into the buffer.
+    /// Returns the total length of all of the payloads that have been pushed into the buffer.
     fn len(&self) -> usize {
-        self.fragments_len
+        self.fragments.len()
     }
 
     /// Returns whether the buffer is empty.
@@ -914,14 +953,14 @@ impl FragmentBuffer {
         self.fragments.is_empty()
     }
 
-    /// Returns the first element of the fragments slice, or `None` if it is empty.
-    fn first(&self) -> Option<&Frame> {
-        self.fragments.first()
-    }
-
-    /// Drains the buffer and resets it to an initial capacity of 10 elements.
-    fn reset(&mut self) -> Vec<Frame> {
-        self.fragments_len = 0;
-        replace(&mut self.fragments, Vec::with_capacity(10))
+    /// Drains the buffer. Returning the message's opcode and its payload.
+    fn reset(&mut self) -> (IncompleteMessageType, Vec<u8>) {
+        let payloads = replace(&mut self.fragments, Vec::new());
+        (
+            self.frame_opcode
+                .take()
+                .expect("Inconsistent state: missing opcode"),
+            payloads,
+        )
     }
 }
