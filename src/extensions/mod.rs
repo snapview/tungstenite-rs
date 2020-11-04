@@ -14,8 +14,7 @@ pub trait WebSocketExtension {
         Ok(frame)
     }
 
-    /// Called when a frame has been received and unmasked. The frame provided frame will be of the
-    /// type `OpCode::Data`.
+    /// Called when a WebSocket frame has been received.
     fn on_receive_frame(
         &mut self,
         data_opcode: Data,

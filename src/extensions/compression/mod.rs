@@ -117,7 +117,7 @@ pub fn build_compression_headers<T>(
         Some(ref mut config) => match &config.compression {
             WsCompression::None(_) => request,
             #[cfg(feature = "deflate")]
-            WsCompression::Deflate(config) => deflate::on_request(request, config),
+            WsCompression::Deflate(config) => deflate::on_make_request(request, config),
         },
         None => request,
     }
