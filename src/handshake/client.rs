@@ -11,7 +11,7 @@ use super::headers::{FromHttparse, MAX_HEADERS};
 use super::machine::{HandshakeMachine, StageResult, TryParse};
 use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
 use crate::error::{Error, Result};
-use crate::extensions::compression::{build_compression_headers, verify_compression_resp_headers};
+use crate::extensions::compression::{apply_compression_headers, verify_compression_resp_headers};
 use crate::protocol::{Role, WebSocket, WebSocketConfig};
 
 /// Client request type.
@@ -115,7 +115,7 @@ fn generate_request(
     key: &str,
     config: &mut Option<WebSocketConfig>,
 ) -> Result<Vec<u8>> {
-    let request = build_compression_headers(request, config);
+    let request = apply_compression_headers(request, config);
     let mut req = Vec::new();
     let uri = request.uri();
 

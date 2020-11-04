@@ -128,6 +128,16 @@ impl DeflateConfig {
     pub fn set_accept_no_context_takeover(&mut self, accept_no_context_takeover: bool) {
         self.accept_no_context_takeover = accept_no_context_takeover;
     }
+
+    #[cfg(test)]
+    pub fn set_compress_reset(&mut self, compress_reset: bool) {
+        self.compress_reset = compress_reset
+    }
+
+    #[cfg(test)]
+    pub fn set_decompress_reset(&mut self, decompress_reset: bool) {
+        self.decompress_reset = decompress_reset;
+    }
 }
 
 impl Default for DeflateConfig {
@@ -179,7 +189,7 @@ impl DeflateConfigBuilder {
     }
 
     /// Sets the server's LZ77 sliding window size. Panics if the provided size is not in `8..=15`.
-    pub fn servers_max_window_bits(mut self, max_window_bits: u8) -> DeflateConfigBuilder {
+    pub fn server_max_window_bits(mut self, max_window_bits: u8) -> DeflateConfigBuilder {
         assert!(
             (LZ77_MIN_WINDOW_SIZE..=LZ77_MAX_WINDOW_SIZE).contains(&max_window_bits),
             "max window bits must be in range 8..=15"
@@ -259,28 +269,23 @@ impl DeflateExt {
 }
 
 fn parse_window_parameter<'a>(
-    mut param_iter: impl Iterator<Item = &'a str>,
+    window_param: &str,
     max_window_bits: u8,
-) -> Result<Option<u8>, String> {
-    if let Some(window_bits_str) = param_iter.next() {
-        let window_bits_str = window_bits_str.replace("\"", "");
-
-        match window_bits_str.trim().parse() {
-            Ok(window_bits) => {
-                if window_bits >= LZ77_MIN_WINDOW_SIZE && window_bits <= LZ77_MAX_WINDOW_SIZE {
-                    if window_bits != max_window_bits {
-                        Ok(Some(window_bits))
-                    } else {
-                        Ok(None)
-                    }
+) -> Result<Option<u8>, DeflateExtensionError> {
+    let window_param = window_param.replace("\"", "");
+    match window_param.trim().parse() {
+        Ok(window_bits) => {
+            if window_bits >= LZ77_MIN_WINDOW_SIZE && window_bits <= LZ77_MAX_WINDOW_SIZE {
+                if window_bits != max_window_bits {
+                    Ok(Some(window_bits))
                 } else {
-                    Err(format!("Invalid window parameter: {}", window_bits))
+                    Ok(None)
                 }
+            } else {
+                Err(DeflateExtensionError::InvalidMaxWindowBits)
             }
-            Err(e) => Err(e.to_string()),
         }
-    } else {
-        Ok(None)
+        Err(_) => Err(DeflateExtensionError::InvalidMaxWindowBits),
     }
 }
 
@@ -295,6 +300,8 @@ pub enum DeflateExtensionError {
     NegotiationError(String),
     /// Produced when fragment buffer grew beyond the maximum configured size.
     Capacity(Cow<'static, str>),
+    /// An invalid LZ77 window size was provided.
+    InvalidMaxWindowBits,
 }
 
 impl DeflateExtensionError {
@@ -316,11 +323,17 @@ impl Display for DeflateExtensionError {
                 write!(f, "An upgrade error was encountered: {}", m)
             }
             DeflateExtensionError::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
+            DeflateExtensionError::InvalidMaxWindowBits => {
+                write!(f, "An invalid window bit size was provided")
+            }
         }
     }
 }
 
-///
+/// Verifies any required Sec-WebSocket-Extension headers required for the configured compression
+/// level from the HTTP response. Returns `Ok(true)` if a configuration could be agreed, `Ok(false)`
+/// if the HTTP header was well formatted but no configuration could be agreed, or an error if it
+/// was malformatted.
 pub fn on_response<T>(
     response: &Response<T>,
     config: &mut DeflateConfig,
@@ -392,21 +405,18 @@ pub fn on_response<T>(
                             } else {
                                 seen_server_max_window_bits = true;
 
-                                match parse_window_parameter(
-                                    param.split("=").skip(1),
-                                    *server_max_window_bits,
-                                ) {
-                                    Ok(Some(bits)) => {
-                                        *server_max_window_bits = bits;
+                                let mut window_param = param.split("=").skip(1);
+                                match window_param.next() {
+                                    Some(window_param) => {
+                                        if let Some(bits) = parse_window_parameter(
+                                            window_param,
+                                            *server_max_window_bits,
+                                        )? {
+                                            *server_max_window_bits = bits;
+                                        }
                                     }
-                                    Ok(None) => {}
-                                    Err(e) => {
-                                        return Err(DeflateExtensionError::NegotiationError(
-                                            format!(
-                                                "server_max_window_bits parameter error: {}",
-                                                e
-                                            ),
-                                        ))
+                                    None => {
+                                        return Err(DeflateExtensionError::InvalidMaxWindowBits)
                                     }
                                 }
                             }
@@ -419,21 +429,13 @@ pub fn on_response<T>(
                             } else {
                                 seen_client_max_window_bits = true;
 
-                                match parse_window_parameter(
-                                    param.split("=").skip(1),
-                                    *client_max_window_bits,
-                                ) {
-                                    Ok(Some(bits)) => {
+                                let mut window_param = param.split("=").skip(1);
+                                if let Some(window_param) = window_param.next() {
+                                    if let Some(bits) = parse_window_parameter(
+                                        window_param,
+                                        *client_max_window_bits,
+                                    )? {
                                         *client_max_window_bits = bits;
-                                    }
-                                    Ok(None) => {}
-                                    Err(e) => {
-                                        return Err(DeflateExtensionError::NegotiationError(
-                                            format!(
-                                                "client_max_window_bits parameter error: {}",
-                                                e
-                                            ),
-                                        ))
                                     }
                                 }
                             }
@@ -459,7 +461,7 @@ pub fn on_response<T>(
     Ok(enabled)
 }
 
-///
+/// Applies the required headers to negotiate this PCME.
 pub fn on_make_request<T>(mut request: Request<T>, config: &DeflateConfig) -> Request<T> {
     let mut header_value = String::from(EXT_IDENT);
 
@@ -542,19 +544,19 @@ fn validate_req_extensions(
                 } else {
                     server_max_bits = true;
 
-                    match parse_window_parameter(
-                        param.split('=').skip(1),
-                        config.server_max_window_bits,
-                    ) {
-                        Ok(Some(bits)) => {
-                            config.server_max_window_bits = bits;
-
-                            response_str.push_str("; ");
-                            response_str.push_str(param)
+                    let mut window_param = param.split("=").skip(1);
+                    match window_param.next() {
+                        Some(window_param) => {
+                            if let Some(bits) =
+                                parse_window_parameter(window_param, config.server_max_window_bits)?
+                            {
+                                config.server_max_window_bits = bits;
+                            }
                         }
-                        Ok(None) => {}
-                        Err(_) => {
-                            return Err(DeflateExtensionError::malformatted());
+                        None => {
+                            // If the client specifies 'server_max_window_bits' then a value must
+                            // be provided.
+                            return Err(DeflateExtensionError::InvalidMaxWindowBits);
                         }
                     }
                 }
@@ -565,20 +567,15 @@ fn validate_req_extensions(
                 } else {
                     client_max_bits = true;
 
-                    match parse_window_parameter(
-                        param.split('=').skip(1),
-                        config.client_max_window_bits,
-                    ) {
-                        Ok(Some(bits)) => {
+                    let mut window_param = param.split("=").skip(1);
+                    if let Some(window_param) = window_param.next() {
+                        // Absence of this parameter in an extension negotiation offer indicates
+                        // that the client can receive messages compressed using an LZ77 sliding
+                        // window of up to 32,768 bytes.
+                        if let Some(bits) =
+                            parse_window_parameter(window_param, config.client_max_window_bits)?
+                        {
                             config.client_max_window_bits = bits;
-                            response_str.push_str("; ");
-                            response_str.push_str(param);
-
-                            continue;
-                        }
-                        Ok(None) => {}
-                        Err(_) => {
-                            return Err(DeflateExtensionError::malformatted());
                         }
                     }
 
@@ -620,7 +617,9 @@ fn validate_req_extensions(
     Ok(Some(response_str))
 }
 
-///
+/// Verifies any required Sec-WebSocket-Extension headers in the HTTP request and updates the
+/// response. Returns `Ok(true)` if a configuration could be agreed, `Ok(false)` if the HTTP header
+/// was well formatted but no configuration could be agreed, or an error if it was malformatted.
 pub fn on_receive_request<T>(
     request: &Request<T>,
     response: &mut Response<T>,
@@ -994,221 +993,5 @@ impl FragmentBuffer {
                 .expect("Inconsistent state: missing opcode"),
             payloads,
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::extensions::compression::deflate::{
-        on_receive_request, DeflateConfig, DeflateExtensionError, LZ77_MIN_WINDOW_SIZE,
-    };
-    use http::header::SEC_WEBSOCKET_EXTENSIONS;
-    use http::{HeaderValue, Request, Response};
-
-    #[test]
-    fn config_unchanged_on_err() {
-        let s ="permessage-deflate; unknown_parameter=\"invalid\"; client_no_context_takeover; client_max_window_bits; server_no_context_takeover; server_max_window_bits=\"80000\"";
-        let mut request = Request::new(());
-        request
-            .headers_mut()
-            .insert(SEC_WEBSOCKET_EXTENSIONS, HeaderValue::from_static(s));
-
-        let mut response = Response::new(());
-        let initial_config = DeflateConfig {
-            max_message_size: None,
-            server_max_window_bits: 10,
-            client_max_window_bits: 11,
-            request_no_context_takeover: false,
-            accept_no_context_takeover: true,
-            compress_reset: false,
-            decompress_reset: false,
-            compression_level: Default::default(),
-        };
-
-        let mut parsed_config = initial_config.clone();
-
-        let r = on_receive_request(&request, &mut response, &mut parsed_config);
-
-        assert_eq!(
-            r,
-            Err(DeflateExtensionError::NegotiationError(
-                "Unknown permessage-deflate parameter: unknown_parameter=\"invalid\"".into()
-            ))
-        );
-        assert_eq!(initial_config, parsed_config);
-    }
-
-    #[test]
-    fn config_unchanged_on_mismatch() {
-        let s ="permessage-deflate; unknown_parameter=\"invalid\"; client_no_context_takeover; server_no_context_takeover";
-        let mut request = Request::new(());
-        request
-            .headers_mut()
-            .insert(SEC_WEBSOCKET_EXTENSIONS, HeaderValue::from_static(s));
-
-        let mut response = Response::new(());
-        let initial_config = DeflateConfig {
-            max_message_size: None,
-            server_max_window_bits: 10,
-            client_max_window_bits: LZ77_MIN_WINDOW_SIZE,
-            request_no_context_takeover: false,
-            accept_no_context_takeover: true,
-            compress_reset: false,
-            decompress_reset: false,
-            compression_level: Default::default(),
-        };
-
-        let mut parsed_config = initial_config.clone();
-
-        let r = on_receive_request(&request, &mut response, &mut parsed_config);
-
-        assert_eq!(
-            r,
-            Err(DeflateExtensionError::NegotiationError(
-                "Unknown permessage-deflate parameter: unknown_parameter=\"invalid\"".into()
-            ))
-        );
-        assert_eq!(initial_config, parsed_config);
-    }
-
-    #[test]
-    fn parses_named_parameters() {
-        let s ="permessage-deflate; client_no_context_takeover; client_max_window_bits; server_no_context_takeover; server_max_window_bits=\"8\"";
-        let mut request = Request::new(());
-        request
-            .headers_mut()
-            .insert(SEC_WEBSOCKET_EXTENSIONS, HeaderValue::from_static(s));
-
-        let mut response = Response::new(());
-        let mut parsed_config = DeflateConfig {
-            max_message_size: None,
-            server_max_window_bits: 10,
-            client_max_window_bits: 11,
-            request_no_context_takeover: false,
-            accept_no_context_takeover: true,
-            compress_reset: false,
-            decompress_reset: false,
-            compression_level: Default::default(),
-        };
-
-        let r = on_receive_request(&request, &mut response, &mut parsed_config);
-
-        assert_eq!(r, Ok(true));
-
-        let expected_config = DeflateConfig {
-            max_message_size: None,
-            server_max_window_bits: 8,
-            client_max_window_bits: 11,
-            request_no_context_takeover: false,
-            accept_no_context_takeover: true,
-            compress_reset: true,
-            decompress_reset: true,
-            compression_level: Default::default(),
-        };
-
-        assert_eq!(parsed_config, expected_config);
-
-        let parsed_header = response
-            .headers()
-            .get(SEC_WEBSOCKET_EXTENSIONS)
-            .expect("Missing header")
-            .to_str()
-            .expect("Failed to parse header");
-
-        assert_eq!(parsed_header,"permessage-deflate; client_no_context_takeover; client_max_window_bits=11; server_no_context_takeover; server_max_window_bits=\"8\"");
-    }
-
-    #[test]
-    fn splits() {
-        let s ="not-permessage-deflate; client_no_context_takeover; client_max_window_bits; server_no_context_takeover; server_max_window_bits=8, no-permessage-deflate; client_no_context_takeover; client_max_window_bits; server_no_context_takeover, permessage-deflate; client_no_context_takeover; client_max_window_bits";
-        let mut request = Request::new(());
-        request
-            .headers_mut()
-            .insert(SEC_WEBSOCKET_EXTENSIONS, HeaderValue::from_static(s));
-
-        let mut response = Response::new(());
-        let mut parsed_config = DeflateConfig {
-            max_message_size: None,
-            server_max_window_bits: 10,
-            client_max_window_bits: 11,
-            request_no_context_takeover: false,
-            accept_no_context_takeover: true,
-            compress_reset: false,
-            decompress_reset: false,
-            compression_level: Default::default(),
-        };
-
-        let r = on_receive_request(&request, &mut response, &mut parsed_config);
-
-        assert_eq!(r, Ok(true));
-
-        let expected_config = DeflateConfig {
-            max_message_size: None,
-            server_max_window_bits: 10,
-            client_max_window_bits: 11,
-            request_no_context_takeover: false,
-            accept_no_context_takeover: true,
-            compress_reset: false,
-            decompress_reset: true,
-            compression_level: Default::default(),
-        };
-
-        assert_eq!(parsed_config, expected_config);
-
-        let parsed_header = response
-            .headers()
-            .get(SEC_WEBSOCKET_EXTENSIONS)
-            .expect("Missing header")
-            .to_str()
-            .expect("Failed to parse header");
-
-        assert_eq!(parsed_header,"permessage-deflate; client_no_context_takeover; client_max_window_bits=11; server_max_window_bits=10");
-    }
-
-    #[test]
-    fn splits_on_new_line() {
-        let s ="not-permessage-deflate; client_no_context_takeover; client_max_window_bits; server_no_context_takeover; server_max_window_bits=8,\\n\\r\\t \\ no-permessage-deflate; client_no_context_takeover; client_max_window_bits; server_no_context_takeover, permessage-deflate; client_no_context_takeover; client_max_window_bits";
-        let mut request = Request::new(());
-        request
-            .headers_mut()
-            .insert(SEC_WEBSOCKET_EXTENSIONS, HeaderValue::from_static(s));
-
-        let mut response = Response::new(());
-        let mut parsed_config = DeflateConfig {
-            max_message_size: None,
-            server_max_window_bits: 10,
-            client_max_window_bits: 11,
-            request_no_context_takeover: false,
-            accept_no_context_takeover: true,
-            compress_reset: false,
-            decompress_reset: false,
-            compression_level: Default::default(),
-        };
-
-        let r = on_receive_request(&request, &mut response, &mut parsed_config);
-
-        assert_eq!(r, Ok(true));
-
-        let expected_config = DeflateConfig {
-            max_message_size: None,
-            server_max_window_bits: 10,
-            client_max_window_bits: 11,
-            request_no_context_takeover: false,
-            accept_no_context_takeover: true,
-            compress_reset: false,
-            decompress_reset: true,
-            compression_level: Default::default(),
-        };
-
-        assert_eq!(parsed_config, expected_config);
-
-        let parsed_header = response
-            .headers()
-            .get(SEC_WEBSOCKET_EXTENSIONS)
-            .expect("Missing header")
-            .to_str()
-            .expect("Failed to parse header");
-
-        assert_eq!(parsed_header,"permessage-deflate; client_no_context_takeover; client_max_window_bits=11; server_max_window_bits=10");
     }
 }

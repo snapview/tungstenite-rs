@@ -1,5 +1,8 @@
 //! WebSocket compression
 
+#[cfg(test)]
+mod tests;
+
 #[cfg(feature = "deflate")]
 use crate::extensions::compression::deflate::{DeflateConfig, DeflateExt};
 use crate::extensions::compression::uncompressed::UncompressedExt;
@@ -19,12 +22,12 @@ pub mod deflate;
 /// An uncompressed message handler for a WebSocket.
 pub mod uncompressed;
 
-///
+/// The level of compression to use with the WebSocket.
 #[derive(Copy, Clone, Debug)]
 pub enum WsCompression {
-    ///
+    /// No compression is applied.
     None(Option<usize>),
-    ///
+    /// Per-message DEFLATE.
     #[cfg(feature = "deflate")]
     Deflate(DeflateConfig),
 }
@@ -32,15 +35,15 @@ pub enum WsCompression {
 /// A WebSocket extension that is either `DeflateExt` or `UncompressedExt`.
 #[derive(Debug)]
 pub enum CompressionSwitcher {
-    ///
+    /// No compression is applied.
+    Uncompressed(UncompressedExt),
+    /// Per-message DEFLATE.
     #[cfg(feature = "deflate")]
     Compressed(DeflateExt),
-    ///
-    Uncompressed(UncompressedExt),
 }
 
 impl CompressionSwitcher {
-    ///
+    /// Builds a new `CompressionSwitcher` from the provided compression level.
     pub fn from_config(config: WsCompression) -> CompressionSwitcher {
         match config {
             WsCompression::None(size) => {
@@ -60,8 +63,8 @@ impl Default for CompressionSwitcher {
     }
 }
 
+/// A generic compression error with the underlying cause.
 #[derive(Debug)]
-///
 pub struct CompressionError(String);
 
 impl Error for CompressionError {}
@@ -108,8 +111,9 @@ impl WebSocketExtension for CompressionSwitcher {
     }
 }
 
-///
-pub fn build_compression_headers<T>(
+/// Applies any required Sec-WebSocket-Extension headers required for the configured compression
+/// level to the HTTP request.
+pub fn apply_compression_headers<T>(
     request: Request<T>,
     config: &mut Option<WebSocketConfig>,
 ) -> Request<T> {
@@ -123,7 +127,9 @@ pub fn build_compression_headers<T>(
     }
 }
 
-///
+/// Verifies any required Sec-WebSocket-Extension headers required for the configured compression
+/// level from the HTTP response. If DEFLATE is not supported, then this reverts to applying no
+/// compression.
 pub fn verify_compression_resp_headers<T>(
     _response: &Response<T>,
     config: &mut Option<WebSocketConfig>,
@@ -150,7 +156,8 @@ pub fn verify_compression_resp_headers<T>(
     }
 }
 
-///
+/// Verifies any required Sec-WebSocket-Extension headers in the HTTP request and updates the
+/// response. If DEFLATE is not supported, then this reverts to applying no compression.
 pub fn verify_compression_req_headers<T>(
     _request: &Request<T>,
     _response: &mut Response<T>,
