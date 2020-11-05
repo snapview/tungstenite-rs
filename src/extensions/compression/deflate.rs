@@ -725,7 +725,7 @@ impl WebSocketExtension for DeflateExt {
                         self.fragment_buffer.try_push(data_opcode, payload)?;
                         let (opcode, payload) = self.fragment_buffer.reset();
 
-                        decompressed = payload;
+                        compressed = payload;
                         opcode
                     }
                     Data::Binary => {
