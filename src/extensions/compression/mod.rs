@@ -9,7 +9,7 @@ use crate::extensions::compression::uncompressed::UncompressedExt;
 use crate::extensions::WebSocketExtension;
 use crate::protocol::frame::coding::Data;
 use crate::protocol::frame::{ExtensionHeaders, Frame};
-use crate::protocol::WebSocketConfig;
+use crate::protocol::{Role, WebSocketConfig};
 use crate::Message;
 use http::{Request, Response};
 use std::borrow::Cow;
@@ -43,15 +43,20 @@ pub enum CompressionSwitcher {
 }
 
 impl CompressionSwitcher {
-    /// Builds a new `CompressionSwitcher` from the provided compression level.
-    pub fn from_config(config: WsCompression) -> CompressionSwitcher {
+    /// Builds a new `CompressionSwitcher` from the provided compression level and role.
+    pub fn from_config(config: WsCompression, _role: Role) -> CompressionSwitcher {
         match config {
             WsCompression::None(size) => {
                 CompressionSwitcher::Uncompressed(UncompressedExt::new(size))
             }
             #[cfg(feature = "deflate")]
             WsCompression::Deflate(config) => {
-                CompressionSwitcher::Compressed(DeflateExt::new(config))
+                let ext = match _role {
+                    Role::Client => DeflateExt::client(config),
+                    Role::Server => DeflateExt::server(config),
+                };
+
+                CompressionSwitcher::Compressed(ext)
             }
         }
     }

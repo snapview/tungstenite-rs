@@ -244,7 +244,7 @@ impl WebSocketContext {
     /// Create a WebSocket context that manages a post-handshake stream.
     pub fn new(role: Role, config: Option<WebSocketConfig>) -> Self {
         let config = config.unwrap_or_else(Default::default);
-        let decoder = CompressionSwitcher::from_config(config.compression);
+        let decoder = CompressionSwitcher::from_config(config.compression, role);
 
         WebSocketContext {
             role,

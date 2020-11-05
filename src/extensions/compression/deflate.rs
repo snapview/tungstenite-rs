@@ -256,8 +256,8 @@ pub struct DeflateExt {
 }
 
 impl DeflateExt {
-    /// Creates a `DeflateExt` instance using the provided configuration.
-    pub fn new(config: DeflateConfig) -> DeflateExt {
+    /// Creates a `DeflateExt` instance for a client using the provided configuration.
+    pub fn client(config: DeflateConfig) -> DeflateExt {
         DeflateExt {
             config,
             fragment_buffer: FragmentBuffer::new(config.max_message_size),
@@ -266,9 +266,20 @@ impl DeflateExt {
             uncompressed_extension: UncompressedExt::new(config.max_message_size()),
         }
     }
+
+    /// Creates a `DeflateExt` instance for a server using the provided configuration.
+    pub fn server(config: DeflateConfig) -> DeflateExt {
+        DeflateExt {
+            config,
+            fragment_buffer: FragmentBuffer::new(config.max_message_size),
+            inflator: Inflator::new(config.client_max_window_bits),
+            deflator: Deflator::new(config.compression_level, config.server_max_window_bits),
+            uncompressed_extension: UncompressedExt::new(config.max_message_size()),
+        }
+    }
 }
 
-fn parse_window_parameter<'a>(
+fn parse_window_parameter(
     window_param: &str,
     max_window_bits: u8,
 ) -> Result<Option<u8>, DeflateExtensionError> {
@@ -671,12 +682,6 @@ impl From<DeflateExtensionError> for crate::Error {
 impl From<InvalidHeaderValue> for DeflateExtensionError {
     fn from(e: InvalidHeaderValue) -> Self {
         DeflateExtensionError::NegotiationError(e.to_string())
-    }
-}
-
-impl Default for DeflateExt {
-    fn default() -> Self {
-        DeflateExt::new(Default::default())
     }
 }
 
