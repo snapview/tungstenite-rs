@@ -43,9 +43,6 @@ pub struct WebSocketConfig {
     /// be reasonably big for all normal use-cases but small enough to prevent memory eating
     /// by a malicious user.
     pub max_frame_size: Option<usize>,
-    /// The max number of redirects the client should follow before aborting the connection.
-    /// The default value is 3. `None` here means that the client will not attempt to follow redirects.
-    pub max_redirects: Option<u8>,
 }
 
 impl Default for WebSocketConfig {
@@ -54,7 +51,6 @@ impl Default for WebSocketConfig {
             max_send_queue: None,
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
-            max_redirects: Some(3)
         }
     }
 }
