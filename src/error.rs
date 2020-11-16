@@ -9,7 +9,7 @@ use std::str;
 use std::string;
 
 use crate::protocol::Message;
-use http::{Response, StatusCode};
+use http::Response;
 
 #[cfg(feature = "tls")]
 pub mod tls {
@@ -61,12 +61,8 @@ pub enum Error {
     Utf8,
     /// Invalid URL.
     Url(Cow<'static, str>),
-    /// HTTP error (status only).
-    HttpStatus(StatusCode),
     /// HTTP error.
-    Http(Response<()>),
-    /// No Location header in 3xx response
-    NoLocation,
+    Http(Response<Option<String>>),
     /// HTTP format error.
     HttpFormat(http::Error),
 }
@@ -84,8 +80,6 @@ impl fmt::Display for Error {
             Error::SendQueueFull(_) => write!(f, "Send queue is full"),
             Error::Utf8 => write!(f, "UTF-8 encoding error"),
             Error::Url(ref msg) => write!(f, "URL error: {}", msg),
-            Error::NoLocation => write!(f, "No Location header specified"),
-            Error::HttpStatus(ref status) => write!(f, "HTTP error code: {}", status),
             Error::Http(ref code) => write!(f, "HTTP error: {}", code.status()),
             Error::HttpFormat(ref err) => write!(f, "HTTP format error: {}", err),
         }
