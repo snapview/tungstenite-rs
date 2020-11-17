@@ -160,7 +160,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
 /// use `client` instead. There is no need to enable the "tls" feature if you don't call
 /// `connect` since it's the only function that uses native_tls.
 pub fn connect<Req: IntoClientRequest>(request: Req) -> Result<(WebSocket<AutoStream>, Response)> {
-    connect_with_config(request, None, 0)
+    connect_with_config(request, None, 3)
 }
 
 fn connect_to_some(addrs: &[SocketAddr], uri: &Uri, mode: Mode) -> Result<AutoStream> {
