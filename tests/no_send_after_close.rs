@@ -1,10 +1,12 @@
 //! Verifies that we can read data messages even if we have initiated a close handshake,
 //! but before we got confirmation.
 
-use std::net::TcpListener;
-use std::process::exit;
-use std::thread::{sleep, spawn};
-use std::time::Duration;
+use std::{
+    net::TcpListener,
+    process::exit,
+    thread::{sleep, spawn},
+    time::Duration,
+};
 
 use tungstenite::{accept, connect, Error, Message};
 use url::Url;

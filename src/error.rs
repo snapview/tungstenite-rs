@@ -1,12 +1,6 @@
 //! Error handling.
 
-use std::borrow::Cow;
-use std::error::Error as ErrorTrait;
-use std::fmt;
-use std::io;
-use std::result;
-use std::str;
-use std::string;
+use std::{borrow::Cow, error::Error as ErrorTrait, fmt, io, result, str, string};
 
 use crate::protocol::Message;
 use http::Response;

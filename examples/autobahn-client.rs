@@ -14,11 +14,7 @@ fn get_case_count() -> Result<u32> {
 
 fn update_reports() -> Result<()> {
     let (mut socket, _) = connect(
-        Url::parse(&format!(
-            "ws://localhost:9001/updateReports?agent={}",
-            AGENT
-        ))
-        .unwrap(),
+        Url::parse(&format!("ws://localhost:9001/updateReports?agent={}", AGENT)).unwrap(),
     )?;
     socket.close(None)?;
     Ok(())
@@ -26,11 +22,8 @@ fn update_reports() -> Result<()> {
 
 fn run_test(case: u32) -> Result<()> {
     info!("Running test case {}", case);
-    let case_url = Url::parse(&format!(
-        "ws://localhost:9001/runCase?case={}&agent={}",
-        case, AGENT
-    ))
-    .unwrap();
+    let case_url =
+        Url::parse(&format!("ws://localhost:9001/runCase?case={}&agent={}", case, AGENT)).unwrap();
     let (mut socket, _) = connect(case_url)?;
     loop {
         match socket.read_message()? {

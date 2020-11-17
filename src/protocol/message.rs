@@ -1,7 +1,9 @@
-use std::convert::{AsRef, From, Into};
-use std::fmt;
-use std::result::Result as StdResult;
-use std::str;
+use std::{
+    convert::{AsRef, From, Into},
+    fmt,
+    result::Result as StdResult,
+    str,
+};
 
 use super::frame::CloseFrame;
 use crate::error::{Error, Result};
@@ -19,10 +21,7 @@ mod string_collect {
 
     impl StringCollector {
         pub fn new() -> Self {
-            StringCollector {
-                data: String::new(),
-                incomplete: None,
-            }
+            StringCollector { data: String::new(), incomplete: None }
         }
 
         pub fn len(&self) -> usize {
@@ -54,10 +53,7 @@ mod string_collect {
                         self.data.push_str(text);
                         Ok(())
                     }
-                    Err(DecodeError::Incomplete {
-                        valid_prefix,
-                        incomplete_suffix,
-                    }) => {
+                    Err(DecodeError::Incomplete { valid_prefix, incomplete_suffix }) => {
                         self.data.push_str(valid_prefix);
                         self.incomplete = Some(incomplete_suffix);
                         Ok(())
@@ -127,11 +123,7 @@ impl IncompleteMessage {
         // Be careful about integer overflows here.
         if my_size > max_size || portion_size > max_size - my_size {
             return Err(Error::Capacity(
-                format!(
-                    "Message too big: {} + {} > {}",
-                    my_size, portion_size, max_size
-                )
-                .into(),
+                format!("Message too big: {} + {} > {}", my_size, portion_size, max_size).into(),
             ));
         }
 

@@ -4,19 +4,26 @@ pub mod frame;
 
 mod message;
 
-pub use self::frame::CloseFrame;
-pub use self::message::Message;
+pub use self::{frame::CloseFrame, message::Message};
 
 use log::*;
-use std::collections::VecDeque;
-use std::io::{ErrorKind as IoErrorKind, Read, Write};
-use std::mem::replace;
+use std::{
+    collections::VecDeque,
+    io::{ErrorKind as IoErrorKind, Read, Write},
+    mem::replace,
+};
 
-use self::frame::coding::{CloseCode, Control as OpCtl, Data as OpData, OpCode};
-use self::frame::{Frame, FrameCodec};
-use self::message::{IncompleteMessage, IncompleteMessageType};
-use crate::error::{Error, Result};
-use crate::util::NonBlockingResult;
+use self::{
+    frame::{
+        coding::{CloseCode, Control as OpCtl, Data as OpData, OpCode},
+        Frame, FrameCodec,
+    },
+    message::{IncompleteMessage, IncompleteMessageType},
+};
+use crate::{
+    error::{Error, Result},
+    util::NonBlockingResult,
+};
 
 /// Indicates a Client or Server role of the websocket
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,10 +81,7 @@ impl<Stream> WebSocket<Stream> {
     /// or together with an existing one. If you need an initial handshake, use
     /// `connect()` or `accept()` functions of the crate to construct a websocket.
     pub fn from_raw_socket(stream: Stream, role: Role, config: Option<WebSocketConfig>) -> Self {
-        WebSocket {
-            socket: stream,
-            context: WebSocketContext::new(role, config),
-        }
+        WebSocket { socket: stream, context: WebSocketContext::new(role, config) }
     }
 
     /// Convert a raw socket into a WebSocket without performing a handshake.
@@ -320,9 +324,7 @@ impl WebSocketContext {
 
         // Do not write after sending a close frame.
         if !self.state.is_active() {
-            return Err(Error::Protocol(
-                "Sending after closing is not allowed".into(),
-            ));
+            return Err(Error::Protocol("Sending after closing is not allowed".into()));
         }
 
         if let Some(max_send_queue) = self.config.max_send_queue {
@@ -455,9 +457,7 @@ impl WebSocketContext {
                 Role::Client => {
                     if frame.is_masked() {
                         // A client MUST close a connection if it detects a masked frame. (RFC 6455)
-                        return Err(Error::Protocol(
-                            "Received a masked frame from server".into(),
-                        ));
+                        return Err(Error::Protocol("Received a masked frame from server".into()));
                     }
                 }
             }
@@ -474,9 +474,9 @@ impl WebSocketContext {
                             Err(Error::Protocol("Control frame too big".into()))
                         }
                         OpCtl::Close => Ok(self.do_close(frame.into_close()?).map(Message::Close)),
-                        OpCtl::Reserved(i) => Err(Error::Protocol(
-                            format!("Unknown control frame type {}", i).into(),
-                        )),
+                        OpCtl::Reserved(i) => {
+                            Err(Error::Protocol(format!("Unknown control frame type {}", i).into()))
+                        }
                         OpCtl::Ping => {
                             let data = frame.into_data();
                             // No ping processing after we sent a close frame.
@@ -527,9 +527,9 @@ impl WebSocketContext {
                                 Ok(None)
                             }
                         }
-                        OpData::Reserved(i) => Err(Error::Protocol(
-                            format!("Unknown data frame type {}", i).into(),
-                        )),
+                        OpData::Reserved(i) => {
+                            Err(Error::Protocol(format!("Unknown data frame type {}", i).into()))
+                        }
                     }
                 }
             } // match opcode
@@ -539,9 +539,7 @@ impl WebSocketContext {
                 WebSocketState::ClosedByPeer | WebSocketState::CloseAcknowledged => {
                     Err(Error::ConnectionClosed)
                 }
-                _ => Err(Error::Protocol(
-                    "Connection reset without closing handshake".into(),
-                )),
+                _ => Err(Error::Protocol("Connection reset without closing handshake".into())),
             }
         }
     }
@@ -602,9 +600,7 @@ impl WebSocketContext {
         }
 
         trace!("Sending frame: {:?}", frame);
-        self.frame
-            .write_frame(stream, frame)
-            .check_connection_reset(self.state)
+        self.frame.write_frame(stream, frame).check_connection_reset(self.state)
     }
 }
 
@@ -669,8 +665,7 @@ impl<T> CheckConnectionReset for Result<T> {
 mod tests {
     use super::{Message, Role, WebSocket, WebSocketConfig};
 
-    use std::io;
-    use std::io::Cursor;
+    use std::{io, io::Cursor};
 
     struct WriteMoc<Stream>(Stream);
 
@@ -699,14 +694,8 @@ mod tests {
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, None);
         assert_eq!(socket.read_message().unwrap(), Message::Ping(vec![1, 2]));
         assert_eq!(socket.read_message().unwrap(), Message::Pong(vec![3]));
-        assert_eq!(
-            socket.read_message().unwrap(),
-            Message::Text("Hello, World!".into())
-        );
-        assert_eq!(
-            socket.read_message().unwrap(),
-            Message::Binary(vec![0x01, 0x02, 0x03])
-        );
+        assert_eq!(socket.read_message().unwrap(), Message::Text("Hello, World!".into()));
+        assert_eq!(socket.read_message().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03]));
     }
 
     #[test]
@@ -715,10 +704,7 @@ mod tests {
             0x01, 0x07, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x80, 0x06, 0x57, 0x6f, 0x72,
             0x6c, 0x64, 0x21,
         ]);
-        let limit = WebSocketConfig {
-            max_message_size: Some(10),
-            ..WebSocketConfig::default()
-        };
+        let limit = WebSocketConfig { max_message_size: Some(10), ..WebSocketConfig::default() };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
         assert_eq!(
             socket.read_message().unwrap_err().to_string(),
@@ -729,10 +715,7 @@ mod tests {
     #[test]
     fn size_limiting_binary() {
         let incoming = Cursor::new(vec![0x82, 0x03, 0x01, 0x02, 0x03]);
-        let limit = WebSocketConfig {
-            max_message_size: Some(2),
-            ..WebSocketConfig::default()
-        };
+        let limit = WebSocketConfig { max_message_size: Some(2), ..WebSocketConfig::default() };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
         assert_eq!(
             socket.read_message().unwrap_err().to_string(),
