@@ -1,18 +1,25 @@
 //! Server handshake machine.
 
-use std::io::{self, Read, Write};
-use std::marker::PhantomData;
-use std::result::Result as StdResult;
+use std::{
+    io::{self, Read, Write},
+    marker::PhantomData,
+    result::Result as StdResult,
+};
 
 use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode};
 use httparse::Status;
 use log::*;
 
-use super::headers::{FromHttparse, MAX_HEADERS};
-use super::machine::{HandshakeMachine, StageResult, TryParse};
-use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
-use crate::error::{Error, Result};
-use crate::protocol::{Role, WebSocket, WebSocketConfig};
+use super::{
+    convert_key,
+    headers::{FromHttparse, MAX_HEADERS},
+    machine::{HandshakeMachine, StageResult, TryParse},
+    HandshakeRole, MidHandshake, ProcessingResult,
+};
+use crate::{
+    error::{Error, Result},
+    protocol::{Role, WebSocket, WebSocketConfig},
+};
 
 /// Server request type.
 pub type Request = HttpRequest<()>;
@@ -30,9 +37,7 @@ pub fn create_response(request: &Request) -> Result<Response> {
     }
 
     if request.version() < http::Version::HTTP_11 {
-        return Err(Error::Protocol(
-            "HTTP version should be 1.1 or higher".into(),
-        ));
+        return Err(Error::Protocol("HTTP version should be 1.1 or higher".into()));
     }
 
     if !request
@@ -42,9 +47,7 @@ pub fn create_response(request: &Request) -> Result<Response> {
         .map(|h| h.split(|c| c == ' ' || c == ',').any(|p| p.eq_ignore_ascii_case("Upgrade")))
         .unwrap_or(false)
     {
-        return Err(Error::Protocol(
-            "No \"Connection: upgrade\" in client request".into(),
-        ));
+        return Err(Error::Protocol("No \"Connection: upgrade\" in client request".into()));
     }
 
     if !request
@@ -54,20 +57,11 @@ pub fn create_response(request: &Request) -> Result<Response> {
         .map(|h| h.eq_ignore_ascii_case("websocket"))
         .unwrap_or(false)
     {
-        return Err(Error::Protocol(
-            "No \"Upgrade: websocket\" in client request".into(),
-        ));
+        return Err(Error::Protocol("No \"Upgrade: websocket\" in client request".into()));
     }
 
-    if !request
-        .headers()
-        .get("Sec-WebSocket-Version")
-        .map(|h| h == "13")
-        .unwrap_or(false)
-    {
-        return Err(Error::Protocol(
-            "No \"Sec-WebSocket-Version: 13\" in client request".into(),
-        ));
+    if !request.headers().get("Sec-WebSocket-Version").map(|h| h == "13").unwrap_or(false) {
+        return Err(Error::Protocol("No \"Sec-WebSocket-Version: 13\" in client request".into()));
     }
 
     let key = request
@@ -121,9 +115,7 @@ impl<'h, 'b: 'h> FromHttparse<httparse::Request<'h, 'b>> for Request {
         }
 
         if raw.version.expect("Bug: no HTTP version") < /*1.*/1 {
-            return Err(Error::Protocol(
-                "HTTP version should be 1.1 or higher".into(),
-            ));
+            return Err(Error::Protocol("HTTP version should be 1.1 or higher".into()));
         }
 
         let headers = HeaderMap::from_httparse(raw.headers)?;
@@ -229,11 +221,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
         finish: StageResult<Self::IncomingData, Self::InternalStream>,
     ) -> Result<ProcessingResult<Self::InternalStream, Self::FinalResult>> {
         Ok(match finish {
-            StageResult::DoneReading {
-                stream,
-                result,
-                tail,
-            } => {
+            StageResult::DoneReading { stream, result, tail } => {
                 if !tail.is_empty() {
                     return Err(Error::Protocol("Junk after client request".into()));
                 }
@@ -290,9 +278,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::machine::TryParse;
-    use super::create_response;
-    use super::Request;
+    use super::{super::machine::TryParse, create_response, Request};
 
     #[test]
     fn request_parsing() {

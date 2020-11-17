@@ -1,9 +1,10 @@
-use std::net::TcpListener;
-use std::thread::spawn;
+use std::{net::TcpListener, thread::spawn};
 
-use tungstenite::accept_hdr;
-use tungstenite::handshake::server::{Request, Response};
-use tungstenite::http::StatusCode;
+use tungstenite::{
+    accept_hdr,
+    handshake::server::{Request, Response},
+    http::StatusCode,
+};
 
 fn main() {
     let server = TcpListener::bind("127.0.0.1:3012").unwrap();

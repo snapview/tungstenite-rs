@@ -41,8 +41,7 @@ impl TryParse for HeaderMap {
 #[cfg(test)]
 mod tests {
 
-    use super::super::machine::TryParse;
-    use super::HeaderMap;
+    use super::{super::machine::TryParse, HeaderMap};
 
     #[test]
     fn headers() {

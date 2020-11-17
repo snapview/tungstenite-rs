@@ -1,7 +1,9 @@
 //! Various codes defined in RFC 6455.
 
-use std::convert::{From, Into};
-use std::fmt;
+use std::{
+    convert::{From, Into},
+    fmt,
+};
 
 /// WebSocket message opcode as in RFC 6455.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -71,9 +73,11 @@ impl fmt::Display for OpCode {
 
 impl Into<u8> for OpCode {
     fn into(self) -> u8 {
-        use self::Control::{Close, Ping, Pong};
-        use self::Data::{Binary, Continue, Text};
-        use self::OpCode::*;
+        use self::{
+            Control::{Close, Ping, Pong},
+            Data::{Binary, Continue, Text},
+            OpCode::*,
+        };
         match self {
             Data(Continue) => 0,
             Data(Text) => 1,
@@ -90,9 +94,11 @@ impl Into<u8> for OpCode {
 
 impl From<u8> for OpCode {
     fn from(byte: u8) -> OpCode {
-        use self::Control::{Close, Ping, Pong};
-        use self::Data::{Binary, Continue, Text};
-        use self::OpCode::*;
+        use self::{
+            Control::{Close, Ping, Pong},
+            Data::{Binary, Continue, Text},
+            OpCode::*,
+        };
         match byte {
             0 => Data(Continue),
             1 => Data(Text),
@@ -184,14 +190,7 @@ pub enum CloseCode {
 impl CloseCode {
     /// Check if this CloseCode is allowed.
     pub fn is_allowed(self) -> bool {
-        match self {
-            Bad(_) => false,
-            Reserved(_) => false,
-            Status => false,
-            Abnormal => false,
-            Tls => false,
-            _ => true,
-        }
+        !matches!(self, Bad(_) | Reserved(_) | Status | Abnormal | Tls)
     }
 }
 

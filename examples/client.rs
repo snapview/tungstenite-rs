@@ -14,9 +14,7 @@ fn main() {
         println!("* {}", header);
     }
 
-    socket
-        .write_message(Message::Text("Hello WebSocket".into()))
-        .unwrap();
+    socket.write_message(Message::Text("Hello WebSocket".into())).unwrap();
     loop {
         let msg = socket.read_message().expect("Error reading message");
         println!("Received: {}", msg);

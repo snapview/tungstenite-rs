@@ -1,8 +1,9 @@
-use std::net::TcpListener;
-use std::thread::spawn;
+use std::{net::TcpListener, thread::spawn};
 
-use tungstenite::accept_hdr;
-use tungstenite::handshake::server::{Request, Response};
+use tungstenite::{
+    accept_hdr,
+    handshake::server::{Request, Response},
+};
 
 fn main() {
     env_logger::init();
