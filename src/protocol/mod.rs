@@ -50,6 +50,11 @@ pub struct WebSocketConfig {
     /// be reasonably big for all normal use-cases but small enough to prevent memory eating
     /// by a malicious user.
     pub max_frame_size: Option<usize>,
+    /// If set to true it will allow the websocket server to accept unmasked frames from client.
+    /// Even though this behaviour is not in compliance with RFC 6455 (which requires the server
+    /// to close the connection when unmasked frame from client is received) it might be handy in some cases
+    /// as there are existing applications sending unmasked client frames.
+    pub server_allow_unmasked: Option<bool>,
 }
 
 impl Default for WebSocketConfig {
@@ -58,6 +63,7 @@ impl Default for WebSocketConfig {
             max_send_queue: None,
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
+            server_allow_unmasked: None,
         }
     }
 }
@@ -449,9 +455,22 @@ impl WebSocketContext {
                     } else {
                         // The server MUST close the connection upon receiving a
                         // frame that is not masked. (RFC 6455)
-                        return Err(Error::Protocol(
-                            "Received an unmasked frame from client".into(),
-                        ));
+                        // The only exception here is if the user explicitly accepts given
+                        // stream (by tungstenite::server::accept_with_config or tungstenite::server::accept_hdr_with_config)
+                        // with WebSocketConfig.server_allow_unmasked set to Some(true)
+                        if let Some(server_allow_unmasked_val) =
+                            self.get_config().server_allow_unmasked
+                        {
+                            if server_allow_unmasked_val == false {
+                                return Err(Error::Protocol(
+                                    "Received an unmasked frame from client".into(),
+                                ));
+                            }
+                        } else {
+                            return Err(Error::Protocol(
+                                "Received an unmasked frame from client".into(),
+                            ));
+                        }
                     }
                 }
                 Role::Client => {
