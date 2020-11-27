@@ -54,7 +54,7 @@ pub struct WebSocketConfig {
     /// Even though this behaviour is not in compliance with RFC 6455 (which requires the server
     /// to close the connection when unmasked frame from client is received) it might be handy in some cases
     /// as there are existing applications sending unmasked client frames.
-    pub server_allow_unmasked: Option<bool>,
+    pub server_allow_unmasked: bool,
 }
 
 impl Default for WebSocketConfig {
@@ -63,7 +63,7 @@ impl Default for WebSocketConfig {
             max_send_queue: None,
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
-            server_allow_unmasked: None,
+            server_allow_unmasked: false,
         }
     }
 }
@@ -457,16 +457,8 @@ impl WebSocketContext {
                         // frame that is not masked. (RFC 6455)
                         // The only exception here is if the user explicitly accepts given
                         // stream (by tungstenite::server::accept_with_config or tungstenite::server::accept_hdr_with_config)
-                        // with WebSocketConfig.server_allow_unmasked set to Some(true)
-                        if let Some(server_allow_unmasked_val) =
-                            self.get_config().server_allow_unmasked
-                        {
-                            if server_allow_unmasked_val == false {
-                                return Err(Error::Protocol(
-                                    "Received an unmasked frame from client".into(),
-                                ));
-                            }
-                        } else {
+                        // with WebSocketConfig.server_allow_unmasked set to true
+                        if self.get_config().server_allow_unmasked == false {
                             return Err(Error::Protocol(
                                 "Received an unmasked frame from client".into(),
                             ));
