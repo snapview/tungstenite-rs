@@ -53,7 +53,9 @@ pub struct WebSocketConfig {
     /// If set to true it will allow the websocket server to accept unmasked frames from client.
     /// Even though this behaviour is not in compliance with RFC 6455 (which requires the server
     /// to close the connection when unmasked frame from client is received) it might be handy in some cases
-    /// as there are existing applications sending unmasked client frames.
+    /// as there are existing applications sending unmasked client frames. By default (i.e. unless not explicitly specified)
+    /// this flag is set to false which means violation of RFC 6455 is not allowed and unmasked client frames will be rejected
+    ///by websocket server.
     pub server_allow_unmasked: bool,
 }
 
