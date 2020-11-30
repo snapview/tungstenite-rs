@@ -81,18 +81,12 @@ fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
 
 /// Create a response for the request.
 pub fn create_response(request: &Request) -> Result<Response> {
-    match create_parts(&request) {
-        Ok(builder) => Ok(builder.body(())?),
-        Err(e) => Err(e)
-    }
+    Ok(create_parts(&request)?.body(())?)
 }
 
 /// Create a response for the request, with a custom body builder
-pub fn create_response_t<T>(request: &HttpRequest<T>, empty: impl FnOnce() -> T) -> Result<HttpResponse<T>> {
-    match create_parts(&request) {
-        Ok(builder) => Ok(builder.body(empty())?),
-        Err(e) => Err(e)
-    }
+pub fn create_custom_response<T>(request: &HttpRequest<T>, generate_body: impl FnOnce() -> T) -> Result<HttpResponse<T>> {
+    Ok(create_parts(&request)?.body(generate_body())?)
 }
 
 // Assumes that this is a valid response
