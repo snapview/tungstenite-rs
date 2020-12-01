@@ -783,7 +783,10 @@ mod tests {
         let frame_eq = |expected: Frame, actual: Frame| {
             assert_eq!(expected.payload(), actual.payload());
             assert_eq!(expected.header().opcode, actual.header().opcode);
-            assert_eq!(expected.header().rsv1, actual.header().rsv1);
+            assert_eq!(
+                expected.header().ext_headers.rsv1,
+                actual.header().ext_headers.rsv1
+            );
         };
 
         let expected = Frame::message(iter.next().unwrap().into(), OpCode::Data(Data::Text), false);
