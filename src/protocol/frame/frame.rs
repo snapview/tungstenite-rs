@@ -65,11 +65,7 @@ pub struct ExtensionHeaders {
 
 impl Default for ExtensionHeaders {
     fn default() -> Self {
-        ExtensionHeaders {
-            rsv1: false,
-            rsv2: false,
-            rsv3: false,
-        }
+        ExtensionHeaders { rsv1: false, rsv2: false, rsv3: false }
     }
 }
 
@@ -210,12 +206,7 @@ impl FrameHeader {
         }
 
         let ext_headers = ExtensionHeaders { rsv1, rsv2, rsv3 };
-        let hdr = FrameHeader {
-            is_final,
-            ext_headers,
-            opcode,
-            mask,
-        };
+        let hdr = FrameHeader { is_final, ext_headers, opcode, mask };
 
         Ok(Some((hdr, length)))
     }

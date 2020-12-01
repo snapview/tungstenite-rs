@@ -15,10 +15,10 @@ use super::{
     headers::{FromHttparse, MAX_HEADERS},
     machine::{HandshakeMachine, StageResult, TryParse},
     HandshakeRole, MidHandshake, ProcessingResult,
-    extensions::verify_compression_req_headers
 };
 use crate::{
     error::{Error, Result},
+    extensions::compression::verify_compression_req_headers,
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -228,7 +228,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                 }
 
                 let mut response = create_response(&result)?;
-                verify_compression_req_headers(&request, &mut response, &mut self.config)?;
+                verify_compression_req_headers(&result, &mut response, &mut self.config)?;
 
                 let callback_result = if let Some(callback) = self.callback.take() {
                     callback.on_request(&result, response)

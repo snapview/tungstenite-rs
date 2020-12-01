@@ -15,11 +15,11 @@ use super::{
     machine::{HandshakeMachine, StageResult, TryParse},
     HandshakeRole, MidHandshake, ProcessingResult,
 };
+use crate::extensions::compression::{apply_compression_headers, verify_compression_resp_headers};
 use crate::{
     error::{Error, Result},
     protocol::{Role, WebSocket, WebSocketConfig},
 };
-use crate::extensions::compression::{apply_compression_headers, verify_compression_resp_headers};
 
 /// Client request type.
 pub type Request = HttpRequest<()>;
@@ -62,7 +62,11 @@ impl<S: Read + Write> ClientHandshake<S> {
 
         let client = {
             let accept_key = convert_key(key.as_ref()).unwrap();
-            ClientHandshake { verify_data: VerifyData { accept_key }, config: Some(config), _marker: PhantomData }
+            ClientHandshake {
+                verify_data: VerifyData { accept_key },
+                config: Some(config),
+                _marker: PhantomData,
+            }
         };
 
         trace!("Client handshake initiated.");
@@ -83,10 +87,12 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
                 ProcessingResult::Continue(HandshakeMachine::start_read(stream))
             }
             StageResult::DoneReading { stream, result, tail } => {
-                let result = self.verify_data.verify_response(result)?;
+                let mut config = self.config.take().unwrap();
+                let result = self.verify_data.verify_response(result, &mut config)?;
+
                 debug!("Client handshake done.");
-                let websocket =
-                    WebSocket::from_partially_read(stream, tail, Role::Client, self.config);
+
+                let websocket = WebSocket::from_partially_read(stream, tail, Role::Client, config);
                 ProcessingResult::Done((websocket, result))
             }
         })
@@ -154,7 +160,7 @@ struct VerifyData {
 impl VerifyData {
     pub fn verify_response(
         &self,
-        response: &Response,
+        response: Response,
         config: &mut Option<WebSocketConfig>,
     ) -> Result<Response> {
         // 1. If the status code received from the server is not 101, the
@@ -202,7 +208,7 @@ impl VerifyData {
         // that was not present in the client's handshake (the server has
         // indicated an extension not requested by the client), the client
         // MUST _Fail the WebSocket Connection_. (RFC 6455)
-        verify_compression_resp_headers(response, config)?;
+        verify_compression_resp_headers(&response, config)?;
 
         // 6.  If the response includes a |Sec-WebSocket-Protocol| header field
         // and this header field indicates the use of a subprotocol that was
@@ -293,9 +299,7 @@ mod tests {
 
     #[test]
     fn request_formatting_with_host() {
-        let request = "wss://localhost:9001/getCaseCount"
-            .into_client_request()
-            .unwrap();
+        let request = "wss://localhost:9001/getCaseCount".into_client_request().unwrap();
         let key = "A70tsIbeMZUbJHh5BWFw6Q==";
         let correct = b"\
             GET /getCaseCount HTTP/1.1\r\n\
@@ -312,9 +316,7 @@ mod tests {
 
     #[test]
     fn request_formatting_with_at() {
-        let request = "wss://user:pass@localhost:9001/getCaseCount"
-            .into_client_request()
-            .unwrap();
+        let request = "wss://user:pass@localhost:9001/getCaseCount".into_client_request().unwrap();
         let key = "A70tsIbeMZUbJHh5BWFw6Q==";
         let correct = b"\
             GET /getCaseCount HTTP/1.1\r\n\

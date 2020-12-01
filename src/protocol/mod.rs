@@ -2,7 +2,7 @@
 
 pub mod frame;
 
-mod message;
+pub(crate) mod message;
 
 pub use self::{frame::CloseFrame, message::Message};
 
@@ -18,11 +18,12 @@ use self::{
         coding::{CloseCode, Control as OpCtl, Data as OpData, OpCode},
         Frame, FrameCodec,
     },
-    message::{IncompleteMessage, IncompleteMessageType},
-    extensions::{WebSocketExtension, compression::{CompressionSwitcher, WsCompression}};
+    message::IncompleteMessage,
 };
 use crate::{
     error::{Error, Result},
+    extensions::compression::{CompressionSwitcher, WsCompression},
+    extensions::WebSocketExtension,
     util::NonBlockingResult,
 };
 
@@ -44,6 +45,10 @@ pub struct WebSocketConfig {
     /// means here that the size of the queue is unlimited. The default value is the unlimited
     /// queue.
     pub max_send_queue: Option<usize>,
+    /// The maximum size of a message. `None` means no size limit. The default value is 64 MiB
+    /// which should be reasonably big for all normal use-cases but small enough to prevent
+    /// memory eating by a malicious user.
+    pub max_message_size: Option<usize>,
     /// The maximum size of a single message frame. `None` means no size limit. The limit is for
     /// frame payload NOT including the frame header. The default value is 16 MiB which should
     /// be reasonably big for all normal use-cases but small enough to prevent memory eating
@@ -57,6 +62,7 @@ impl Default for WebSocketConfig {
     fn default() -> Self {
         WebSocketConfig {
             max_send_queue: None,
+            max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
             compression: WsCompression::None(Some(MAX_MESSAGE_SIZE)),
         }
@@ -501,9 +507,7 @@ impl WebSocketContext {
                 WebSocketState::ClosedByPeer | WebSocketState::CloseAcknowledged => {
                     Err(Error::ConnectionClosed)
                 }
-                _ => Err(Error::Protocol(
-                    "Connection reset without closing handshake".into(),
-                )),
+                _ => Err(Error::Protocol("Connection reset without closing handshake".into())),
             }
         }
     }
@@ -629,6 +633,7 @@ impl<T> CheckConnectionReset for Result<T> {
 mod tests {
     use super::{Message, Role, WebSocket, WebSocketConfig};
 
+    use crate::extensions::compression::WsCompression;
     use std::{io, io::Cursor};
 
     struct WriteMoc<Stream>(Stream);
@@ -668,7 +673,11 @@ mod tests {
             0x01, 0x07, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x80, 0x06, 0x57, 0x6f, 0x72,
             0x6c, 0x64, 0x21,
         ]);
-        let limit = WebSocketConfig { max_message_size: Some(10), ..WebSocketConfig::default() };
+        let limit = WebSocketConfig {
+            max_message_size: Some(10),
+            compression: WsCompression::None(Some(10)),
+            ..WebSocketConfig::default()
+        };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
         assert_eq!(
             socket.read_message().unwrap_err().to_string(),
@@ -679,7 +688,11 @@ mod tests {
     #[test]
     fn size_limiting_binary() {
         let incoming = Cursor::new(vec![0x82, 0x03, 0x01, 0x02, 0x03]);
-        let limit = WebSocketConfig { max_message_size: Some(2), ..WebSocketConfig::default() };
+        let limit = WebSocketConfig {
+            max_message_size: Some(2),
+            compression: WsCompression::None(Some(2)),
+            ..WebSocketConfig::default()
+        };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
         assert_eq!(
             socket.read_message().unwrap_err().to_string(),
