@@ -1,8 +1,6 @@
 //! HTTP Request and response header handling.
 
-use http;
 use http::header::{HeaderMap, HeaderName, HeaderValue};
-use httparse;
 use httparse::Status;
 
 use super::machine::TryParse;
@@ -43,8 +41,7 @@ impl TryParse for HeaderMap {
 #[cfg(test)]
 mod tests {
 
-    use super::super::machine::TryParse;
-    use super::HeaderMap;
+    use super::{super::machine::TryParse, HeaderMap};
 
     #[test]
     fn headers() {

@@ -1,10 +1,12 @@
 //! Verifies that the server returns a `ConnectionClosed` error when the connection
 //! is closedd from the server's point of view and drop the underlying tcp socket.
 
-use std::net::{TcpListener, TcpStream};
-use std::process::exit;
-use std::thread::{sleep, spawn};
-use std::time::Duration;
+use std::{
+    net::{TcpListener, TcpStream},
+    process::exit,
+    thread::{sleep, spawn},
+    time::Duration,
+};
 
 use native_tls::TlsStream;
 use net2::TcpStreamExt;
@@ -49,9 +51,7 @@ fn test_server_close() {
     do_test(
         3012,
         |mut cli_sock| {
-            cli_sock
-                .write_message(Message::Text("Hello WebSocket".into()))
-                .unwrap();
+            cli_sock.write_message(Message::Text("Hello WebSocket".into())).unwrap();
 
             let message = cli_sock.read_message().unwrap(); // receive close from server
             assert!(message.is_close());
@@ -85,9 +85,7 @@ fn test_evil_server_close() {
     do_test(
         3013,
         |mut cli_sock| {
-            cli_sock
-                .write_message(Message::Text("Hello WebSocket".into()))
-                .unwrap();
+            cli_sock.write_message(Message::Text("Hello WebSocket".into())).unwrap();
 
             sleep(Duration::from_secs(1));
 
@@ -109,10 +107,7 @@ fn test_evil_server_close() {
             let message = srv_sock.read_message().unwrap(); // receive acknowledgement
             assert!(message.is_close());
             // and now just drop the connection without waiting for `ConnectionClosed`
-            srv_sock
-                .get_mut()
-                .set_linger(Some(Duration::from_secs(0)))
-                .unwrap();
+            srv_sock.get_mut().set_linger(Some(Duration::from_secs(0))).unwrap();
             drop(srv_sock);
         },
     );
@@ -123,9 +118,7 @@ fn test_client_close() {
     do_test(
         3014,
         |mut cli_sock| {
-            cli_sock
-                .write_message(Message::Text("Hello WebSocket".into()))
-                .unwrap();
+            cli_sock.write_message(Message::Text("Hello WebSocket".into())).unwrap();
 
             let message = cli_sock.read_message().unwrap(); // receive answer from server
             assert_eq!(message.into_data(), b"From Server");
@@ -145,9 +138,7 @@ fn test_client_close() {
             let message = srv_sock.read_message().unwrap();
             assert_eq!(message.into_data(), b"Hello WebSocket");
 
-            srv_sock
-                .write_message(Message::Text("From Server".into()))
-                .unwrap();
+            srv_sock.write_message(Message::Text("From Server".into())).unwrap();
 
             let message = srv_sock.read_message().unwrap(); // receive close from client
             assert!(message.is_close());

@@ -18,11 +18,7 @@ fn get_case_count() -> Result<u32> {
 
 fn update_reports() -> Result<()> {
     let (mut socket, _) = connect(
-        Url::parse(&format!(
-            "ws://localhost:9001/updateReports?agent={}",
-            AGENT
-        ))
-        .unwrap(),
+        Url::parse(&format!("ws://localhost:9001/updateReports?agent={}", AGENT)).unwrap(),
     )?;
     socket.close(None)?;
     Ok(())

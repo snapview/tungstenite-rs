@@ -1,17 +1,9 @@
 //! Error handling.
 
-use std::borrow::Cow;
-use std::error::Error as ErrorTrait;
-use std::fmt;
-use std::io;
-use std::result;
-use std::str;
-use std::string;
-
-use http;
-use httparse;
+use std::{borrow::Cow, error::Error as ErrorTrait, fmt, io, result, str, string};
 
 use crate::protocol::Message;
+use http::Response;
 
 #[cfg(feature = "tls")]
 pub mod tls {
@@ -64,7 +56,7 @@ pub enum Error {
     /// Invalid URL.
     Url(Cow<'static, str>),
     /// HTTP error.
-    Http(http::StatusCode),
+    Http(Response<Option<String>>),
     /// HTTP format error.
     HttpFormat(http::Error),
     /// An error from a WebSocket extension.
@@ -84,7 +76,7 @@ impl fmt::Display for Error {
             Error::SendQueueFull(_) => write!(f, "Send queue is full"),
             Error::Utf8 => write!(f, "UTF-8 encoding error"),
             Error::Url(ref msg) => write!(f, "URL error: {}", msg),
-            Error::Http(code) => write!(f, "HTTP error: {}", code),
+            Error::Http(ref code) => write!(f, "HTTP error: {}", code.status()),
             Error::HttpFormat(ref err) => write!(f, "HTTP format error: {}", err),
             Error::ExtensionError(ref e) => write!(f, "Extension error: {}", e),
         }

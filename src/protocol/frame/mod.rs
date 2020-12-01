@@ -6,8 +6,7 @@ pub mod coding;
 mod frame;
 mod mask;
 
-pub use self::frame::CloseFrame;
-pub use self::frame::{ExtensionHeaders, Frame, FrameHeader};
+pub use self::frame::{CloseFrame, ExtensionHeaders, Frame, FrameHeader};
 
 use crate::error::{Error, Result};
 use input_buffer::{InputBuffer, MIN_READ};
@@ -26,18 +25,12 @@ pub struct FrameSocket<Stream> {
 impl<Stream> FrameSocket<Stream> {
     /// Create a new frame socket.
     pub fn new(stream: Stream) -> Self {
-        FrameSocket {
-            stream,
-            codec: FrameCodec::new(),
-        }
+        FrameSocket { stream, codec: FrameCodec::new() }
     }
 
     /// Create a new frame socket from partially read data.
     pub fn from_partially_read(stream: Stream, part: Vec<u8>) -> Self {
-        FrameSocket {
-            stream,
-            codec: FrameCodec::from_partially_read(part),
-        }
+        FrameSocket { stream, codec: FrameCodec::from_partially_read(part) }
     }
 
     /// Extract a stream from the socket.
@@ -184,9 +177,7 @@ impl FrameCodec {
     {
         trace!("writing frame {}", frame);
         self.out_buffer.reserve(frame.len());
-        frame
-            .format(&mut self.out_buffer)
-            .expect("Bug: can't write to vector");
+        frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
         self.write_pending(stream)
     }
 
@@ -231,10 +222,7 @@ mod tests {
             sock.read_frame(None).unwrap().unwrap().into_data(),
             vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
-        assert_eq!(
-            sock.read_frame(None).unwrap().unwrap().into_data(),
-            vec![0x03, 0x02, 0x01]
-        );
+        assert_eq!(sock.read_frame(None).unwrap().unwrap().into_data(), vec![0x03, 0x02, 0x01]);
         assert!(sock.read_frame(None).unwrap().is_none());
 
         let (_, rest) = sock.into_inner();

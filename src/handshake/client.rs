@@ -1,18 +1,25 @@
 //! Client handshake machine.
 
-use std::io::{Read, Write};
-use std::marker::PhantomData;
+use std::{
+    io::{Read, Write},
+    marker::PhantomData,
+};
 
 use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode};
 use httparse::Status;
 use log::*;
 
-use super::headers::{FromHttparse, MAX_HEADERS};
-use super::machine::{HandshakeMachine, StageResult, TryParse};
-use super::{convert_key, HandshakeRole, MidHandshake, ProcessingResult};
-use crate::error::{Error, Result};
+use super::{
+    convert_key,
+    headers::{FromHttparse, MAX_HEADERS},
+    machine::{HandshakeMachine, StageResult, TryParse},
+    HandshakeRole, MidHandshake, ProcessingResult,
+};
+use crate::{
+    error::{Error, Result},
+    protocol::{Role, WebSocket, WebSocketConfig},
+};
 use crate::extensions::compression::{apply_compression_headers, verify_compression_resp_headers};
-use crate::protocol::{Role, WebSocket, WebSocketConfig};
 
 /// Client request type.
 pub type Request = HttpRequest<()>;
@@ -28,26 +35,19 @@ pub struct ClientHandshake<S> {
     _marker: PhantomData<S>,
 }
 
-impl<Stream> ClientHandshake<Stream>
-where
-    Stream: Read + Write,
-{
+impl<S: Read + Write> ClientHandshake<S> {
     /// Initiate a client handshake.
     pub fn start(
-        stream: Stream,
+        stream: S,
         request: Request,
         mut config: Option<WebSocketConfig>,
     ) -> Result<MidHandshake<Self>> {
         if request.method() != http::Method::GET {
-            return Err(Error::Protocol(
-                "Invalid HTTP method, only GET supported".into(),
-            ));
+            return Err(Error::Protocol("Invalid HTTP method, only GET supported".into()));
         }
 
         if request.version() < http::Version::HTTP_11 {
-            return Err(Error::Protocol(
-                "HTTP version should be 1.1 or higher".into(),
-            ));
+            return Err(Error::Protocol("HTTP version should be 1.1 or higher".into()));
         }
 
         // Check the URI scheme: only ws or wss are supported
@@ -62,29 +62,18 @@ where
 
         let client = {
             let accept_key = convert_key(key.as_ref()).unwrap();
-            ClientHandshake {
-                verify_data: VerifyData { accept_key },
-                config: Some(config),
-                _marker: PhantomData,
-            }
+            ClientHandshake { verify_data: VerifyData { accept_key }, config: Some(config), _marker: PhantomData }
         };
 
         trace!("Client handshake initiated.");
-        Ok(MidHandshake {
-            role: client,
-            machine,
-        })
+        Ok(MidHandshake { role: client, machine })
     }
 }
 
-impl<Stream> HandshakeRole for ClientHandshake<Stream>
-where
-    Stream: Read + Write,
-{
+impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
     type IncomingData = Response;
-    type InternalStream = Stream;
-    type FinalResult = (WebSocket<Stream>, Response);
-
+    type InternalStream = S;
+    type FinalResult = (WebSocket<S>, Response);
     fn stage_finished(
         &mut self,
         finish: StageResult<Self::IncomingData, Self::InternalStream>,
@@ -93,16 +82,11 @@ where
             StageResult::DoneWriting(stream) => {
                 ProcessingResult::Continue(HandshakeMachine::start_read(stream))
             }
-            StageResult::DoneReading {
-                stream,
-                result,
-                tail,
-            } => {
-                let mut config = self.config.take().unwrap();
-
-                self.verify_data.verify_response(&result, &mut config)?;
+            StageResult::DoneReading { stream, result, tail } => {
+                let result = self.verify_data.verify_response(result)?;
                 debug!("Client handshake done.");
-                let websocket = WebSocket::from_partially_read(stream, tail, Role::Client, config);
+                let websocket =
+                    WebSocket::from_partially_read(stream, tail, Role::Client, self.config);
                 ProcessingResult::Done((websocket, result))
             }
         })
@@ -119,10 +103,8 @@ fn generate_request(
     let mut req = Vec::new();
     let uri = request.uri();
 
-    let authority = uri
-        .authority()
-        .ok_or_else(|| Error::Url("No host name in the URL".into()))?
-        .as_str();
+    let authority =
+        uri.authority().ok_or_else(|| Error::Url("No host name in the URL".into()))?.as_str();
     let host = if let Some(idx) = authority.find('@') {
         // handle possible name:password@
         authority.split_at(idx + 1).1
@@ -144,10 +126,8 @@ fn generate_request(
          Sec-WebSocket-Key: {key}\r\n",
         version = request.version(),
         host = host,
-        path = uri
-            .path_and_query()
-            .ok_or_else(|| Error::Url("No path/query in URL".into()))?
-            .as_str(),
+        path =
+            uri.path_and_query().ok_or_else(|| Error::Url("No path/query in URL".into()))?.as_str(),
         key = key
     )
     .unwrap();
@@ -176,12 +156,13 @@ impl VerifyData {
         &self,
         response: &Response,
         config: &mut Option<WebSocketConfig>,
-    ) -> Result<()> {
+    ) -> Result<Response> {
         // 1. If the status code received from the server is not 101, the
         // client handles the response per HTTP [RFC2616] procedures. (RFC 6455)
         if response.status() != StatusCode::SWITCHING_PROTOCOLS {
-            return Err(Error::Http(response.status()));
+            return Err(Error::Http(response.map(|_| None)));
         }
+
         let headers = response.headers();
 
         // 2. If the response lacks an |Upgrade| header field or the |Upgrade|
@@ -194,9 +175,7 @@ impl VerifyData {
             .map(|h| h.eq_ignore_ascii_case("websocket"))
             .unwrap_or(false)
         {
-            return Err(Error::Protocol(
-                "No \"Upgrade: websocket\" in server reply".into(),
-            ));
+            return Err(Error::Protocol("No \"Upgrade: websocket\" in server reply".into()));
         }
         // 3.  If the response lacks a |Connection| header field or the
         // |Connection| header field doesn't contain a token that is an
@@ -208,22 +187,14 @@ impl VerifyData {
             .map(|h| h.eq_ignore_ascii_case("Upgrade"))
             .unwrap_or(false)
         {
-            return Err(Error::Protocol(
-                "No \"Connection: upgrade\" in server reply".into(),
-            ));
+            return Err(Error::Protocol("No \"Connection: upgrade\" in server reply".into()));
         }
         // 4.  If the response lacks a |Sec-WebSocket-Accept| header field or
         // the |Sec-WebSocket-Accept| contains a value other than the
         // base64-encoded SHA-1 of ... the client MUST _Fail the WebSocket
         // Connection_. (RFC 6455)
-        if !headers
-            .get("Sec-WebSocket-Accept")
-            .map(|h| h == &self.accept_key)
-            .unwrap_or(false)
-        {
-            return Err(Error::Protocol(
-                "Key mismatch in Sec-WebSocket-Accept".into(),
-            ));
+        if !headers.get("Sec-WebSocket-Accept").map(|h| h == &self.accept_key).unwrap_or(false) {
+            return Err(Error::Protocol("Key mismatch in Sec-WebSocket-Accept".into()));
         }
 
         // 5.  If the response includes a |Sec-WebSocket-Extensions| header
@@ -231,7 +202,6 @@ impl VerifyData {
         // that was not present in the client's handshake (the server has
         // indicated an extension not requested by the client), the client
         // MUST _Fail the WebSocket Connection_. (RFC 6455)
-
         verify_compression_resp_headers(response, config)?;
 
         // 6.  If the response includes a |Sec-WebSocket-Protocol| header field
@@ -241,7 +211,7 @@ impl VerifyData {
         // the WebSocket Connection_. (RFC 6455)
         // TODO
 
-        Ok(())
+        Ok(response)
     }
 }
 
@@ -259,9 +229,7 @@ impl TryParse for Response {
 impl<'h, 'b: 'h> FromHttparse<httparse::Response<'h, 'b>> for Response {
     fn from_httparse(raw: httparse::Response<'h, 'b>) -> Result<Self> {
         if raw.version.expect("Bug: no HTTP version") < /*1.*/1 {
-            return Err(Error::Protocol(
-                "HTTP version should be 1.1 or higher".into(),
-            ));
+            return Err(Error::Protocol("HTTP version should be 1.1 or higher".into()));
         }
 
         let headers = HeaderMap::from_httparse(raw.headers)?;
@@ -287,8 +255,7 @@ fn generate_key() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::super::machine::TryParse;
-    use super::{generate_key, generate_request, Response};
+    use super::{super::machine::TryParse, generate_key, generate_request, Response};
     use crate::client::IntoClientRequest;
 
     #[test]
@@ -367,9 +334,6 @@ mod tests {
         const DATA: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
         let (_, resp) = Response::try_parse(DATA).unwrap().unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
-        assert_eq!(
-            resp.headers().get("Content-Type").unwrap(),
-            &b"text/html"[..],
-        );
+        assert_eq!(resp.headers().get("Content-Type").unwrap(), &b"text/html"[..],);
     }
 }

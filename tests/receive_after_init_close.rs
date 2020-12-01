@@ -1,10 +1,12 @@
 //! Verifies that we can read data messages even if we have initiated a close handshake,
 //! but before we got confirmation.
 
-use std::net::TcpListener;
-use std::process::exit;
-use std::thread::{sleep, spawn};
-use std::time::Duration;
+use std::{
+    net::TcpListener,
+    process::exit,
+    thread::{sleep, spawn},
+    time::Duration,
+};
 
 use tungstenite::{accept, connect, Error, Message};
 use url::Url;
@@ -24,9 +26,7 @@ fn test_receive_after_init_close() {
     let client_thread = spawn(move || {
         let (mut client, _) = connect(Url::parse("ws://localhost:3013/socket").unwrap()).unwrap();
 
-        client
-            .write_message(Message::Text("Hello WebSocket".into()))
-            .unwrap();
+        client.write_message(Message::Text("Hello WebSocket".into())).unwrap();
 
         let message = client.read_message().unwrap(); // receive close from server
         assert!(message.is_close());

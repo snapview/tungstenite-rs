@@ -19,7 +19,7 @@ tls-vendored = ["native-tls", "native-tls/vendored"]
 deflate = ["flate2"]
 
 [dependencies]
-base64 = "0.12.0"
+base64 = "0.13.0"
 byteorder = "1.3.2"
 bytes = "0.5"
 http = "0.2"
@@ -42,7 +42,7 @@ optional = true
 version = "0.2.3"
 
 [dev-dependencies]
-env_logger = "0.7.1"
+env_logger = "0.8.1"
 net2 = "0.2.33"
 
 [[example]]

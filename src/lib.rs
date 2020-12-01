@@ -16,18 +16,17 @@ pub use http;
 
 pub mod client;
 pub mod error;
+pub mod extensions;
 pub mod handshake;
 pub mod protocol;
 pub mod server;
 pub mod stream;
 pub mod util;
 
-pub mod extensions;
-
-pub use crate::client::{client, connect};
-pub use crate::error::{Error, Result};
-pub use crate::handshake::client::ClientHandshake;
-pub use crate::handshake::server::ServerHandshake;
-pub use crate::handshake::HandshakeError;
-pub use crate::protocol::{Message, WebSocket};
-pub use crate::server::{accept, accept_hdr};
+pub use crate::{
+    client::{client, connect},
+    error::{Error, Result},
+    handshake::{client::ClientHandshake, server::ServerHandshake, HandshakeError},
+    protocol::{Message, WebSocket},
+    server::{accept, accept_hdr},
+};

@@ -6,11 +6,12 @@ pub mod server;
 
 mod machine;
 
-use std::error::Error as ErrorTrait;
-use std::fmt;
-use std::io::{Read, Write};
+use std::{
+    error::Error as ErrorTrait,
+    fmt,
+    io::{Read, Write},
+};
 
-use base64;
 use sha1::{Digest, Sha1};
 
 use self::machine::{HandshakeMachine, RoundResult, StageResult, TryParse};
@@ -40,10 +41,7 @@ impl<Role: HandshakeRole> MidHandshake<Role> {
         loop {
             mach = match mach.single_round()? {
                 RoundResult::WouldBlock(m) => {
-                    return Err(HandshakeError::Interrupted(MidHandshake {
-                        machine: m,
-                        ..self
-                    }))
+                    return Err(HandshakeError::Interrupted(MidHandshake { machine: m, ..self }))
                 }
                 RoundResult::Incomplete(m) => m,
                 RoundResult::StageFinished(s) => match self.role.stage_finished(s)? {

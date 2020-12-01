@@ -1,14 +1,14 @@
-use std::convert::{AsRef, From, Into};
-use std::fmt;
-use std::result::Result as StdResult;
-use std::str;
+use std::{
+    convert::{AsRef, From, Into},
+    fmt,
+    result::Result as StdResult,
+    str,
+};
 
 use super::frame::CloseFrame;
 use crate::error::{Error, Result};
 
 mod string_collect {
-
-    use utf8;
     use utf8::DecodeError;
 
     use crate::error::{Error, Result};
@@ -21,10 +21,7 @@ mod string_collect {
 
     impl StringCollector {
         pub fn new() -> Self {
-            StringCollector {
-                data: String::new(),
-                incomplete: None,
-            }
+            StringCollector { data: String::new(), incomplete: None }
         }
 
         pub fn len(&self) -> usize {
@@ -56,10 +53,7 @@ mod string_collect {
                         self.data.push_str(text);
                         Ok(())
                     }
-                    Err(DecodeError::Incomplete {
-                        valid_prefix,
-                        incomplete_suffix,
-                    }) => {
+                    Err(DecodeError::Incomplete { valid_prefix, incomplete_suffix }) => {
                         self.data.push_str(valid_prefix);
                         self.incomplete = Some(incomplete_suffix);
                         Ok(())
@@ -129,11 +123,7 @@ impl IncompleteMessage {
         // Be careful about integer overflows here.
         if my_size > max_size || portion_size > max_size - my_size {
             return Err(Error::Capacity(
-                format!(
-                    "Message too big: {} + {} > {}",
-                    my_size, portion_size, max_size
-                )
-                .into(),
+                format!("Message too big: {} + {} > {}", my_size, portion_size, max_size).into(),
             ));
         }
 
@@ -203,42 +193,27 @@ impl Message {
 
     /// Indicates whether a message is a text message.
     pub fn is_text(&self) -> bool {
-        match *self {
-            Message::Text(_) => true,
-            _ => false,
-        }
+        matches!(*self, Message::Text(_))
     }
 
     /// Indicates whether a message is a binary message.
     pub fn is_binary(&self) -> bool {
-        match *self {
-            Message::Binary(_) => true,
-            _ => false,
-        }
+        matches!(*self, Message::Binary(_))
     }
 
     /// Indicates whether a message is a ping message.
     pub fn is_ping(&self) -> bool {
-        match *self {
-            Message::Ping(_) => true,
-            _ => false,
-        }
+        matches!(*self, Message::Ping(_))
     }
 
     /// Indicates whether a message is a pong message.
     pub fn is_pong(&self) -> bool {
-        match *self {
-            Message::Pong(_) => true,
-            _ => false,
-        }
+        matches!(*self, Message::Pong(_))
     }
 
     /// Indicates whether a message ia s close message.
     pub fn is_close(&self) -> bool {
-        match *self {
-            Message::Close(_) => true,
-            _ => false,
-        }
+        matches!(*self, Message::Close(_))
     }
 
     /// Get the length of the WebSocket message.
