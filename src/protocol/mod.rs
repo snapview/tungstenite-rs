@@ -50,13 +50,12 @@ pub struct WebSocketConfig {
     /// be reasonably big for all normal use-cases but small enough to prevent memory eating
     /// by a malicious user.
     pub max_frame_size: Option<usize>,
-    /// If set to true it will allow the websocket server to accept unmasked frames from client.
-    /// Even though this behaviour is not in compliance with RFC 6455 (which requires the server
-    /// to close the connection when unmasked frame from client is received) it might be handy in some cases
-    /// as there are existing applications sending unmasked client frames. By default (i.e. unless not explicitly specified)
-    /// this flag is set to false which means violation of RFC 6455 is not allowed and unmasked client frames will be rejected
-    ///by websocket server.
-    pub server_allow_unmasked: bool,
+    /// When set to `true`, the server will accept and handle unmasked frames
+    /// from the client. According to the RFC 6455, the server must close the
+    /// connection to the client in such cases, however it seems like there are
+    /// some popular libraries that are sending unmasked frames, ignoring the RFC.
+    /// By default this option is set to `false`, i.e. according to RFC 6455.
+    pub accept_unmasked_frames: bool,
 }
 
 impl Default for WebSocketConfig {
@@ -65,7 +64,7 @@ impl Default for WebSocketConfig {
             max_send_queue: None,
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
-            server_allow_unmasked: false,
+            accept_unmasked_frames: false,
         }
     }
 }
@@ -459,8 +458,8 @@ impl WebSocketContext {
                         // frame that is not masked. (RFC 6455)
                         // The only exception here is if the user explicitly accepts given
                         // stream (by tungstenite::server::accept_with_config or tungstenite::server::accept_hdr_with_config)
-                        // with WebSocketConfig.server_allow_unmasked set to true
-                        if self.get_config().server_allow_unmasked == false {
+                        // with WebSocketConfig.accept_unmasked_frames set to true
+                        if !self.config.accept_unmasked_frames {
                             return Err(Error::Protocol(
                                 "Received an unmasked frame from client".into(),
                             ));
