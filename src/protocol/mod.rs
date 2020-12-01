@@ -457,8 +457,7 @@ impl WebSocketContext {
                         // The server MUST close the connection upon receiving a
                         // frame that is not masked. (RFC 6455)
                         // The only exception here is if the user explicitly accepts given
-                        // stream (by tungstenite::server::accept_with_config or tungstenite::server::accept_hdr_with_config)
-                        // with WebSocketConfig.accept_unmasked_frames set to true
+                        // stream by setting WebSocketConfig.accept_unmasked_frames to true
                         if !self.config.accept_unmasked_frames {
                             return Err(Error::Protocol(
                                 "Received an unmasked frame from client".into(),
