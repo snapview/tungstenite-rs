@@ -5,9 +5,9 @@ extern crate tungstenite;
 
 use std::io;
 use std::io::Cursor;
+use tungstenite::extensions::uncompressed::UncompressedExt;
 use tungstenite::protocol::Role;
 use tungstenite::WebSocket;
-use tungstenite::extensions::uncompressed::UncompressedExt;
 //use std::result::Result;
 
 // FIXME: copypasted from tungstenite's protocol/mod.rs
@@ -34,7 +34,6 @@ impl<Stream: io::Read> io::Read for WriteMoc<Stream> {
 fuzz_target!(|data: &[u8]| {
     //let vector: Vec<u8> = data.into();
     let cursor = Cursor::new(data);
-    let mut socket: WebSocket<_, UncompressedExt> =
-        WebSocket::from_raw_socket(WriteMoc(cursor), Role::Server, None);
+    let mut socket = WebSocket::from_raw_socket(WriteMoc(cursor), Role::Server, None);
     socket.read_message().ok();
 });
