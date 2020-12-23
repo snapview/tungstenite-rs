@@ -51,7 +51,7 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
                     .no_block()?;
                 match read {
                     Some(0) => Err(Error::Protocol("Handshake not finished".into())),
-                    Some(_) => Ok(if let Some((size, obj)) = Obj::try_parse(Buf::bytes(&buf))? {
+                    Some(_) => Ok(if let Some((size, obj)) = Obj::try_parse(Buf::chunk(&buf))? {
                         buf.advance(size);
                         RoundResult::StageFinished(StageResult::DoneReading {
                             result: obj,
@@ -72,7 +72,7 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
             }
             HandshakeState::Writing(mut buf) => {
                 assert!(buf.has_remaining());
-                if let Some(size) = self.stream.write(Buf::bytes(&buf)).no_block()? {
+                if let Some(size) = self.stream.write(Buf::chunk(&buf)).no_block()? {
                     assert!(size > 0);
                     buf.advance(size);
                     Ok(if buf.has_remaining() {
