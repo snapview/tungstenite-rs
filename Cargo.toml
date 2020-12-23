@@ -20,7 +20,7 @@ tls-vendored = ["native-tls", "native-tls/vendored"]
 [dependencies]
 base64 = "0.13.0"
 byteorder = "1.3.2"
-bytes = "0.5"
+bytes = "1.0"
 http = "0.2"
 httparse = "1.3.4"
 input_buffer = "0.3.0"
