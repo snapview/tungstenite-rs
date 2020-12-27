@@ -196,7 +196,7 @@ pub fn uri_mode(uri: &Uri) -> Result<Mode> {
 /// as configuration is equal to calling `client()` function.
 ///
 /// Use this function if you need a nonblocking handshake support or if you
-/// want to use a custom stream like `mio::tcp::TcpStream` or `openssl::ssl::SslStream`.
+/// want to use a custom stream like `mio::net::TcpStream` or `openssl::ssl::SslStream`.
 /// Any stream supporting `Read + Write` will do.
 pub fn client_with_config<Stream, Req>(
     request: Req,
@@ -213,7 +213,7 @@ where
 /// Do the client handshake over the given stream.
 ///
 /// Use this function if you need a nonblocking handshake support or if you
-/// want to use a custom stream like `mio::tcp::TcpStream` or `openssl::ssl::SslStream`.
+/// want to use a custom stream like `mio::net::TcpStream` or `openssl::ssl::SslStream`.
 /// Any stream supporting `Read + Write` will do.
 pub fn client<Stream, Req>(
     request: Req,
