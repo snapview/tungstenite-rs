@@ -119,10 +119,8 @@ pub fn connect_with_config<Req: IntoClientRequest>(
     }
 
     fn create_request(parts: &Parts, uri: &Uri) -> Request {
-        let mut builder = Request::builder()
-            .uri(uri.clone())
-            .method(parts.method.clone())
-            .version(parts.version);
+        let mut builder =
+            Request::builder().uri(uri.clone()).method(parts.method.clone()).version(parts.version);
         *builder.headers_mut().expect("Failed to create `Request`") = parts.headers.clone();
         builder.body(()).expect("Failed to create `Request`")
     }

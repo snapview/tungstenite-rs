@@ -6,8 +6,9 @@ use std::{
     result::Result as StdResult,
 };
 
-use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode};
-use http::response::Builder;
+use http::{
+    response::Builder, HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode,
+};
 use httparse::Status;
 use log::*;
 
@@ -75,7 +76,7 @@ fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
         .header("Connection", "Upgrade")
         .header("Upgrade", "websocket")
         .header("Sec-WebSocket-Accept", convert_key(key.as_bytes())?);
-    
+
     Ok(builder)
 }
 
@@ -84,8 +85,11 @@ pub fn create_response(request: &Request) -> Result<Response> {
     Ok(create_parts(&request)?.body(())?)
 }
 
-/// Create a response for the request, with a custom body builder
-pub fn create_custom_response<T>(request: &HttpRequest<T>, generate_body: impl FnOnce() -> T) -> Result<HttpResponse<T>> {
+/// Create a response for the request with a custom body.
+pub fn create_response_with_body<T>(
+    request: &HttpRequest<T>,
+    generate_body: impl FnOnce() -> T,
+) -> Result<HttpResponse<T>> {
     Ok(create_parts(&request)?.body(generate_body())?)
 }
 
