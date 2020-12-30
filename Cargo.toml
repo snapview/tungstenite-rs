@@ -20,10 +20,10 @@ tls-vendored = ["native-tls", "native-tls/vendored"]
 [dependencies]
 base64 = "0.13.0"
 byteorder = "1.3.2"
-bytes = "0.5"
+bytes = "1.0"
 http = "0.2"
 httparse = "1.3.4"
-input_buffer = "0.3.0"
+input_buffer = { version = "0.4.0", git = "https://github.com/snapview/input_buffer.git" }
 log = "0.4.8"
 rand = "0.8.0"
 sha-1 = "0.9"
