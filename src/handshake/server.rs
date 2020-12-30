@@ -6,7 +6,9 @@ use std::{
     result::Result as StdResult,
 };
 
-use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode};
+use http::{
+    response::Builder, HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode,
+};
 use httparse::Status;
 use log::*;
 
@@ -30,8 +32,7 @@ pub type Response = HttpResponse<()>;
 /// Server error response type.
 pub type ErrorResponse = HttpResponse<Option<String>>;
 
-/// Create a response for the request.
-pub fn create_response(request: &Request) -> Result<Response> {
+fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
     if request.method() != http::Method::GET {
         return Err(Error::Protocol("Method is not GET".into()));
     }
@@ -76,7 +77,20 @@ pub fn create_response(request: &Request) -> Result<Response> {
         .header("Upgrade", "websocket")
         .header("Sec-WebSocket-Accept", convert_key(key.as_bytes())?);
 
-    Ok(builder.body(())?)
+    Ok(builder)
+}
+
+/// Create a response for the request.
+pub fn create_response(request: &Request) -> Result<Response> {
+    Ok(create_parts(&request)?.body(())?)
+}
+
+/// Create a response for the request with a custom body.
+pub fn create_response_with_body<T>(
+    request: &HttpRequest<T>,
+    generate_body: impl FnOnce() -> T,
+) -> Result<HttpResponse<T>> {
+    Ok(create_parts(&request)?.body(generate_body())?)
 }
 
 // Assumes that this is a valid response
