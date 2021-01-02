@@ -29,3 +29,6 @@ pub use crate::{
     protocol::{Message, WebSocket},
     server::{accept, accept_hdr},
 };
+
+#[cfg(all(feature = "native-tls", feature = "rustls-tls"))]
+compile_error!("either \"native-tls\" or \"rustls-tls\" can be enabled, but not both.");

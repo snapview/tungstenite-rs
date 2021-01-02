@@ -5,10 +5,17 @@ use std::{borrow::Cow, error::Error as ErrorTrait, fmt, io, result, str, string}
 use crate::protocol::Message;
 use http::Response;
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "native-tls")]
 pub mod tls {
     //! TLS error wrapper module, feature-gated.
     pub use native_tls::Error;
+}
+
+#[cfg(feature = "rustls-tls")]
+pub mod tls {
+    //! TLS error wrapper module, feature-gated.
+    pub use rustls::TLSError as Error;
+    pub use webpki::InvalidDNSNameError as DnsError;
 }
 
 /// Result type of all Tungstenite library calls.
@@ -40,9 +47,15 @@ pub enum Error {
     /// Input-output error. Apart from WouldBlock, these are generally errors with the
     /// underlying connection and you should probably consider them fatal.
     Io(io::Error),
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "native-tls")]
     /// TLS error
     Tls(tls::Error),
+    #[cfg(feature = "rustls-tls")]
+    /// TLS error
+    Tls(tls::Error),
+    #[cfg(feature = "rustls-tls")]
+    /// DNS name resolution error.
+    Dns(tls::DnsError),
     /// - When reading: buffer capacity exhausted.
     /// - When writing: your message is bigger than the configured max message size
     ///   (64MB by default).
@@ -67,8 +80,12 @@ impl fmt::Display for Error {
             Error::ConnectionClosed => write!(f, "Connection closed normally"),
             Error::AlreadyClosed => write!(f, "Trying to work with closed connection"),
             Error::Io(ref err) => write!(f, "IO error: {}", err),
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "native-tls")]
             Error::Tls(ref err) => write!(f, "TLS error: {}", err),
+            #[cfg(feature = "rustls-tls")]
+            Error::Tls(ref err) => write!(f, "TLS error: {}", err),
+            #[cfg(feature = "rustls-tls")]
+            Error::Dns(ref err) => write!(f, "Invalid DNS name: {}", err),
             Error::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
             Error::Protocol(ref msg) => write!(f, "WebSocket protocol error: {}", msg),
             Error::SendQueueFull(_) => write!(f, "Send queue is full"),
@@ -136,10 +153,24 @@ impl From<http::Error> for Error {
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "native-tls")]
 impl From<tls::Error> for Error {
     fn from(err: tls::Error) -> Self {
         Error::Tls(err)
+    }
+}
+
+#[cfg(feature = "rustls-tls")]
+impl From<tls::Error> for Error {
+    fn from(err: tls::Error) -> Self {
+        Error::Tls(err)
+    }
+}
+
+#[cfg(feature = "rustls-tls")]
+impl From<tls::DnsError> for Error {
+    fn from(err: tls::DnsError) -> Self {
+        Error::Dns(err)
     }
 }
 

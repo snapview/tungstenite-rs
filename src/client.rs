@@ -16,7 +16,7 @@ use crate::{
     protocol::WebSocketConfig,
 };
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "native-tls")]
 mod encryption {
     pub use native_tls::TlsStream;
     use native_tls::{HandshakeError as TlsHandshakeError, TlsConnector};
@@ -47,7 +47,40 @@ mod encryption {
     }
 }
 
-#[cfg(not(feature = "tls"))]
+#[cfg(feature = "rustls-tls")]
+mod encryption {
+    use rustls::ClientConfig;
+    pub use rustls::{ClientSession, StreamOwned};
+    use std::{net::TcpStream, sync::Arc};
+    use webpki::DNSNameRef;
+
+    pub use crate::stream::Stream as StreamSwitcher;
+    /// TCP stream switcher (plain/TLS).
+    pub type AutoStream = StreamSwitcher<TcpStream, StreamOwned<ClientSession, TcpStream>>;
+
+    use crate::{error::Result, stream::Mode};
+
+    pub fn wrap_stream(stream: TcpStream, domain: &str, mode: Mode) -> Result<AutoStream> {
+        match mode {
+            Mode::Plain => Ok(StreamSwitcher::Plain(stream)),
+            Mode::Tls => {
+                let config = {
+                    let mut config = ClientConfig::new();
+                    config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+
+                    Arc::new(config)
+                };
+                let domain = DNSNameRef::try_from_ascii_str(domain)?;
+                let client = ClientSession::new(&config, domain);
+                let stream = StreamOwned::new(client, stream);
+
+                Ok(StreamSwitcher::Tls(stream))
+            }
+        }
+    }
+}
+
+#[cfg(not(any(feature = "native-tls", feature = "rustls-tls")))]
 mod encryption {
     use std::net::TcpStream;
 
