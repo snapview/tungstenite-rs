@@ -52,7 +52,7 @@ mod encryption {
     use std::net::TcpStream;
 
     use crate::{
-        error::{Error, Result},
+        error::{Error, UrlErrorType, Result},
         stream::Mode,
     };
 
@@ -62,7 +62,7 @@ mod encryption {
     pub fn wrap_stream(stream: TcpStream, _domain: &str, mode: Mode) -> Result<AutoStream> {
         match mode {
             Mode::Plain => Ok(stream),
-            Mode::Tls => Err(Error::Url("TLS support not compiled in.".into())),
+            Mode::Tls => Err(Error::Url(UrlErrorType::TlsFeatureNotEnabled)),
         }
     }
 }
@@ -71,7 +71,7 @@ use self::encryption::wrap_stream;
 pub use self::encryption::AutoStream;
 
 use crate::{
-    error::{Error, Result},
+    error::{Error, UrlErrorType, Result},
     handshake::{client::ClientHandshake, HandshakeError},
     protocol::WebSocket,
     stream::{Mode, NoDelay},
@@ -104,7 +104,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
         let uri = request.uri();
         let mode = uri_mode(uri)?;
         let host =
-            request.uri().host().ok_or_else(|| Error::Url("No host name in the URL".into()))?;
+            request.uri().host().ok_or_else(|| Error::Url(UrlErrorType::NoHostName))?;
         let port = uri.port_u16().unwrap_or(match mode {
             Mode::Plain => 80,
             Mode::Tls => 443,
@@ -166,7 +166,7 @@ pub fn connect<Req: IntoClientRequest>(request: Req) -> Result<(WebSocket<AutoSt
 }
 
 fn connect_to_some(addrs: &[SocketAddr], uri: &Uri, mode: Mode) -> Result<AutoStream> {
-    let domain = uri.host().ok_or_else(|| Error::Url("No host name in the URL".into()))?;
+    let domain = uri.host().ok_or_else(|| Error::Url(UrlErrorType::NoHostName))?;
     for addr in addrs {
         debug!("Trying to contact {} at {}...", uri, addr);
         if let Ok(raw_stream) = TcpStream::connect(addr) {
@@ -175,7 +175,7 @@ fn connect_to_some(addrs: &[SocketAddr], uri: &Uri, mode: Mode) -> Result<AutoSt
             }
         }
     }
-    Err(Error::Url(format!("Unable to connect to {}", uri).into()))
+    Err(Error::Url(UrlErrorType::UnableToConnect(uri.to_string())))
 }
 
 /// Get the mode of the given URL.
@@ -186,7 +186,7 @@ pub fn uri_mode(uri: &Uri) -> Result<Mode> {
     match uri.scheme_str() {
         Some("ws") => Ok(Mode::Plain),
         Some("wss") => Ok(Mode::Tls),
-        _ => Err(Error::Url("URL scheme not supported".into())),
+        _ => Err(Error::Url(UrlErrorType::UnsupportedUrlScheme)),
     }
 }
 

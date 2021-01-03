@@ -16,7 +16,7 @@ use super::{
     HandshakeRole, MidHandshake, ProcessingResult,
 };
 use crate::{
-    error::{Error, Result},
+    error::{Error, UrlErrorType, Result},
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -98,7 +98,7 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
     let uri = request.uri();
 
     let authority =
-        uri.authority().ok_or_else(|| Error::Url("No host name in the URL".into()))?.as_str();
+        uri.authority().ok_or_else(|| Error::Url(UrlErrorType::NoHostName))?.as_str();
     let host = if let Some(idx) = authority.find('@') {
         // handle possible name:password@
         authority.split_at(idx + 1).1
@@ -106,7 +106,7 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
         authority
     };
     if authority.is_empty() {
-        return Err(Error::Url("URL contains empty host name".into()));
+        return Err(Error::Url(UrlErrorType::EmptyHostName));
     }
 
     write!(
@@ -121,7 +121,7 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
         version = request.version(),
         host = host,
         path =
-            uri.path_and_query().ok_or_else(|| Error::Url("No path/query in URL".into()))?.as_str(),
+            uri.path_and_query().ok_or_else(|| Error::Url(UrlErrorType::NoPathOrQuery))?.as_str(),
         key = key
     )
     .unwrap();

@@ -14,7 +14,7 @@ pub mod tls {
 /// Result type of all Tungstenite library calls.
 pub type Result<T> = result::Result<T, Error>;
 
-/// Possible WebSocket errors
+/// Possible WebSocket errors.
 #[derive(Debug)]
 pub enum Error {
     /// WebSocket connection closed normally. This informs you of the close.
@@ -54,7 +54,7 @@ pub enum Error {
     /// UTF coding error
     Utf8,
     /// Invalid URL.
-    Url(Cow<'static, str>),
+    Url(UrlErrorType),
     /// HTTP error.
     Http(Response<Option<String>>),
     /// HTTP format error.
@@ -148,6 +148,36 @@ impl From<httparse::Error> for Error {
         match err {
             httparse::Error::TooManyHeaders => Error::Capacity("Too many headers".into()),
             e => Error::Protocol(e.to_string().into()),
+        }
+    }
+}
+
+/// Indicates the specific type/cause of URL error.
+#[derive(Debug)]
+pub enum UrlErrorType {
+    /// TLS is used despite not being compiled with the TLS feature enabled.
+    TlsFeatureNotEnabled,
+    /// The URL does not include a host name.
+    NoHostName,
+    /// Failed to connect with this URL.
+    UnableToConnect(String),
+    /// Unsupported URL scheme used (only `ws://` or `wss://` may be used).
+    UnsupportedUrlScheme,
+    /// The URL host name, though included, is empty.
+    EmptyHostName,
+    /// The URL does not include a path/query.
+    NoPathOrQuery
+}
+
+impl fmt::Display for UrlErrorType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            UrlErrorType::TlsFeatureNotEnabled => write!(f, "TLS support not compiled in"),
+            UrlErrorType::NoHostName => write!(f, "No host name in the URL"),
+            UrlErrorType::UnableToConnect(uri) => write!(f, "Unable to connect to {}", uri),
+            UrlErrorType::UnsupportedUrlScheme => write!(f, "URL scheme not supported"),
+            UrlErrorType::EmptyHostName => write!(f, "URL contains empty host name"),
+            UrlErrorType::NoPathOrQuery => write!(f, "No path/query in URL")
         }
     }
 }
