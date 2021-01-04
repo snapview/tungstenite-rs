@@ -3,7 +3,7 @@ use log::*;
 use std::io::{Cursor, Read, Write};
 
 use crate::{
-    error::{Error, ProtocolErrorType, Result},
+    error::{CapacityErrorType, Error, ProtocolErrorType, Result},
     util::NonBlockingResult,
 };
 use input_buffer::{InputBuffer, MIN_READ};
@@ -46,7 +46,7 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
                 let read = buf
                     .prepare_reserve(MIN_READ)
                     .with_limit(usize::max_value()) // TODO limit size
-                    .map_err(|_| Error::Capacity("Header too long".into()))?
+                    .map_err(|_| Error::Capacity(CapacityErrorType::HeaderTooLong))?
                     .read_from(&mut self.stream)
                     .no_block()?;
                 match read {

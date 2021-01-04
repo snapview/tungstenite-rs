@@ -1,6 +1,6 @@
 //! Error handling.
 
-use std::{borrow::Cow, error::Error as ErrorTrait, fmt, io, result, str, string};
+use std::{error::Error as ErrorTrait, fmt, io, result, str, string};
 
 use crate::protocol::{frame::coding::Data, Message};
 use http::Response;
@@ -46,7 +46,7 @@ pub enum Error {
     /// - When reading: buffer capacity exhausted.
     /// - When writing: your message is bigger than the configured max message size
     ///   (64MB by default).
-    Capacity(Cow<'static, str>),
+    Capacity(CapacityErrorType),
     /// Protocol violation.
     Protocol(ProtocolErrorType),
     /// Message send queue full.
@@ -146,38 +146,39 @@ impl From<tls::Error> for Error {
 impl From<httparse::Error> for Error {
     fn from(err: httparse::Error) -> Self {
         match err {
-            httparse::Error::TooManyHeaders => Error::Capacity("Too many headers".into()),
+            httparse::Error::TooManyHeaders => Error::Capacity(CapacityErrorType::TooManyHeaders),
             e => Error::Protocol(ProtocolErrorType::HttparseError(e)),
         }
     }
 }
 
-/// Indicates the specific type/cause of URL error.
-#[derive(Debug, PartialEq, Eq)]
-pub enum UrlErrorType {
-    /// TLS is used despite not being compiled with the TLS feature enabled.
-    TlsFeatureNotEnabled,
-    /// The URL does not include a host name.
-    NoHostName,
-    /// Failed to connect with this URL.
-    UnableToConnect(String),
-    /// Unsupported URL scheme used (only `ws://` or `wss://` may be used).
-    UnsupportedUrlScheme,
-    /// The URL host name, though included, is empty.
-    EmptyHostName,
-    /// The URL does not include a path/query.
-    NoPathOrQuery,
+/// Indicates the specific type/cause of a capacity error.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum CapacityErrorType {
+    /// Too many headers provided (see [`httparse::Error::TooManyHeaders`]).
+    TooManyHeaders,
+    /// Received header is too long.
+    HeaderTooLong,
+    /// Message is bigger than the maximum allowed size.
+    MessageTooLong {
+        /// The size of the message.
+        size: usize,
+        /// The maximum allowed message size.
+        max_size: usize,
+    },
+    /// TCP buffer is full.
+    TcpBufferFull,
 }
 
-impl fmt::Display for UrlErrorType {
+impl fmt::Display for CapacityErrorType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            UrlErrorType::TlsFeatureNotEnabled => write!(f, "TLS support not compiled in"),
-            UrlErrorType::NoHostName => write!(f, "No host name in the URL"),
-            UrlErrorType::UnableToConnect(uri) => write!(f, "Unable to connect to {}", uri),
-            UrlErrorType::UnsupportedUrlScheme => write!(f, "URL scheme not supported"),
-            UrlErrorType::EmptyHostName => write!(f, "URL contains empty host name"),
-            UrlErrorType::NoPathOrQuery => write!(f, "No path/query in URL"),
+            CapacityErrorType::TooManyHeaders => write!(f, "Too many headers"),
+            CapacityErrorType::HeaderTooLong => write!(f, "Header too long"),
+            CapacityErrorType::MessageTooLong { size, max_size } => {
+                write!(f, "Message too long: {} > {}", size, max_size)
+            }
+            CapacityErrorType::TcpBufferFull => write!(f, "Incoming TCP buffer is full"),
         }
     }
 }
@@ -299,6 +300,36 @@ impl fmt::Display for ProtocolErrorType {
                 write!(f, "Encountered invalid opcode: {}", opcode)
             }
             ProtocolErrorType::InvalidCloseSequence => write!(f, "Invalid close sequence"),
+        }
+    }
+}
+
+/// Indicates the specific type/cause of URL error.
+#[derive(Debug, PartialEq, Eq)]
+pub enum UrlErrorType {
+    /// TLS is used despite not being compiled with the TLS feature enabled.
+    TlsFeatureNotEnabled,
+    /// The URL does not include a host name.
+    NoHostName,
+    /// Failed to connect with this URL.
+    UnableToConnect(String),
+    /// Unsupported URL scheme used (only `ws://` or `wss://` may be used).
+    UnsupportedUrlScheme,
+    /// The URL host name, though included, is empty.
+    EmptyHostName,
+    /// The URL does not include a path/query.
+    NoPathOrQuery,
+}
+
+impl fmt::Display for UrlErrorType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            UrlErrorType::TlsFeatureNotEnabled => write!(f, "TLS support not compiled in"),
+            UrlErrorType::NoHostName => write!(f, "No host name in the URL"),
+            UrlErrorType::UnableToConnect(uri) => write!(f, "Unable to connect to {}", uri),
+            UrlErrorType::UnsupportedUrlScheme => write!(f, "URL scheme not supported"),
+            UrlErrorType::EmptyHostName => write!(f, "URL contains empty host name"),
+            UrlErrorType::NoPathOrQuery => write!(f, "No path/query in URL"),
         }
     }
 }

@@ -669,6 +669,7 @@ impl<T> CheckConnectionReset for Result<T> {
 #[cfg(test)]
 mod tests {
     use super::{Message, Role, WebSocket, WebSocketConfig};
+    use crate::error::{CapacityErrorType, Error};
 
     use std::{io, io::Cursor};
 
@@ -711,10 +712,11 @@ mod tests {
         ]);
         let limit = WebSocketConfig { max_message_size: Some(10), ..WebSocketConfig::default() };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
-        assert_eq!(
-            socket.read_message().unwrap_err().to_string(),
-            "Space limit exceeded: Message too big: 7 + 6 > 10"
-        );
+
+        match socket.read_message() {
+            Err(Error::Capacity(CapacityErrorType::MessageTooLong { size: 13, max_size: 10 })) => {}
+            _ => panic!(),
+        }
     }
 
     #[test]
@@ -722,9 +724,10 @@ mod tests {
         let incoming = Cursor::new(vec![0x82, 0x03, 0x01, 0x02, 0x03]);
         let limit = WebSocketConfig { max_message_size: Some(2), ..WebSocketConfig::default() };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
-        assert_eq!(
-            socket.read_message().unwrap_err().to_string(),
-            "Space limit exceeded: Message too big: 0 + 3 > 2"
-        );
+
+        match socket.read_message() {
+            Err(Error::Capacity(CapacityErrorType::MessageTooLong { size: 3, max_size: 2 })) => {}
+            _ => panic!(),
+        }
     }
 }
