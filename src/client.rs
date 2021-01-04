@@ -52,7 +52,7 @@ mod encryption {
     use std::net::TcpStream;
 
     use crate::{
-        error::{Error, UrlErrorType, Result},
+        error::{Error, Result, UrlErrorType},
         stream::Mode,
     };
 
@@ -71,7 +71,7 @@ use self::encryption::wrap_stream;
 pub use self::encryption::AutoStream;
 
 use crate::{
-    error::{Error, UrlErrorType, Result},
+    error::{Error, Result, UrlErrorType},
     handshake::{client::ClientHandshake, HandshakeError},
     protocol::WebSocket,
     stream::{Mode, NoDelay},
@@ -103,8 +103,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
     ) -> Result<(WebSocket<AutoStream>, Response)> {
         let uri = request.uri();
         let mode = uri_mode(uri)?;
-        let host =
-            request.uri().host().ok_or_else(|| Error::Url(UrlErrorType::NoHostName))?;
+        let host = request.uri().host().ok_or_else(|| Error::Url(UrlErrorType::NoHostName))?;
         let port = uri.port_u16().unwrap_or(match mode {
             Mode::Plain => 80,
             Mode::Tls => 443,

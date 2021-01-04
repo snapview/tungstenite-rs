@@ -16,7 +16,7 @@ use super::{
     HandshakeRole, MidHandshake, ProcessingResult,
 };
 use crate::{
-    error::{Error, UrlErrorType, Result},
+    error::{Error, ProtocolErrorType, Result, UrlErrorType},
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -42,11 +42,11 @@ impl<S: Read + Write> ClientHandshake<S> {
         config: Option<WebSocketConfig>,
     ) -> Result<MidHandshake<Self>> {
         if request.method() != http::Method::GET {
-            return Err(Error::Protocol("Invalid HTTP method, only GET supported".into()));
+            return Err(Error::Protocol(ProtocolErrorType::WrongHttpMethod));
         }
 
         if request.version() < http::Version::HTTP_11 {
-            return Err(Error::Protocol("HTTP version should be 1.1 or higher".into()));
+            return Err(Error::Protocol(ProtocolErrorType::WrongHttpVersion));
         }
 
         // Check the URI scheme: only ws or wss are supported
@@ -97,8 +97,7 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
     let mut req = Vec::new();
     let uri = request.uri();
 
-    let authority =
-        uri.authority().ok_or_else(|| Error::Url(UrlErrorType::NoHostName))?.as_str();
+    let authority = uri.authority().ok_or_else(|| Error::Url(UrlErrorType::NoHostName))?.as_str();
     let host = if let Some(idx) = authority.find('@') {
         // handle possible name:password@
         authority.split_at(idx + 1).1
@@ -165,7 +164,7 @@ impl VerifyData {
             .map(|h| h.eq_ignore_ascii_case("websocket"))
             .unwrap_or(false)
         {
-            return Err(Error::Protocol("No \"Upgrade: websocket\" in server reply".into()));
+            return Err(Error::Protocol(ProtocolErrorType::MissingUpgradeWebSocketHeader));
         }
         // 3.  If the response lacks a |Connection| header field or the
         // |Connection| header field doesn't contain a token that is an
@@ -177,14 +176,14 @@ impl VerifyData {
             .map(|h| h.eq_ignore_ascii_case("Upgrade"))
             .unwrap_or(false)
         {
-            return Err(Error::Protocol("No \"Connection: upgrade\" in server reply".into()));
+            return Err(Error::Protocol(ProtocolErrorType::MissingConnectionUpgradeHeader));
         }
         // 4.  If the response lacks a |Sec-WebSocket-Accept| header field or
         // the |Sec-WebSocket-Accept| contains a value other than the
         // base64-encoded SHA-1 of ... the client MUST _Fail the WebSocket
         // Connection_. (RFC 6455)
         if !headers.get("Sec-WebSocket-Accept").map(|h| h == &self.accept_key).unwrap_or(false) {
-            return Err(Error::Protocol("Key mismatch in Sec-WebSocket-Accept".into()));
+            return Err(Error::Protocol(ProtocolErrorType::SecWebSocketAcceptKeyMismatch));
         }
         // 5.  If the response includes a |Sec-WebSocket-Extensions| header
         // field and this header field indicates the use of an extension
@@ -218,7 +217,7 @@ impl TryParse for Response {
 impl<'h, 'b: 'h> FromHttparse<httparse::Response<'h, 'b>> for Response {
     fn from_httparse(raw: httparse::Response<'h, 'b>) -> Result<Self> {
         if raw.version.expect("Bug: no HTTP version") < /*1.*/1 {
-            return Err(Error::Protocol("HTTP version should be 1.1 or higher".into()));
+            return Err(Error::Protocol(ProtocolErrorType::WrongHttpMethod));
         }
 
         let headers = HeaderMap::from_httparse(raw.headers)?;

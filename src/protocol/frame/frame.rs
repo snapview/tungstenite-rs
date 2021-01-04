@@ -13,7 +13,7 @@ use super::{
     coding::{CloseCode, Control, Data, OpCode},
     mask::{apply_mask, generate_mask},
 };
-use crate::error::{Error, Result};
+use crate::error::{Error, ProtocolErrorType, Result};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -186,9 +186,7 @@ impl FrameHeader {
         // Disallow bad opcode
         match opcode {
             OpCode::Control(Control::Reserved(_)) | OpCode::Data(Data::Reserved(_)) => {
-                return Err(Error::Protocol(
-                    format!("Encountered invalid opcode: {}", first & 0x0F).into(),
-                ))
+                return Err(Error::Protocol(ProtocolErrorType::InvalidOpcode(first & 0x0F)))
             }
             _ => (),
         }
@@ -286,7 +284,7 @@ impl Frame {
     pub(crate) fn into_close(self) -> Result<Option<CloseFrame<'static>>> {
         match self.payload.len() {
             0 => Ok(None),
-            1 => Err(Error::Protocol("Invalid close sequence".into())),
+            1 => Err(Error::Protocol(ProtocolErrorType::InvalidCloseSequence)),
             _ => {
                 let mut data = self.payload;
                 let code = NetworkEndian::read_u16(&data[0..2]).into();
