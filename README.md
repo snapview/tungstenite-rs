@@ -15,7 +15,7 @@ fn main () {
             let mut websocket = accept(stream.unwrap()).unwrap();
             loop {
                 let msg = websocket.read_message().unwrap();
-    
+
                 // We do not want to send back ping/pong messages.
                 if msg.is_binary() || msg.is_text() {
                     websocket.write_message(msg).unwrap();
@@ -64,7 +64,7 @@ Testing
 -------
 
 Tungstenite is thoroughly tested and passes the [Autobahn Test Suite](https://crossbar.io/autobahn/) for
-WebSockets. It is also covered by internal unit tests as good as possible.
+WebSockets. It is also covered by internal unit tests as well as possible.
 
 Contributing
 ------------
