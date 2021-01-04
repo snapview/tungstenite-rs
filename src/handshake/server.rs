@@ -68,7 +68,7 @@ fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
     let key = request
         .headers()
         .get("Sec-WebSocket-Key")
-        .ok_or_else(|| Error::Protocol(ProtocolErrorType::MissingSecWebSocketKey))?;
+        .ok_or(Error::Protocol(ProtocolErrorType::MissingSecWebSocketKey))?;
 
     let builder = Response::builder()
         .status(StatusCode::SWITCHING_PROTOCOLS)
