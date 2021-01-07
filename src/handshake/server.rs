@@ -94,7 +94,7 @@ pub fn create_response_with_body<T>(
 }
 
 // Assumes that this is a valid response
-fn write_response<T>(w: &mut dyn io::Write, response: &HttpResponse<T>) -> Result<()> {
+fn write_response<T>(mut w: impl io::Write, response: &HttpResponse<T>) -> Result<()> {
     writeln!(
         w,
         "{version:?} {status}\r",
