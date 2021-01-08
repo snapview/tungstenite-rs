@@ -50,6 +50,12 @@ pub struct WebSocketConfig {
     /// be reasonably big for all normal use-cases but small enough to prevent memory eating
     /// by a malicious user.
     pub max_frame_size: Option<usize>,
+    /// When set to `true`, the server will accept and handle unmasked frames
+    /// from the client. According to the RFC 6455, the server must close the
+    /// connection to the client in such cases, however it seems like there are
+    /// some popular libraries that are sending unmasked frames, ignoring the RFC.
+    /// By default this option is set to `false`, i.e. according to RFC 6455.
+    pub accept_unmasked_frames: bool,
 }
 
 impl Default for WebSocketConfig {
@@ -58,6 +64,7 @@ impl Default for WebSocketConfig {
             max_send_queue: None,
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
+            accept_unmasked_frames: false,
         }
     }
 }
@@ -446,9 +453,11 @@ impl WebSocketContext {
                         // A server MUST remove masking for data frames received from a client
                         // as described in Section 5.3. (RFC 6455)
                         frame.apply_mask()
-                    } else {
+                    } else if !self.config.accept_unmasked_frames {
                         // The server MUST close the connection upon receiving a
                         // frame that is not masked. (RFC 6455)
+                        // The only exception here is if the user explicitly accepts given
+                        // stream by setting WebSocketConfig.accept_unmasked_frames to true
                         return Err(Error::Protocol(
                             "Received an unmasked frame from client".into(),
                         ));
