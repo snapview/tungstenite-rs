@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use tungstenite::{accept, connect, error::ProtocolErrorType, Error, Message};
+use tungstenite::{accept, connect, error::ProtocolError, Error, Message};
 use url::Url;
 
 #[test]
@@ -46,7 +46,7 @@ fn test_no_send_after_close() {
     assert!(err.is_err());
 
     match err.unwrap_err() {
-        Error::Protocol(s) => assert_eq!(s, ProtocolErrorType::SendAfterClosing),
+        Error::Protocol(s) => assert_eq!(s, ProtocolError::SendAfterClosing),
         e => panic!("unexpected error: {:?}", e),
     }
 
