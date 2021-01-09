@@ -9,7 +9,7 @@ readme = "README.md"
 homepage = "https://github.com/snapview/tungstenite-rs"
 documentation = "https://docs.rs/tungstenite/0.12.0"
 repository = "https://github.com/snapview/tungstenite-rs"
-version = "0.12.0"
+version = "0.13.0"
 edition = "2018"
 
 [features]
