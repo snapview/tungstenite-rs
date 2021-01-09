@@ -669,7 +669,7 @@ impl<T> CheckConnectionReset for Result<T> {
 #[cfg(test)]
 mod tests {
     use super::{Message, Role, WebSocket, WebSocketConfig};
-    use crate::error::{CapacityErrorType, Error};
+    use crate::error::{CapacityError, Error};
 
     use std::{io, io::Cursor};
 
@@ -714,7 +714,7 @@ mod tests {
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
 
         match socket.read_message() {
-            Err(Error::Capacity(CapacityErrorType::MessageTooLong { size: 13, max_size: 10 })) => {}
+            Err(Error::Capacity(CapacityError::MessageTooLong { size: 13, max_size: 10 })) => {}
             _ => panic!(),
         }
     }
@@ -726,7 +726,7 @@ mod tests {
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
 
         match socket.read_message() {
-            Err(Error::Capacity(CapacityErrorType::MessageTooLong { size: 3, max_size: 2 })) => {}
+            Err(Error::Capacity(CapacityError::MessageTooLong { size: 3, max_size: 2 })) => {}
             _ => panic!(),
         }
     }

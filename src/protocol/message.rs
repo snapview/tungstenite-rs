@@ -6,7 +6,7 @@ use std::{
 };
 
 use super::frame::CloseFrame;
-use crate::error::{CapacityErrorType, Error, Result};
+use crate::error::{CapacityError, Error, Result};
 
 mod string_collect {
     use utf8::DecodeError;
@@ -122,7 +122,7 @@ impl IncompleteMessage {
         let portion_size = tail.as_ref().len();
         // Be careful about integer overflows here.
         if my_size > max_size || portion_size > max_size - my_size {
-            return Err(Error::Capacity(CapacityErrorType::MessageTooLong {
+            return Err(Error::Capacity(CapacityError::MessageTooLong {
                 size: my_size + portion_size,
                 max_size,
             }));

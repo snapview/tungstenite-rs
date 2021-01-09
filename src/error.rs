@@ -52,7 +52,7 @@ pub enum Error {
     /// - When writing: your message is bigger than the configured max message size
     ///   (64MB by default).
     #[error("Space limit exceeded: {0}")]
-    Capacity(CapacityErrorType),
+    Capacity(CapacityError),
     /// Protocol violation.
     #[error("WebSocket protocol error: {0}")]
     Protocol(ProtocolErrorType),
@@ -118,20 +118,23 @@ impl From<http::status::InvalidStatusCode> for Error {
 impl From<httparse::Error> for Error {
     fn from(err: httparse::Error) -> Self {
         match err {
-            httparse::Error::TooManyHeaders => Error::Capacity(CapacityErrorType::TooManyHeaders),
+            httparse::Error::TooManyHeaders => Error::Capacity(CapacityError::TooManyHeaders),
             e => Error::Protocol(ProtocolErrorType::HttparseError(e)),
         }
     }
 }
 
 /// Indicates the specific type/cause of a capacity error.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum CapacityErrorType {
+#[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum CapacityError {
     /// Too many headers provided (see [`httparse::Error::TooManyHeaders`]).
+    #[error("Too many headers")]
     TooManyHeaders,
     /// Received header is too long.
+    #[error("Header too long")]
     HeaderTooLong,
     /// Message is bigger than the maximum allowed size.
+    #[error("Message too long: {size} > {max_size}")]
     MessageTooLong {
         /// The size of the message.
         size: usize,
@@ -139,20 +142,8 @@ pub enum CapacityErrorType {
         max_size: usize,
     },
     /// TCP buffer is full.
+    #[error("Incoming TCP buffer is full")]
     TcpBufferFull,
-}
-
-impl fmt::Display for CapacityErrorType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            CapacityErrorType::TooManyHeaders => write!(f, "Too many headers"),
-            CapacityErrorType::HeaderTooLong => write!(f, "Header too long"),
-            CapacityErrorType::MessageTooLong { size, max_size } => {
-                write!(f, "Message too long: {} > {}", size, max_size)
-            }
-            CapacityErrorType::TcpBufferFull => write!(f, "Incoming TCP buffer is full"),
-        }
-    }
 }
 
 /// Indicates the specific type/cause of a protocol error.
