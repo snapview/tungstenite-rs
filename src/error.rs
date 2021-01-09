@@ -1,6 +1,6 @@
 //! Error handling.
 
-use std::{fmt, io, result, str, string};
+use std::{io, result, str, string};
 
 use crate::protocol::{frame::coding::Data, Message};
 use http::Response;
@@ -44,8 +44,8 @@ pub enum Error {
     /// underlying connection and you should probably consider them fatal.
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
-    #[cfg(feature = "tls")]
     /// TLS error.
+    #[cfg(feature = "tls")]
     #[error("TLS error: {0}")]
     Tls(#[from] tls::Error),
     /// - When reading: buffer capacity exhausted.
@@ -59,12 +59,12 @@ pub enum Error {
     /// Message send queue full.
     #[error("Send queue is full")]
     SendQueueFull(Message),
-    /// UTF coding error
+    /// UTF coding error.
     #[error("UTF-8 encoding error")]
     Utf8,
     /// Invalid URL.
     #[error("URL error: {0}")]
-    Url(UrlErrorType),
+    Url(UrlError),
     /// HTTP error.
     #[error("HTTP error: {}", .0.status())]
     Http(Response<Option<String>>),
@@ -227,31 +227,24 @@ pub enum ProtocolError {
 }
 
 /// Indicates the specific type/cause of URL error.
-#[derive(Debug, PartialEq, Eq)]
-pub enum UrlErrorType {
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum UrlError {
     /// TLS is used despite not being compiled with the TLS feature enabled.
+    #[error("TLS support not compiled in")]
     TlsFeatureNotEnabled,
     /// The URL does not include a host name.
+    #[error("No host name in the URL")]
     NoHostName,
     /// Failed to connect with this URL.
+    #[error("Unable to connect to {0}")]
     UnableToConnect(String),
     /// Unsupported URL scheme used (only `ws://` or `wss://` may be used).
+    #[error("URL scheme not supported")]
     UnsupportedUrlScheme,
     /// The URL host name, though included, is empty.
+    #[error("URL contains empty host name")]
     EmptyHostName,
     /// The URL does not include a path/query.
+    #[error("No path/query in URL")]
     NoPathOrQuery,
-}
-
-impl fmt::Display for UrlErrorType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            UrlErrorType::TlsFeatureNotEnabled => write!(f, "TLS support not compiled in"),
-            UrlErrorType::NoHostName => write!(f, "No host name in the URL"),
-            UrlErrorType::UnableToConnect(uri) => write!(f, "Unable to connect to {}", uri),
-            UrlErrorType::UnsupportedUrlScheme => write!(f, "URL scheme not supported"),
-            UrlErrorType::EmptyHostName => write!(f, "URL contains empty host name"),
-            UrlErrorType::NoPathOrQuery => write!(f, "No path/query in URL"),
-        }
-    }
 }

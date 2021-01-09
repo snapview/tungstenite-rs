@@ -16,7 +16,7 @@ use super::{
     HandshakeRole, MidHandshake, ProcessingResult,
 };
 use crate::{
-    error::{Error, ProtocolError, Result, UrlErrorType},
+    error::{Error, ProtocolError, Result, UrlError},
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -97,7 +97,7 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
     let mut req = Vec::new();
     let uri = request.uri();
 
-    let authority = uri.authority().ok_or(Error::Url(UrlErrorType::NoHostName))?.as_str();
+    let authority = uri.authority().ok_or(Error::Url(UrlError::NoHostName))?.as_str();
     let host = if let Some(idx) = authority.find('@') {
         // handle possible name:password@
         authority.split_at(idx + 1).1
@@ -105,7 +105,7 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
         authority
     };
     if authority.is_empty() {
-        return Err(Error::Url(UrlErrorType::EmptyHostName));
+        return Err(Error::Url(UrlError::EmptyHostName));
     }
 
     write!(
@@ -119,7 +119,7 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
          Sec-WebSocket-Key: {key}\r\n",
         version = request.version(),
         host = host,
-        path = uri.path_and_query().ok_or(Error::Url(UrlErrorType::NoPathOrQuery))?.as_str(),
+        path = uri.path_and_query().ok_or(Error::Url(UrlError::NoPathOrQuery))?.as_str(),
         key = key
     )
     .unwrap();
