@@ -29,6 +29,7 @@ rand = "0.8.0"
 sha-1 = "0.9"
 url = "2.1.0"
 utf-8 = "0.7.5"
+thiserror = "1.0.23"
 
 [dependencies.native-tls]
 optional = true

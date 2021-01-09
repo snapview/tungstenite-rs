@@ -1,9 +1,10 @@
 //! Error handling.
 
-use std::{error::Error as ErrorTrait, fmt, io, result, str, string};
+use std::{fmt, io, result, str, string};
 
 use crate::protocol::{frame::coding::Data, Message};
 use http::Response;
+use thiserror::Error;
 
 #[cfg(feature = "tls")]
 pub mod tls {
@@ -15,7 +16,7 @@ pub mod tls {
 pub type Result<T> = result::Result<T, Error>;
 
 /// Possible WebSocket errors.
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum Error {
     /// WebSocket connection closed normally. This informs you of the close.
     /// It's not an error as such and nothing wrong happened.
@@ -28,6 +29,7 @@ pub enum Error {
     ///
     /// Receiving this error means that the WebSocket object is not usable anymore and the
     /// only meaningful action with it is dropping it.
+    #[error("Connection closed normally")]
     ConnectionClosed,
     /// Trying to work with already closed connection.
     ///
@@ -36,56 +38,39 @@ pub enum Error {
     /// As opposed to `ConnectionClosed`, this indicates your code tries to operate on the
     /// connection when it really shouldn't anymore, so this really indicates a programmer
     /// error on your part.
+    #[error("Trying to work with closed connection")]
     AlreadyClosed,
     /// Input-output error. Apart from WouldBlock, these are generally errors with the
     /// underlying connection and you should probably consider them fatal.
-    Io(io::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
     #[cfg(feature = "tls")]
     /// TLS error.
-    Tls(tls::Error),
+    #[error("TLS error: {0}")]
+    Tls(#[from] tls::Error),
     /// - When reading: buffer capacity exhausted.
     /// - When writing: your message is bigger than the configured max message size
     ///   (64MB by default).
+    #[error("Space limit exceeded: {0}")]
     Capacity(CapacityErrorType),
     /// Protocol violation.
+    #[error("WebSocket protocol error: {0}")]
     Protocol(ProtocolErrorType),
     /// Message send queue full.
+    #[error("Send queue is full")]
     SendQueueFull(Message),
     /// UTF coding error
+    #[error("UTF-8 encoding error")]
     Utf8,
     /// Invalid URL.
+    #[error("URL error: {0}")]
     Url(UrlErrorType),
     /// HTTP error.
+    #[error("HTTP error: {}", .0.status())]
     Http(Response<Option<String>>),
     /// HTTP format error.
-    HttpFormat(http::Error),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Error::ConnectionClosed => write!(f, "Connection closed normally"),
-            Error::AlreadyClosed => write!(f, "Trying to work with closed connection"),
-            Error::Io(ref err) => write!(f, "IO error: {}", err),
-            #[cfg(feature = "tls")]
-            Error::Tls(ref err) => write!(f, "TLS error: {}", err),
-            Error::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
-            Error::Protocol(ref msg) => write!(f, "WebSocket protocol error: {}", msg),
-            Error::SendQueueFull(_) => write!(f, "Send queue is full"),
-            Error::Utf8 => write!(f, "UTF-8 encoding error"),
-            Error::Url(ref msg) => write!(f, "URL error: {}", msg),
-            Error::Http(ref code) => write!(f, "HTTP error: {}", code.status()),
-            Error::HttpFormat(ref err) => write!(f, "HTTP format error: {}", err),
-        }
-    }
-}
-
-impl ErrorTrait for Error {}
-
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Self {
-        Error::Io(err)
-    }
+    #[error("HTTP format error: {0}")]
+    HttpFormat(#[from] http::Error),
 }
 
 impl From<str::Utf8Error> for Error {
@@ -127,19 +112,6 @@ impl From<http::uri::InvalidUri> for Error {
 impl From<http::status::InvalidStatusCode> for Error {
     fn from(err: http::status::InvalidStatusCode) -> Self {
         Error::HttpFormat(err.into())
-    }
-}
-
-impl From<http::Error> for Error {
-    fn from(err: http::Error) -> Self {
-        Error::HttpFormat(err)
-    }
-}
-
-#[cfg(feature = "tls")]
-impl From<tls::Error> for Error {
-    fn from(err: tls::Error) -> Self {
-        Error::Tls(err)
     }
 }
 
