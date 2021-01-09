@@ -5,13 +5,13 @@ use std::{borrow::Cow, error::Error as ErrorTrait, fmt, io, result, str, string}
 use crate::protocol::Message;
 use http::Response;
 
-#[cfg(feature = "native-tls")]
+#[cfg(feature = "use-native-tls")]
 pub mod tls {
     //! TLS error wrapper module, feature-gated.
     pub use native_tls::Error;
 }
 
-#[cfg(feature = "rustls-tls")]
+#[cfg(feature = "use-rustls")]
 pub mod tls {
     //! TLS error wrapper module, feature-gated.
     pub use rustls::TLSError as Error;
@@ -47,13 +47,13 @@ pub enum Error {
     /// Input-output error. Apart from WouldBlock, these are generally errors with the
     /// underlying connection and you should probably consider them fatal.
     Io(io::Error),
-    #[cfg(feature = "native-tls")]
+    #[cfg(feature = "use-native-tls")]
     /// TLS error
     Tls(tls::Error),
-    #[cfg(feature = "rustls-tls")]
+    #[cfg(feature = "use-rustls")]
     /// TLS error
     Tls(tls::Error),
-    #[cfg(feature = "rustls-tls")]
+    #[cfg(feature = "use-rustls")]
     /// DNS name resolution error.
     Dns(tls::DnsError),
     /// - When reading: buffer capacity exhausted.
@@ -80,11 +80,11 @@ impl fmt::Display for Error {
             Error::ConnectionClosed => write!(f, "Connection closed normally"),
             Error::AlreadyClosed => write!(f, "Trying to work with closed connection"),
             Error::Io(ref err) => write!(f, "IO error: {}", err),
-            #[cfg(feature = "native-tls")]
+            #[cfg(feature = "use-native-tls")]
             Error::Tls(ref err) => write!(f, "TLS error: {}", err),
-            #[cfg(feature = "rustls-tls")]
+            #[cfg(feature = "use-rustls")]
             Error::Tls(ref err) => write!(f, "TLS error: {}", err),
-            #[cfg(feature = "rustls-tls")]
+            #[cfg(feature = "use-rustls")]
             Error::Dns(ref err) => write!(f, "Invalid DNS name: {}", err),
             Error::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
             Error::Protocol(ref msg) => write!(f, "WebSocket protocol error: {}", msg),
@@ -153,21 +153,21 @@ impl From<http::Error> for Error {
     }
 }
 
-#[cfg(feature = "native-tls")]
+#[cfg(feature = "use-native-tls")]
 impl From<tls::Error> for Error {
     fn from(err: tls::Error) -> Self {
         Error::Tls(err)
     }
 }
 
-#[cfg(feature = "rustls-tls")]
+#[cfg(feature = "use-rustls")]
 impl From<tls::Error> for Error {
     fn from(err: tls::Error) -> Self {
         Error::Tls(err)
     }
 }
 
-#[cfg(feature = "rustls-tls")]
+#[cfg(feature = "use-rustls")]
 impl From<tls::DnsError> for Error {
     fn from(err: tls::DnsError) -> Self {
         Error::Dns(err)

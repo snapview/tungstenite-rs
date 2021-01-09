@@ -17,8 +17,9 @@ features = ["native-tls"]
 
 [features]
 default = []
-native-tls-vendored = ["native-tls", "native-tls/vendored"]
-rustls-tls = ["rustls", "webpki", "webpki-roots"]
+use-native-tls = ["native-tls"]
+use-native-tls-vendored = ["use-native-tls", "native-tls/vendored"]
+use-rustls = ["rustls", "webpki", "webpki-roots"]
 
 [dependencies]
 base64 = "0.13.0"

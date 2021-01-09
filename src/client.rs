@@ -16,7 +16,7 @@ use crate::{
     protocol::WebSocketConfig,
 };
 
-#[cfg(feature = "native-tls")]
+#[cfg(feature = "use-native-tls")]
 mod encryption {
     pub use native_tls::TlsStream;
     use native_tls::{HandshakeError as TlsHandshakeError, TlsConnector};
@@ -47,7 +47,7 @@ mod encryption {
     }
 }
 
-#[cfg(feature = "rustls-tls")]
+#[cfg(feature = "use-rustls")]
 mod encryption {
     use rustls::ClientConfig;
     pub use rustls::{ClientSession, StreamOwned};
@@ -80,7 +80,7 @@ mod encryption {
     }
 }
 
-#[cfg(not(any(feature = "native-tls", feature = "rustls-tls")))]
+#[cfg(not(any(feature = "use-native-tls", feature = "use-rustls")))]
 mod encryption {
     use std::net::TcpStream;
 

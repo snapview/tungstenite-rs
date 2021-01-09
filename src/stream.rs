@@ -8,9 +8,9 @@ use std::io::{Read, Result as IoResult, Write};
 
 use std::net::TcpStream;
 
-#[cfg(feature = "native-tls")]
+#[cfg(feature = "use-native-tls")]
 use native_tls::TlsStream;
-#[cfg(feature = "rustls-tls")]
+#[cfg(feature = "use-rustls")]
 use rustls::StreamOwned as TlsStream;
 
 /// Stream mode, either plain TCP or TLS.
@@ -34,14 +34,14 @@ impl NoDelay for TcpStream {
     }
 }
 
-#[cfg(feature = "native-tls")]
+#[cfg(feature = "use-native-tls")]
 impl<S: Read + Write + NoDelay> NoDelay for TlsStream<S> {
     fn set_nodelay(&mut self, nodelay: bool) -> IoResult<()> {
         self.get_mut().set_nodelay(nodelay)
     }
 }
 
-#[cfg(feature = "rustls-tls")]
+#[cfg(feature = "use-rustls")]
 impl<S: rustls::Session, T: Read + Write + NoDelay> NoDelay for TlsStream<S, T> {
     fn set_nodelay(&mut self, nodelay: bool) -> IoResult<()> {
         self.sock.set_nodelay(nodelay)
