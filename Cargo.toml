@@ -7,9 +7,9 @@ authors = ["Alexey Galakhov", "Daniel Abramov"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
 homepage = "https://github.com/snapview/tungstenite-rs"
-documentation = "https://docs.rs/tungstenite/0.11.1"
+documentation = "https://docs.rs/tungstenite/0.12.0"
 repository = "https://github.com/snapview/tungstenite-rs"
-version = "0.11.1"
+version = "0.12.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
@@ -27,7 +27,7 @@ byteorder = "1.3.2"
 bytes = "1.0"
 http = "0.2"
 httparse = "1.3.4"
-input_buffer = { version = "0.4.0", git = "https://github.com/snapview/input_buffer.git" }
+input_buffer = "0.4.0"
 log = "0.4.8"
 rand = "0.8.0"
 sha-1 = "0.9"
