@@ -55,7 +55,7 @@ pub enum Error {
     Capacity(CapacityError),
     /// Protocol violation.
     #[error("WebSocket protocol error: {0}")]
-    Protocol(ProtocolErrorType),
+    Protocol(ProtocolError),
     /// Message send queue full.
     #[error("Send queue is full")]
     SendQueueFull(Message),
@@ -119,7 +119,7 @@ impl From<httparse::Error> for Error {
     fn from(err: httparse::Error) -> Self {
         match err {
             httparse::Error::TooManyHeaders => Error::Capacity(CapacityError::TooManyHeaders),
-            e => Error::Protocol(ProtocolErrorType::HttparseError(e)),
+            e => Error::Protocol(ProtocolError::HttparseError(e)),
         }
     }
 }
@@ -147,124 +147,83 @@ pub enum CapacityError {
 }
 
 /// Indicates the specific type/cause of a protocol error.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum ProtocolErrorType {
+#[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum ProtocolError {
     /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method be used).
+    #[error("Unsupported HTTP method used - only GET is allowed")]
     WrongHttpMethod,
     /// Wrong HTTP version used (the WebSocket protocol requires version 1.1 or higher).
+    #[error("HTTP version must be 1.1 or higher")]
     WrongHttpVersion,
     /// Missing `Connection: upgrade` HTTP header.
+    #[error("No \"Connection: upgrade\" header")]
     MissingConnectionUpgradeHeader,
     /// Missing `Upgrade: websocket` HTTP header.
+    #[error("No \"Upgrade: websocket\" header")]
     MissingUpgradeWebSocketHeader,
     /// Missing `Sec-WebSocket-Version: 13` HTTP header.
+    #[error("No \"Sec-WebSocket-Version: 13\" header")]
     MissingSecWebSocketVersionHeader,
     /// Missing `Sec-WebSocket-Key` HTTP header.
+    #[error("No \"Sec-WebSocket-Key\" header")]
     MissingSecWebSocketKey,
     /// The `Sec-WebSocket-Accept` header is either not present or does not specify the correct key value.
+    #[error("Key mismatch in \"Sec-WebSocket-Accept\" header")]
     SecWebSocketAcceptKeyMismatch,
     /// Garbage data encountered after client request.
+    #[error("Junk after client request")]
     JunkAfterRequest,
     /// Custom responses must be unsuccessful.
+    #[error("Custom response must not be successful")]
     CustomResponseSuccessful,
     /// No more data while still performing handshake.
+    #[error("Handshake not finished")]
     HandshakeIncomplete,
     /// Wrapper around a [`httparse::Error`] value.
-    HttparseError(httparse::Error),
+    #[error("httparse error: {0}")]
+    HttparseError(#[from] httparse::Error),
     /// Not allowed to send after having sent a closing frame.
+    #[error("Sending after closing is not allowed")]
     SendAfterClosing,
     /// Remote sent data after sending a closing frame.
+    #[error("Remote sent after having closed")]
     ReceivedAfterClosing,
     /// Reserved bits in frame header are non-zero.
+    #[error("Reserved bits are non-zero")]
     NonZeroReservedBits,
     /// The server must close the connection when an unmasked frame is received.
+    #[error("Received an unmasked frame from client")]
     UnmaskedFrameFromClient,
     /// The client must close the connection when a masked frame is received.
+    #[error("Received a masked frame from server")]
     MaskedFrameFromServer,
     /// Control frames must not be fragmented.
+    #[error("Fragmented control frame")]
     FragmentedControlFrame,
     /// Control frames must have a payload of 125 bytes or less.
+    #[error("Control frame too big (payload must be 125 bytes or less)")]
     ControlFrameTooBig,
     /// Type of control frame not recognised.
+    #[error("Unknown control frame type: {0}")]
     UnknownControlFrameType(u8),
     /// Type of data frame not recognised.
+    #[error("Unknown data frame type: {0}")]
     UnknownDataFrameType(u8),
     /// Received a continue frame despite there being nothing to continue.
+    #[error("Continue frame but nothing to continue")]
     UnexpectedContinueFrame,
     /// Received data while waiting for more fragments.
+    #[error("While waiting for more fragments received: {0}")]
     ExpectedFragment(Data),
     /// Connection closed without performing the closing handshake.
+    #[error("Connection reset without closing handshake")]
     ResetWithoutClosingHandshake,
     /// Encountered an invalid opcode.
+    #[error("Encountered invalid opcode: {0}")]
     InvalidOpcode(u8),
     /// The payload for the closing frame is invalid.
+    #[error("Invalid close sequence")]
     InvalidCloseSequence,
-}
-
-impl fmt::Display for ProtocolErrorType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ProtocolErrorType::WrongHttpMethod => {
-                write!(f, "Unsupported HTTP method used, only GET is allowed")
-            }
-            ProtocolErrorType::WrongHttpVersion => write!(f, "HTTP version must be 1.1 or higher"),
-            ProtocolErrorType::MissingConnectionUpgradeHeader => {
-                write!(f, "No \"Connection: upgrade\" header")
-            }
-            ProtocolErrorType::MissingUpgradeWebSocketHeader => {
-                write!(f, "No \"Upgrade: websocket\" header")
-            }
-            ProtocolErrorType::MissingSecWebSocketVersionHeader => {
-                write!(f, "No \"Sec-WebSocket-Version: 13\" header")
-            }
-            ProtocolErrorType::MissingSecWebSocketKey => {
-                write!(f, "No \"Sec-WebSocket-Key\" header")
-            }
-            ProtocolErrorType::SecWebSocketAcceptKeyMismatch => {
-                write!(f, "Key mismatch in \"Sec-WebSocket-Accept\" header")
-            }
-            ProtocolErrorType::JunkAfterRequest => write!(f, "Junk after client request"),
-            ProtocolErrorType::CustomResponseSuccessful => {
-                write!(f, "Custom response must not be successful")
-            }
-            ProtocolErrorType::HandshakeIncomplete => write!(f, "Handshake not finished"),
-            ProtocolErrorType::HttparseError(e) => write!(f, "httparse error: {}", e),
-            ProtocolErrorType::SendAfterClosing => {
-                write!(f, "Sending after closing is not allowed")
-            }
-            ProtocolErrorType::ReceivedAfterClosing => write!(f, "Remote sent after having closed"),
-            ProtocolErrorType::NonZeroReservedBits => write!(f, "Reserved bits are non-zero"),
-            ProtocolErrorType::UnmaskedFrameFromClient => {
-                write!(f, "Received an unmasked frame from client")
-            }
-            ProtocolErrorType::MaskedFrameFromServer => {
-                write!(f, "Received a masked frame from server")
-            }
-            ProtocolErrorType::FragmentedControlFrame => write!(f, "Fragmented control frame"),
-            ProtocolErrorType::ControlFrameTooBig => {
-                write!(f, "Control frame too big (payload must be 125 bytes or less)")
-            }
-            ProtocolErrorType::UnknownControlFrameType(i) => {
-                write!(f, "Unknown control frame type: {}", i)
-            }
-            ProtocolErrorType::UnknownDataFrameType(i) => {
-                write!(f, "Unknown data frame type: {}", i)
-            }
-            ProtocolErrorType::UnexpectedContinueFrame => {
-                write!(f, "Continue frame but nothing to continue")
-            }
-            ProtocolErrorType::ExpectedFragment(c) => {
-                write!(f, "While waiting for more fragments received: {}", c)
-            }
-            ProtocolErrorType::ResetWithoutClosingHandshake => {
-                write!(f, "Connection reset without closing handshake")
-            }
-            ProtocolErrorType::InvalidOpcode(opcode) => {
-                write!(f, "Encountered invalid opcode: {}", opcode)
-            }
-            ProtocolErrorType::InvalidCloseSequence => write!(f, "Invalid close sequence"),
-        }
-    }
 }
 
 /// Indicates the specific type/cause of URL error.

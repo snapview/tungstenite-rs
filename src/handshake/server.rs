@@ -19,7 +19,7 @@ use super::{
     HandshakeRole, MidHandshake, ProcessingResult,
 };
 use crate::{
-    error::{Error, ProtocolErrorType, Result},
+    error::{Error, ProtocolError, Result},
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -34,11 +34,11 @@ pub type ErrorResponse = HttpResponse<Option<String>>;
 
 fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
     if request.method() != http::Method::GET {
-        return Err(Error::Protocol(ProtocolErrorType::WrongHttpMethod));
+        return Err(Error::Protocol(ProtocolError::WrongHttpMethod));
     }
 
     if request.version() < http::Version::HTTP_11 {
-        return Err(Error::Protocol(ProtocolErrorType::WrongHttpVersion));
+        return Err(Error::Protocol(ProtocolError::WrongHttpVersion));
     }
 
     if !request
@@ -48,7 +48,7 @@ fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
         .map(|h| h.split(|c| c == ' ' || c == ',').any(|p| p.eq_ignore_ascii_case("Upgrade")))
         .unwrap_or(false)
     {
-        return Err(Error::Protocol(ProtocolErrorType::MissingConnectionUpgradeHeader));
+        return Err(Error::Protocol(ProtocolError::MissingConnectionUpgradeHeader));
     }
 
     if !request
@@ -58,17 +58,17 @@ fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
         .map(|h| h.eq_ignore_ascii_case("websocket"))
         .unwrap_or(false)
     {
-        return Err(Error::Protocol(ProtocolErrorType::MissingUpgradeWebSocketHeader));
+        return Err(Error::Protocol(ProtocolError::MissingUpgradeWebSocketHeader));
     }
 
     if !request.headers().get("Sec-WebSocket-Version").map(|h| h == "13").unwrap_or(false) {
-        return Err(Error::Protocol(ProtocolErrorType::MissingSecWebSocketVersionHeader));
+        return Err(Error::Protocol(ProtocolError::MissingSecWebSocketVersionHeader));
     }
 
     let key = request
         .headers()
         .get("Sec-WebSocket-Key")
-        .ok_or(Error::Protocol(ProtocolErrorType::MissingSecWebSocketKey))?;
+        .ok_or(Error::Protocol(ProtocolError::MissingSecWebSocketKey))?;
 
     let builder = Response::builder()
         .status(StatusCode::SWITCHING_PROTOCOLS)
@@ -125,11 +125,11 @@ impl TryParse for Request {
 impl<'h, 'b: 'h> FromHttparse<httparse::Request<'h, 'b>> for Request {
     fn from_httparse(raw: httparse::Request<'h, 'b>) -> Result<Self> {
         if raw.method.expect("Bug: no method in header") != "GET" {
-            return Err(Error::Protocol(ProtocolErrorType::WrongHttpMethod));
+            return Err(Error::Protocol(ProtocolError::WrongHttpMethod));
         }
 
         if raw.version.expect("Bug: no HTTP version") < /*1.*/1 {
-            return Err(Error::Protocol(ProtocolErrorType::WrongHttpVersion));
+            return Err(Error::Protocol(ProtocolError::WrongHttpVersion));
         }
 
         let headers = HeaderMap::from_httparse(raw.headers)?;
@@ -237,7 +237,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
         Ok(match finish {
             StageResult::DoneReading { stream, result, tail } => {
                 if !tail.is_empty() {
-                    return Err(Error::Protocol(ProtocolErrorType::JunkAfterRequest));
+                    return Err(Error::Protocol(ProtocolError::JunkAfterRequest));
                 }
 
                 let response = create_response(&result)?;
@@ -256,9 +256,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
 
                     Err(resp) => {
                         if resp.status().is_success() {
-                            return Err(Error::Protocol(
-                                ProtocolErrorType::CustomResponseSuccessful,
-                            ));
+                            return Err(Error::Protocol(ProtocolError::CustomResponseSuccessful));
                         }
 
                         self.error_response = Some(resp);

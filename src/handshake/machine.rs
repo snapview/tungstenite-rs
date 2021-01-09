@@ -3,7 +3,7 @@ use log::*;
 use std::io::{Cursor, Read, Write};
 
 use crate::{
-    error::{CapacityError, Error, ProtocolErrorType, Result},
+    error::{CapacityError, Error, ProtocolError, Result},
     util::NonBlockingResult,
 };
 use input_buffer::{InputBuffer, MIN_READ};
@@ -50,7 +50,7 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
                     .read_from(&mut self.stream)
                     .no_block()?;
                 match read {
-                    Some(0) => Err(Error::Protocol(ProtocolErrorType::HandshakeIncomplete)),
+                    Some(0) => Err(Error::Protocol(ProtocolError::HandshakeIncomplete)),
                     Some(_) => Ok(if let Some((size, obj)) = Obj::try_parse(Buf::chunk(&buf))? {
                         buf.advance(size);
                         RoundResult::StageFinished(StageResult::DoneReading {

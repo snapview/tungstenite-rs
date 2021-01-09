@@ -16,7 +16,7 @@ use super::{
     HandshakeRole, MidHandshake, ProcessingResult,
 };
 use crate::{
-    error::{Error, ProtocolErrorType, Result, UrlErrorType},
+    error::{Error, ProtocolError, Result, UrlErrorType},
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -42,11 +42,11 @@ impl<S: Read + Write> ClientHandshake<S> {
         config: Option<WebSocketConfig>,
     ) -> Result<MidHandshake<Self>> {
         if request.method() != http::Method::GET {
-            return Err(Error::Protocol(ProtocolErrorType::WrongHttpMethod));
+            return Err(Error::Protocol(ProtocolError::WrongHttpMethod));
         }
 
         if request.version() < http::Version::HTTP_11 {
-            return Err(Error::Protocol(ProtocolErrorType::WrongHttpVersion));
+            return Err(Error::Protocol(ProtocolError::WrongHttpVersion));
         }
 
         // Check the URI scheme: only ws or wss are supported
@@ -163,7 +163,7 @@ impl VerifyData {
             .map(|h| h.eq_ignore_ascii_case("websocket"))
             .unwrap_or(false)
         {
-            return Err(Error::Protocol(ProtocolErrorType::MissingUpgradeWebSocketHeader));
+            return Err(Error::Protocol(ProtocolError::MissingUpgradeWebSocketHeader));
         }
         // 3.  If the response lacks a |Connection| header field or the
         // |Connection| header field doesn't contain a token that is an
@@ -175,14 +175,14 @@ impl VerifyData {
             .map(|h| h.eq_ignore_ascii_case("Upgrade"))
             .unwrap_or(false)
         {
-            return Err(Error::Protocol(ProtocolErrorType::MissingConnectionUpgradeHeader));
+            return Err(Error::Protocol(ProtocolError::MissingConnectionUpgradeHeader));
         }
         // 4.  If the response lacks a |Sec-WebSocket-Accept| header field or
         // the |Sec-WebSocket-Accept| contains a value other than the
         // base64-encoded SHA-1 of ... the client MUST _Fail the WebSocket
         // Connection_. (RFC 6455)
         if !headers.get("Sec-WebSocket-Accept").map(|h| h == &self.accept_key).unwrap_or(false) {
-            return Err(Error::Protocol(ProtocolErrorType::SecWebSocketAcceptKeyMismatch));
+            return Err(Error::Protocol(ProtocolError::SecWebSocketAcceptKeyMismatch));
         }
         // 5.  If the response includes a |Sec-WebSocket-Extensions| header
         // field and this header field indicates the use of an extension
@@ -216,7 +216,7 @@ impl TryParse for Response {
 impl<'h, 'b: 'h> FromHttparse<httparse::Response<'h, 'b>> for Response {
     fn from_httparse(raw: httparse::Response<'h, 'b>) -> Result<Self> {
         if raw.version.expect("Bug: no HTTP version") < /*1.*/1 {
-            return Err(Error::Protocol(ProtocolErrorType::WrongHttpMethod));
+            return Err(Error::Protocol(ProtocolError::WrongHttpMethod));
         }
 
         let headers = HeaderMap::from_httparse(raw.headers)?;
