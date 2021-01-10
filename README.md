@@ -44,8 +44,6 @@ and asynchronous usage and is easy to integrate into any third-party event loops
 WebSocket protocol but still makes them accessible for those who wants full control over the
 network.
 
-This library is a work in progress. Feel free to ask questions and send us pull requests.
-
 Why Tungstenite?
 ----------------
 
