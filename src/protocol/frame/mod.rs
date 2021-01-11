@@ -8,7 +8,7 @@ mod mask;
 
 pub use self::frame::{CloseFrame, Frame, FrameHeader};
 
-use crate::error::{Error, Result};
+use crate::error::{CapacityError, Error, Result};
 use input_buffer::{InputBuffer, MIN_READ};
 use log::*;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Write};
@@ -133,9 +133,10 @@ impl FrameCodec {
                     // Enforce frame size limit early and make sure `length`
                     // is not too big (fits into `usize`).
                     if length > max_size as u64 {
-                        return Err(Error::Capacity(
-                            format!("Message length too big: {} > {}", length, max_size).into(),
-                        ));
+                        return Err(Error::Capacity(CapacityError::MessageTooLong {
+                            size: length as usize,
+                            max_size,
+                        }));
                     }
 
                     let input_size = cursor.get_ref().len() as u64 - cursor.position();
@@ -155,7 +156,7 @@ impl FrameCodec {
                 .in_buffer
                 .prepare_reserve(MIN_READ)
                 .with_limit(usize::max_value())
-                .map_err(|_| Error::Capacity("Incoming TCP buffer is full".into()))?
+                .map_err(|_| Error::Capacity(CapacityError::TcpBufferFull))?
                 .read_from(stream)?;
             if size == 0 {
                 trace!("no frame received");
@@ -205,6 +206,8 @@ impl FrameCodec {
 
 #[cfg(test)]
 mod tests {
+
+    use crate::error::{CapacityError, Error};
 
     use super::{Frame, FrameSocket};
 
@@ -266,9 +269,9 @@ mod tests {
     fn size_limit_hit() {
         let raw = Cursor::new(vec![0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let mut sock = FrameSocket::new(raw);
-        assert_eq!(
-            sock.read_frame(Some(5)).unwrap_err().to_string(),
-            "Space limit exceeded: Message length too big: 7 > 5"
-        );
+        assert!(matches!(
+            sock.read_frame(Some(5)),
+            Err(Error::Capacity(CapacityError::MessageTooLong { size: 7, max_size: 5 }))
+        ));
     }
 }
