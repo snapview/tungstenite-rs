@@ -269,9 +269,9 @@ mod tests {
     fn size_limit_hit() {
         let raw = Cursor::new(vec![0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let mut sock = FrameSocket::new(raw);
-        match sock.read_frame(Some(5)) {
-            Err(Error::Capacity(CapacityError::MessageTooLong { size: 7, max_size: 5 })) => {}
-            _ => panic!(),
-        }
+        assert!(matches!(
+            sock.read_frame(Some(5)),
+            Err(Error::Capacity(CapacityError::MessageTooLong { size: 7, max_size: 5 }))
+        ));
     }
 }

@@ -713,10 +713,10 @@ mod tests {
         let limit = WebSocketConfig { max_message_size: Some(10), ..WebSocketConfig::default() };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
 
-        match socket.read_message() {
-            Err(Error::Capacity(CapacityError::MessageTooLong { size: 13, max_size: 10 })) => {}
-            _ => panic!(),
-        }
+        assert!(matches!(
+            socket.read_message(),
+            Err(Error::Capacity(CapacityError::MessageTooLong { size: 13, max_size: 10 }))
+        ));
     }
 
     #[test]
@@ -725,9 +725,9 @@ mod tests {
         let limit = WebSocketConfig { max_message_size: Some(2), ..WebSocketConfig::default() };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
 
-        match socket.read_message() {
-            Err(Error::Capacity(CapacityError::MessageTooLong { size: 3, max_size: 2 })) => {}
-            _ => panic!(),
-        }
+        assert!(matches!(
+            socket.read_message(),
+            Err(Error::Capacity(CapacityError::MessageTooLong { size: 3, max_size: 2 }))
+        ));
     }
 }
