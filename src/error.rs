@@ -5,24 +5,12 @@ use std::{borrow::Cow, error::Error as ErrorTrait, fmt, io, result, str, string}
 use crate::protocol::Message;
 use http::Response;
 
-#[cfg(feature = "use-native-tls")]
-pub mod tls {
-    //! TLS error wrapper module, feature-gated.
-    pub use native_tls::Error;
-}
-
-#[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
-pub mod tls {
-    //! TLS error wrapper module, feature-gated.
-    pub use rustls::TLSError as Error;
-    pub use webpki::InvalidDNSNameError as DnsError;
-}
-
 /// Result type of all Tungstenite library calls.
 pub type Result<T> = result::Result<T, Error>;
 
 /// Possible WebSocket errors
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// WebSocket connection closed normally. This informs you of the close.
     /// It's not an error as such and nothing wrong happened.
@@ -49,13 +37,13 @@ pub enum Error {
     Io(io::Error),
     #[cfg(feature = "use-native-tls")]
     /// TLS error
-    Tls(tls::Error),
-    #[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
+    TlsNative(native_tls::Error),
+    #[cfg(feature = "use-rustls")]
     /// TLS error
-    Tls(tls::Error),
-    #[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
+    TlsRustls(rustls::TLSError),
+    #[cfg(feature = "use-rustls")]
     /// DNS name resolution error.
-    Dns(tls::DnsError),
+    Dns(webpki::InvalidDNSNameError),
     /// - When reading: buffer capacity exhausted.
     /// - When writing: your message is bigger than the configured max message size
     ///   (64MB by default).
@@ -81,10 +69,10 @@ impl fmt::Display for Error {
             Error::AlreadyClosed => write!(f, "Trying to work with closed connection"),
             Error::Io(ref err) => write!(f, "IO error: {}", err),
             #[cfg(feature = "use-native-tls")]
-            Error::Tls(ref err) => write!(f, "TLS error: {}", err),
-            #[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
-            Error::Tls(ref err) => write!(f, "TLS error: {}", err),
-            #[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
+            Error::TlsNative(ref err) => write!(f, "TLS (native-tls) error: {}", err),
+            #[cfg(feature = "use-rustls")]
+            Error::TlsRustls(ref err) => write!(f, "TLS (rustls) error: {}", err),
+            #[cfg(feature = "use-rustls")]
             Error::Dns(ref err) => write!(f, "Invalid DNS name: {}", err),
             Error::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
             Error::Protocol(ref msg) => write!(f, "WebSocket protocol error: {}", msg),
@@ -154,22 +142,22 @@ impl From<http::Error> for Error {
 }
 
 #[cfg(feature = "use-native-tls")]
-impl From<tls::Error> for Error {
-    fn from(err: tls::Error) -> Self {
-        Error::Tls(err)
+impl From<native_tls::Error> for Error {
+    fn from(err: native_tls::Error) -> Self {
+        Error::TlsNative(err)
     }
 }
 
-#[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
-impl From<tls::Error> for Error {
-    fn from(err: tls::Error) -> Self {
-        Error::Tls(err)
+#[cfg(feature = "use-rustls")]
+impl From<rustls::TLSError> for Error {
+    fn from(err: rustls::TLSError) -> Self {
+        Error::TlsRustls(err)
     }
 }
 
-#[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
-impl From<tls::DnsError> for Error {
-    fn from(err: tls::DnsError) -> Self {
+#[cfg(feature = "use-rustls")]
+impl From<webpki::InvalidDNSNameError> for Error {
+    fn from(err: webpki::InvalidDNSNameError) -> Self {
         Error::Dns(err)
     }
 }
