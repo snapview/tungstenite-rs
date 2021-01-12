@@ -11,7 +11,7 @@ pub mod tls {
     pub use native_tls::Error;
 }
 
-#[cfg(feature = "use-rustls")]
+#[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
 pub mod tls {
     //! TLS error wrapper module, feature-gated.
     pub use rustls::TLSError as Error;
@@ -50,10 +50,10 @@ pub enum Error {
     #[cfg(feature = "use-native-tls")]
     /// TLS error
     Tls(tls::Error),
-    #[cfg(feature = "use-rustls")]
+    #[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
     /// TLS error
     Tls(tls::Error),
-    #[cfg(feature = "use-rustls")]
+    #[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
     /// DNS name resolution error.
     Dns(tls::DnsError),
     /// - When reading: buffer capacity exhausted.
@@ -82,9 +82,9 @@ impl fmt::Display for Error {
             Error::Io(ref err) => write!(f, "IO error: {}", err),
             #[cfg(feature = "use-native-tls")]
             Error::Tls(ref err) => write!(f, "TLS error: {}", err),
-            #[cfg(feature = "use-rustls")]
+            #[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
             Error::Tls(ref err) => write!(f, "TLS error: {}", err),
-            #[cfg(feature = "use-rustls")]
+            #[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
             Error::Dns(ref err) => write!(f, "Invalid DNS name: {}", err),
             Error::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
             Error::Protocol(ref msg) => write!(f, "WebSocket protocol error: {}", msg),
@@ -160,14 +160,14 @@ impl From<tls::Error> for Error {
     }
 }
 
-#[cfg(feature = "use-rustls")]
+#[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
 impl From<tls::Error> for Error {
     fn from(err: tls::Error) -> Self {
         Error::Tls(err)
     }
 }
 
-#[cfg(feature = "use-rustls")]
+#[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
 impl From<tls::DnsError> for Error {
     fn from(err: tls::DnsError) -> Self {
         Error::Dns(err)

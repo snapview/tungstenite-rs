@@ -15,7 +15,7 @@ use url::Url;
 
 #[cfg(feature = "use-native-tls")]
 type Sock = WebSocket<Stream<TcpStream, native_tls::TlsStream<TcpStream>>>;
-#[cfg(feature = "use-rustls")]
+#[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
 type Sock = WebSocket<Stream<TcpStream, rustls::StreamOwned<rustls::ClientSession, TcpStream>>>;
 
 fn do_test<CT, ST>(port: u16, client_task: CT, server_task: ST)

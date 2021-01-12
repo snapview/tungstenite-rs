@@ -47,7 +47,7 @@ mod encryption {
     }
 }
 
-#[cfg(feature = "use-rustls")]
+#[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
 mod encryption {
     use rustls::ClientConfig;
     pub use rustls::{ClientSession, StreamOwned};
