@@ -1,15 +1,16 @@
 //! Error handling.
 
-use std::{borrow::Cow, error::Error as ErrorTrait, fmt, io, result, str, string};
+use std::{io, result, str, string};
 
-use crate::protocol::Message;
+use crate::protocol::{frame::coding::Data, Message};
 use http::Response;
+use thiserror::Error;
 
 /// Result type of all Tungstenite library calls.
 pub type Result<T> = result::Result<T, Error>;
 
-/// Possible WebSocket errors
-#[derive(Debug)]
+/// Possible WebSocket errors.
+#[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
     /// WebSocket connection closed normally. This informs you of the close.
@@ -23,6 +24,7 @@ pub enum Error {
     ///
     /// Receiving this error means that the WebSocket object is not usable anymore and the
     /// only meaningful action with it is dropping it.
+    #[error("Connection closed normally")]
     ConnectionClosed,
     /// Trying to work with already closed connection.
     ///
@@ -31,66 +33,47 @@ pub enum Error {
     /// As opposed to `ConnectionClosed`, this indicates your code tries to operate on the
     /// connection when it really shouldn't anymore, so this really indicates a programmer
     /// error on your part.
+    #[error("Trying to work with closed connection")]
     AlreadyClosed,
     /// Input-output error. Apart from WouldBlock, these are generally errors with the
     /// underlying connection and you should probably consider them fatal.
-    Io(io::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
+    /// TLS error
     #[cfg(feature = "use-native-tls")]
+    #[error("TLS (native-tls) error: {0}")]
+    TlsNative(#[from] native_tls::Error),
     /// TLS error
-    TlsNative(native_tls::Error),
     #[cfg(feature = "use-rustls")]
-    /// TLS error
-    TlsRustls(rustls::TLSError),
-    #[cfg(feature = "use-rustls")]
+    #[error("TLS (rustls) error: {0}")]
+    TlsRustls(#[from] rustls::TLSError),
     /// DNS name resolution error.
-    Dns(webpki::InvalidDNSNameError),
+    #[cfg(feature = "use-rustls")]
+    #[error("Invalid DNS name: {0}")]
+    Dns(#[from] webpki::InvalidDNSNameError),
     /// - When reading: buffer capacity exhausted.
     /// - When writing: your message is bigger than the configured max message size
     ///   (64MB by default).
-    Capacity(Cow<'static, str>),
+    #[error("Space limit exceeded: {0}")]
+    Capacity(CapacityError),
     /// Protocol violation.
-    Protocol(Cow<'static, str>),
+    #[error("WebSocket protocol error: {0}")]
+    Protocol(ProtocolError),
     /// Message send queue full.
+    #[error("Send queue is full")]
     SendQueueFull(Message),
-    /// UTF coding error
+    /// UTF coding error.
+    #[error("UTF-8 encoding error")]
     Utf8,
     /// Invalid URL.
-    Url(Cow<'static, str>),
+    #[error("URL error: {0}")]
+    Url(UrlError),
     /// HTTP error.
+    #[error("HTTP error: {}", .0.status())]
     Http(Response<Option<String>>),
     /// HTTP format error.
-    HttpFormat(http::Error),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Error::ConnectionClosed => write!(f, "Connection closed normally"),
-            Error::AlreadyClosed => write!(f, "Trying to work with closed connection"),
-            Error::Io(ref err) => write!(f, "IO error: {}", err),
-            #[cfg(feature = "use-native-tls")]
-            Error::TlsNative(ref err) => write!(f, "TLS (native-tls) error: {}", err),
-            #[cfg(feature = "use-rustls")]
-            Error::TlsRustls(ref err) => write!(f, "TLS (rustls) error: {}", err),
-            #[cfg(feature = "use-rustls")]
-            Error::Dns(ref err) => write!(f, "Invalid DNS name: {}", err),
-            Error::Capacity(ref msg) => write!(f, "Space limit exceeded: {}", msg),
-            Error::Protocol(ref msg) => write!(f, "WebSocket protocol error: {}", msg),
-            Error::SendQueueFull(_) => write!(f, "Send queue is full"),
-            Error::Utf8 => write!(f, "UTF-8 encoding error"),
-            Error::Url(ref msg) => write!(f, "URL error: {}", msg),
-            Error::Http(ref code) => write!(f, "HTTP error: {}", code.status()),
-            Error::HttpFormat(ref err) => write!(f, "HTTP format error: {}", err),
-        }
-    }
-}
-
-impl ErrorTrait for Error {}
-
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Self {
-        Error::Io(err)
-    }
+    #[error("HTTP format error: {0}")]
+    HttpFormat(#[from] http::Error),
 }
 
 impl From<str::Utf8Error> for Error {
@@ -135,38 +118,136 @@ impl From<http::status::InvalidStatusCode> for Error {
     }
 }
 
-impl From<http::Error> for Error {
-    fn from(err: http::Error) -> Self {
-        Error::HttpFormat(err)
-    }
-}
-
-#[cfg(feature = "use-native-tls")]
-impl From<native_tls::Error> for Error {
-    fn from(err: native_tls::Error) -> Self {
-        Error::TlsNative(err)
-    }
-}
-
-#[cfg(feature = "use-rustls")]
-impl From<rustls::TLSError> for Error {
-    fn from(err: rustls::TLSError) -> Self {
-        Error::TlsRustls(err)
-    }
-}
-
-#[cfg(feature = "use-rustls")]
-impl From<webpki::InvalidDNSNameError> for Error {
-    fn from(err: webpki::InvalidDNSNameError) -> Self {
-        Error::Dns(err)
-    }
-}
-
 impl From<httparse::Error> for Error {
     fn from(err: httparse::Error) -> Self {
         match err {
-            httparse::Error::TooManyHeaders => Error::Capacity("Too many headers".into()),
-            e => Error::Protocol(e.to_string().into()),
+            httparse::Error::TooManyHeaders => Error::Capacity(CapacityError::TooManyHeaders),
+            e => Error::Protocol(ProtocolError::HttparseError(e)),
         }
     }
+}
+
+/// Indicates the specific type/cause of a capacity error.
+#[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum CapacityError {
+    /// Too many headers provided (see [`httparse::Error::TooManyHeaders`]).
+    #[error("Too many headers")]
+    TooManyHeaders,
+    /// Received header is too long.
+    #[error("Header too long")]
+    HeaderTooLong,
+    /// Message is bigger than the maximum allowed size.
+    #[error("Message too long: {size} > {max_size}")]
+    MessageTooLong {
+        /// The size of the message.
+        size: usize,
+        /// The maximum allowed message size.
+        max_size: usize,
+    },
+    /// TCP buffer is full.
+    #[error("Incoming TCP buffer is full")]
+    TcpBufferFull,
+}
+
+/// Indicates the specific type/cause of a protocol error.
+#[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum ProtocolError {
+    /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method be used).
+    #[error("Unsupported HTTP method used - only GET is allowed")]
+    WrongHttpMethod,
+    /// Wrong HTTP version used (the WebSocket protocol requires version 1.1 or higher).
+    #[error("HTTP version must be 1.1 or higher")]
+    WrongHttpVersion,
+    /// Missing `Connection: upgrade` HTTP header.
+    #[error("No \"Connection: upgrade\" header")]
+    MissingConnectionUpgradeHeader,
+    /// Missing `Upgrade: websocket` HTTP header.
+    #[error("No \"Upgrade: websocket\" header")]
+    MissingUpgradeWebSocketHeader,
+    /// Missing `Sec-WebSocket-Version: 13` HTTP header.
+    #[error("No \"Sec-WebSocket-Version: 13\" header")]
+    MissingSecWebSocketVersionHeader,
+    /// Missing `Sec-WebSocket-Key` HTTP header.
+    #[error("No \"Sec-WebSocket-Key\" header")]
+    MissingSecWebSocketKey,
+    /// The `Sec-WebSocket-Accept` header is either not present or does not specify the correct key value.
+    #[error("Key mismatch in \"Sec-WebSocket-Accept\" header")]
+    SecWebSocketAcceptKeyMismatch,
+    /// Garbage data encountered after client request.
+    #[error("Junk after client request")]
+    JunkAfterRequest,
+    /// Custom responses must be unsuccessful.
+    #[error("Custom response must not be successful")]
+    CustomResponseSuccessful,
+    /// No more data while still performing handshake.
+    #[error("Handshake not finished")]
+    HandshakeIncomplete,
+    /// Wrapper around a [`httparse::Error`] value.
+    #[error("httparse error: {0}")]
+    HttparseError(#[from] httparse::Error),
+    /// Not allowed to send after having sent a closing frame.
+    #[error("Sending after closing is not allowed")]
+    SendAfterClosing,
+    /// Remote sent data after sending a closing frame.
+    #[error("Remote sent after having closed")]
+    ReceivedAfterClosing,
+    /// Reserved bits in frame header are non-zero.
+    #[error("Reserved bits are non-zero")]
+    NonZeroReservedBits,
+    /// The server must close the connection when an unmasked frame is received.
+    #[error("Received an unmasked frame from client")]
+    UnmaskedFrameFromClient,
+    /// The client must close the connection when a masked frame is received.
+    #[error("Received a masked frame from server")]
+    MaskedFrameFromServer,
+    /// Control frames must not be fragmented.
+    #[error("Fragmented control frame")]
+    FragmentedControlFrame,
+    /// Control frames must have a payload of 125 bytes or less.
+    #[error("Control frame too big (payload must be 125 bytes or less)")]
+    ControlFrameTooBig,
+    /// Type of control frame not recognised.
+    #[error("Unknown control frame type: {0}")]
+    UnknownControlFrameType(u8),
+    /// Type of data frame not recognised.
+    #[error("Unknown data frame type: {0}")]
+    UnknownDataFrameType(u8),
+    /// Received a continue frame despite there being nothing to continue.
+    #[error("Continue frame but nothing to continue")]
+    UnexpectedContinueFrame,
+    /// Received data while waiting for more fragments.
+    #[error("While waiting for more fragments received: {0}")]
+    ExpectedFragment(Data),
+    /// Connection closed without performing the closing handshake.
+    #[error("Connection reset without closing handshake")]
+    ResetWithoutClosingHandshake,
+    /// Encountered an invalid opcode.
+    #[error("Encountered invalid opcode: {0}")]
+    InvalidOpcode(u8),
+    /// The payload for the closing frame is invalid.
+    #[error("Invalid close sequence")]
+    InvalidCloseSequence,
+}
+
+/// Indicates the specific type/cause of URL error.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum UrlError {
+    /// TLS is used despite not being compiled with the TLS feature enabled.
+    #[error("TLS support not compiled in")]
+    TlsFeatureNotEnabled,
+    /// The URL does not include a host name.
+    #[error("No host name in the URL")]
+    NoHostName,
+    /// Failed to connect with this URL.
+    #[error("Unable to connect to {0}")]
+    UnableToConnect(String),
+    /// Unsupported URL scheme used (only `ws://` or `wss://` may be used).
+    #[error("URL scheme not supported")]
+    UnsupportedUrlScheme,
+    /// The URL host name, though included, is empty.
+    #[error("URL contains empty host name")]
+    EmptyHostName,
+    /// The URL does not include a path/query.
+    #[error("No path/query in URL")]
+    NoPathOrQuery,
 }
