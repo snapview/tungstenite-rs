@@ -89,7 +89,7 @@ mod encryption {
         stream::Mode,
     };
 
-    /// TLS support is nod compiled in, this is just standard `TcpStream`.
+    /// TLS support is not compiled in, this is just standard `TcpStream`.
     pub type AutoStream = TcpStream;
 
     pub fn wrap_stream(stream: TcpStream, _domain: &str, mode: Mode) -> Result<AutoStream> {
@@ -116,15 +116,15 @@ use crate::{
 /// equal to calling `connect()` function.
 ///
 /// The URL may be either ws:// or wss://.
-/// To support wss:// URLs, feature "tls" must be turned on.
+/// To support wss:// URLs, feature `use-native-tls` or `use-rustls` must be turned on.
 ///
 /// This function "just works" for those who wants a simple blocking solution
 /// similar to `std::net::TcpStream`. If you want a non-blocking or other
 /// custom stream, call `client` instead.
 ///
-/// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
-/// use `client` instead. There is no need to enable the "tls" feature if you don't call
-/// `connect` since it's the only function that uses native_tls.
+/// This function uses `native_tls` or `rustls` to do TLS depending on the feature flags enabled. If
+/// you want to use other TLS libraries, use `client` instead. There is no need to enable the "tls"
+/// feature if you don't call `connect` since it's the only function that uses native_tls or rustls.
 pub fn connect_with_config<Req: IntoClientRequest>(
     request: Req,
     config: Option<WebSocketConfig>,
@@ -184,15 +184,15 @@ pub fn connect_with_config<Req: IntoClientRequest>(
 /// Connect to the given WebSocket in blocking mode.
 ///
 /// The URL may be either ws:// or wss://.
-/// To support wss:// URLs, feature "tls" must be turned on.
+/// To support wss:// URLs, feature `use-native-tls` or `use-rustls` must be turned on.
 ///
 /// This function "just works" for those who wants a simple blocking solution
 /// similar to `std::net::TcpStream`. If you want a non-blocking or other
 /// custom stream, call `client` instead.
 ///
-/// This function uses `native_tls` to do TLS. If you want to use other TLS libraries,
-/// use `client` instead. There is no need to enable the "tls" feature if you don't call
-/// `connect` since it's the only function that uses native_tls.
+/// This function uses `native_tls` or `rustls` to do TLS depending on the feature flags enabled. If
+/// you want to use other TLS libraries, use `client` instead. There is no need to enable the "tls"
+/// feature if you don't call `connect` since it's the only function that uses native_tls or rustls.
 pub fn connect<Req: IntoClientRequest>(request: Req) -> Result<(WebSocket<AutoStream>, Response)> {
     connect_with_config(request, None, 3)
 }
@@ -213,7 +213,7 @@ fn connect_to_some(addrs: &[SocketAddr], uri: &Uri, mode: Mode) -> Result<AutoSt
 /// Get the mode of the given URL.
 ///
 /// This function may be used to ease the creation of custom TLS streams
-/// in non-blocking algorithmss or for use with TLS libraries other than `native_tls`.
+/// in non-blocking algorithms or for use with TLS libraries other than `native_tls` or `rustls`.
 pub fn uri_mode(uri: &Uri) -> Result<Mode> {
     match uri.scheme_str() {
         Some("ws") => Ok(Mode::Plain),

@@ -1,5 +1,5 @@
 //! Verifies that the server returns a `ConnectionClosed` error when the connection
-//! is closedd from the server's point of view and drop the underlying tcp socket.
+//! is closed from the server's point of view and drop the underlying tcp socket.
 #![cfg(any(feature = "use-native-tls", feature = "use-rustls"))]
 
 use std::{
