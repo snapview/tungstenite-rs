@@ -40,15 +40,15 @@ pub enum Error {
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
     /// TLS error
-    #[cfg(feature = "use-native-tls")]
+    #[cfg(feature = "native-tls")]
     #[error("TLS (native-tls) error: {0}")]
-    TlsNative(#[from] native_tls::Error),
+    TlsNative(#[from] native_tls_crate::Error),
     /// TLS error
-    #[cfg(feature = "use-rustls")]
+    #[cfg(feature = "rustls-tls")]
     #[error("TLS (rustls) error: {0}")]
     TlsRustls(#[from] rustls::TLSError),
     /// DNS name resolution error.
-    #[cfg(feature = "use-rustls")]
+    #[cfg(feature = "rustls-tls")]
     #[error("Invalid DNS name: {0}")]
     Dns(#[from] webpki::InvalidDNSNameError),
     /// - When reading: buffer capacity exhausted.

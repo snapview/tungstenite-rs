@@ -1,6 +1,6 @@
 //! Verifies that the server returns a `ConnectionClosed` error when the connection
 //! is closed from the server's point of view and drop the underlying tcp socket.
-#![cfg(any(feature = "use-native-tls", feature = "use-rustls"))]
+#![cfg(any(feature = "native-tls", feature = "rustls-tls"))]
 
 use std::{
     net::{TcpListener, TcpStream},
@@ -13,9 +13,9 @@ use net2::TcpStreamExt;
 use tungstenite::{accept, connect, stream::Stream, Error, Message, WebSocket};
 use url::Url;
 
-#[cfg(feature = "use-native-tls")]
-type Sock = WebSocket<Stream<TcpStream, native_tls::TlsStream<TcpStream>>>;
-#[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
+#[cfg(feature = "native-tls")]
+type Sock = WebSocket<Stream<TcpStream, native_tls_crate::TlsStream<TcpStream>>>;
+#[cfg(all(feature = "rustls-tls", not(feature = "native-tls")))]
 type Sock = WebSocket<Stream<TcpStream, rustls::StreamOwned<rustls::ClientSession, TcpStream>>>;
 
 fn do_test<CT, ST>(port: u16, client_task: CT, server_task: ST)

@@ -17,9 +17,9 @@ all-features = true
 
 [features]
 default = []
-use-native-tls = ["native-tls"]
-use-native-tls-vendored = ["use-native-tls", "native-tls/vendored"]
-use-rustls = ["rustls", "webpki", "webpki-roots"]
+native-tls = ["native-tls-crate"]
+native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
+rustls-tls = ["rustls", "webpki", "webpki-roots"]
 
 [dependencies]
 base64 = "0.13.0"
@@ -35,8 +35,9 @@ thiserror = "1.0.23"
 url = "2.1.0"
 utf-8 = "0.7.5"
 
-[dependencies.native-tls]
+[dependencies.native-tls-crate]
 optional = true
+package = "native-tls"
 version = "0.2.3"
 
 [dependencies.rustls]

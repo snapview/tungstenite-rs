@@ -16,10 +16,10 @@ use crate::{
     protocol::WebSocketConfig,
 };
 
-#[cfg(feature = "use-native-tls")]
+#[cfg(feature = "native-tls")]
 mod encryption {
-    pub use native_tls::TlsStream;
-    use native_tls::{HandshakeError as TlsHandshakeError, TlsConnector};
+    pub use native_tls_crate::TlsStream;
+    use native_tls_crate::{HandshakeError as TlsHandshakeError, TlsConnector};
     use std::net::TcpStream;
 
     pub use crate::stream::Stream as StreamSwitcher;
@@ -47,7 +47,7 @@ mod encryption {
     }
 }
 
-#[cfg(all(feature = "use-rustls", not(feature = "use-native-tls")))]
+#[cfg(all(feature = "rustls-tls", not(feature = "native-tls")))]
 mod encryption {
     use rustls::ClientConfig;
     pub use rustls::{ClientSession, StreamOwned};
@@ -80,7 +80,7 @@ mod encryption {
     }
 }
 
-#[cfg(not(any(feature = "use-native-tls", feature = "use-rustls")))]
+#[cfg(not(any(feature = "native-tls", feature = "rustls-tls")))]
 mod encryption {
     use std::net::TcpStream;
 
@@ -116,7 +116,7 @@ use crate::{
 /// equal to calling `connect()` function.
 ///
 /// The URL may be either ws:// or wss://.
-/// To support wss:// URLs, feature `use-native-tls` or `use-rustls` must be turned on.
+/// To support wss:// URLs, feature `native-tls` or `rustls-tls` must be turned on.
 ///
 /// This function "just works" for those who wants a simple blocking solution
 /// similar to `std::net::TcpStream`. If you want a non-blocking or other
@@ -184,7 +184,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
 /// Connect to the given WebSocket in blocking mode.
 ///
 /// The URL may be either ws:// or wss://.
-/// To support wss:// URLs, feature `use-native-tls` or `use-rustls` must be turned on.
+/// To support wss:// URLs, feature `native-tls` or `rustls-tls` must be turned on.
 ///
 /// This function "just works" for those who wants a simple blocking solution
 /// similar to `std::net::TcpStream`. If you want a non-blocking or other

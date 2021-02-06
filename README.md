@@ -54,8 +54,8 @@ Features
 --------
 
 Tungstenite provides a complete implementation of the WebSocket specification.
-TLS is supported on all platforms using native-tls or rustls available through the `use-native-tls`
-and `use-rustls` feature flags.
+TLS is supported on all platforms using native-tls or rustls available through the `native-tls`
+and `rustls-tls` feature flags.
 
 There is no support for permessage-deflate at the moment. It's planned.
 
