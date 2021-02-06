@@ -13,7 +13,7 @@ version = "0.13.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["native-tls"]
+all-features = true
 
 [features]
 default = []
