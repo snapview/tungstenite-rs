@@ -10,7 +10,7 @@ use httparse::Status;
 use log::*;
 
 use super::{
-    convert_key,
+    derive_accept_key,
     headers::{FromHttparse, MAX_HEADERS},
     machine::{HandshakeMachine, StageResult, TryParse},
     HandshakeRole, MidHandshake, ProcessingResult,
@@ -60,7 +60,7 @@ impl<S: Read + Write> ClientHandshake<S> {
         };
 
         let client = {
-            let accept_key = convert_key(key.as_ref()).unwrap();
+            let accept_key = derive_accept_key(key.as_ref());
             ClientHandshake { verify_data: VerifyData { accept_key }, config, _marker: PhantomData }
         };
 
