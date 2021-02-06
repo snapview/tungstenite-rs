@@ -43,7 +43,7 @@ pub enum Error {
     /// Note that this error variant is enabled unconditionally even if no TLS feature is enabled,
     /// to provide a feature-agnostic API surface.
     #[error("TLS error: {0}")]
-    TlsNative(#[from] TlsError),
+    Tls(#[from] TlsError),
     /// - When reading: buffer capacity exhausted.
     /// - When writing: your message is bigger than the configured max message size
     ///   (64MB by default).
