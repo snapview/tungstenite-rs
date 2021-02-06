@@ -11,7 +11,6 @@ pub type Result<T> = result::Result<T, Error>;
 
 /// Possible WebSocket errors.
 #[derive(Error, Debug)]
-#[non_exhaustive]
 pub enum Error {
     /// WebSocket connection closed normally. This informs you of the close.
     /// It's not an error as such and nothing wrong happened.
@@ -39,18 +38,12 @@ pub enum Error {
     /// underlying connection and you should probably consider them fatal.
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
-    /// TLS error
-    #[cfg(feature = "native-tls")]
-    #[error("TLS (native-tls) error: {0}")]
-    TlsNative(#[from] native_tls_crate::Error),
-    /// TLS error
-    #[cfg(feature = "rustls-tls")]
-    #[error("TLS (rustls) error: {0}")]
-    TlsRustls(#[from] rustls::TLSError),
-    /// DNS name resolution error.
-    #[cfg(feature = "rustls-tls")]
-    #[error("Invalid DNS name: {0}")]
-    Dns(#[from] webpki::InvalidDNSNameError),
+    /// TLS error.
+    ///
+    /// Note that this error variant is enabled unconditionally even if no TLS feature is enabled,
+    /// to provide a feature-agnostic API surface.
+    #[error("TLS error: {0}")]
+    TlsNative(#[from] TlsError),
     /// - When reading: buffer capacity exhausted.
     /// - When writing: your message is bigger than the configured max message size
     ///   (64MB by default).
@@ -250,4 +243,26 @@ pub enum UrlError {
     /// The URL does not include a path/query.
     #[error("No path/query in URL")]
     NoPathOrQuery,
+}
+
+/// TLS errors.
+///
+/// Note that even if you enable only the rustls-based TLS support, the error at runtime could still
+/// be `Native`, as another crate in the dependency graph may enable native TLS support.
+#[allow(missing_copy_implementations)]
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum TlsError {
+    /// Native TLS error.
+    #[cfg(feature = "native-tls")]
+    #[error("native-tls error: {0}")]
+    Native(#[from] native_tls_crate::Error),
+    /// Rustls error.
+    #[cfg(feature = "rustls-tls")]
+    #[error("rustls error: {0}")]
+    Rustls(#[from] rustls::TLSError),
+    /// DNS name resolution error.
+    #[cfg(feature = "rustls-tls")]
+    #[error("Invalid DNS name: {0}")]
+    Dns(#[from] webpki::InvalidDNSNameError),
 }

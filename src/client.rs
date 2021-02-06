@@ -26,17 +26,20 @@ mod encryption {
     /// TCP stream switcher (plain/TLS).
     pub type AutoStream = StreamSwitcher<TcpStream, TlsStream<TcpStream>>;
 
-    use crate::{error::Result, stream::Mode};
+    use crate::{
+        error::{Result, TlsError},
+        stream::Mode,
+    };
 
     pub fn wrap_stream(stream: TcpStream, domain: &str, mode: Mode) -> Result<AutoStream> {
         match mode {
             Mode::Plain => Ok(StreamSwitcher::Plain(stream)),
             Mode::Tls => {
-                let connector = TlsConnector::builder().build()?;
+                let connector = TlsConnector::builder().build().map_err(TlsError::Native)?;
                 connector
                     .connect(domain, stream)
                     .map_err(|e| match e {
-                        TlsHandshakeError::Failure(f) => f.into(),
+                        TlsHandshakeError::Failure(f) => TlsError::Native(f).into(),
                         TlsHandshakeError::WouldBlock(_) => {
                             panic!("Bug: TLS handshake not blocked")
                         }
@@ -58,7 +61,10 @@ mod encryption {
     /// TCP stream switcher (plain/TLS).
     pub type AutoStream = StreamSwitcher<TcpStream, StreamOwned<ClientSession, TcpStream>>;
 
-    use crate::{error::Result, stream::Mode};
+    use crate::{
+        error::{Result, TlsError},
+        stream::Mode,
+    };
 
     pub fn wrap_stream(stream: TcpStream, domain: &str, mode: Mode) -> Result<AutoStream> {
         match mode {
@@ -70,7 +76,7 @@ mod encryption {
 
                     Arc::new(config)
                 };
-                let domain = DNSNameRef::try_from_ascii_str(domain)?;
+                let domain = DNSNameRef::try_from_ascii_str(domain).map_err(TlsError::Dns)?;
                 let client = ClientSession::new(&config, domain);
                 let stream = StreamOwned::new(client, stream);
 
