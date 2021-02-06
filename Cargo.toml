@@ -16,7 +16,7 @@ edition = "2018"
 all-features = true
 
 [features]
-default = []
+default = ["native-tls"]
 native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
 rustls-tls = ["rustls", "webpki", "webpki-roots"]
