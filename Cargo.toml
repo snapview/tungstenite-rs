@@ -12,10 +12,14 @@ repository = "https://github.com/snapview/tungstenite-rs"
 version = "0.13.0"
 edition = "2018"
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
-default = ["tls"]
-tls = ["native-tls"]
-tls-vendored = ["native-tls", "native-tls/vendored"]
+default = ["native-tls"]
+native-tls = ["native-tls-crate"]
+native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
+rustls-tls = ["rustls", "webpki", "webpki-roots"]
 
 [dependencies]
 base64 = "0.13.0"
@@ -27,13 +31,26 @@ input_buffer = "0.4.0"
 log = "0.4.8"
 rand = "0.8.0"
 sha-1 = "0.9"
+thiserror = "1.0.23"
 url = "2.1.0"
 utf-8 = "0.7.5"
-thiserror = "1.0.23"
 
-[dependencies.native-tls]
+[dependencies.native-tls-crate]
 optional = true
+package = "native-tls"
 version = "0.2.3"
+
+[dependencies.rustls]
+optional = true
+version = "0.19.0"
+
+[dependencies.webpki]
+optional = true
+version = "0.21.4"
+
+[dependencies.webpki-roots]
+optional = true
+version = "0.21.0"
 
 [dev-dependencies]
 env_logger = "0.8.1"
