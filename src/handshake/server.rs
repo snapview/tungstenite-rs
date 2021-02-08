@@ -13,7 +13,7 @@ use httparse::Status;
 use log::*;
 
 use super::{
-    convert_key,
+    derive_accept_key,
     headers::{FromHttparse, MAX_HEADERS},
     machine::{HandshakeMachine, StageResult, TryParse},
     HandshakeRole, MidHandshake, ProcessingResult,
@@ -75,7 +75,7 @@ fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
         .version(request.version())
         .header("Connection", "Upgrade")
         .header("Upgrade", "websocket")
-        .header("Sec-WebSocket-Accept", convert_key(key.as_bytes())?);
+        .header("Sec-WebSocket-Accept", derive_accept_key(key.as_bytes()));
 
     Ok(builder)
 }
