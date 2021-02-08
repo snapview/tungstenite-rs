@@ -129,8 +129,8 @@ use crate::{
 /// custom stream, call `client` instead.
 ///
 /// This function uses `native_tls` or `rustls` to do TLS depending on the feature flags enabled. If
-/// you want to use other TLS libraries, use `client` instead. There is no need to enable the "tls"
-/// feature if you don't call `connect` since it's the only function that uses native_tls or rustls.
+/// you want to use other TLS libraries, use `client` instead. There is no need to enable any of
+/// the `*-tls` features if you don't call `connect` since it's the only function that uses them.
 pub fn connect_with_config<Req: IntoClientRequest>(
     request: Req,
     config: Option<WebSocketConfig>,
@@ -197,8 +197,8 @@ pub fn connect_with_config<Req: IntoClientRequest>(
 /// custom stream, call `client` instead.
 ///
 /// This function uses `native_tls` or `rustls` to do TLS depending on the feature flags enabled. If
-/// you want to use other TLS libraries, use `client` instead. There is no need to enable the "tls"
-/// feature if you don't call `connect` since it's the only function that uses native_tls or rustls.
+/// you want to use other TLS libraries, use `client` instead. There is no need to enable any of
+/// the `*-tls` features if you don't call `connect` since it's the only function that uses them.
 pub fn connect<Req: IntoClientRequest>(request: Req) -> Result<(WebSocket<AutoStream>, Response)> {
     connect_with_config(request, None, 3)
 }
