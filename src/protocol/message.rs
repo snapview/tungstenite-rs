@@ -79,6 +79,7 @@ mod string_collect {
 }
 
 use self::string_collect::StringCollector;
+use std::borrow::Cow;
 
 /// A struct representing the incomplete message.
 #[derive(Debug)]
@@ -140,10 +141,10 @@ impl IncompleteMessage {
     /// Convert an incomplete message into a complete one.
     pub fn complete(self) -> Result<Message> {
         match self.collector {
-            IncompleteMessageCollector::Binary(v) => Ok(Message::Binary(v)),
+            IncompleteMessageCollector::Binary(v) => Ok(Message::binary(v)),
             IncompleteMessageCollector::Text(t) => {
                 let text = t.into_string()?;
-                Ok(Message::Text(text))
+                Ok(Message::text(text))
             }
         }
     }
@@ -159,9 +160,9 @@ pub enum IncompleteMessageType {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Message {
     /// A text WebSocket message
-    Text(String),
+    Text(Cow<'static, str>),
     /// A binary WebSocket message
-    Binary(Vec<u8>),
+    Binary(Cow<'static, [u8]>),
     /// A ping message with the specified payload
     ///
     /// The payload here must have a length less than 125 bytes
@@ -180,7 +181,12 @@ impl Message {
     where
         S: Into<String>,
     {
-        Message::Text(string.into())
+        Message::Text(Cow::Owned(string.into()))
+    }
+
+    /// Create a new static text WebSocket message from a &'static str.
+    pub fn static_text(string: &'static str) -> Message {
+        Message::Text(Cow::Borrowed(string))
     }
 
     /// Create a new binary WebSocket message by converting to Vec<u8>.
@@ -188,7 +194,12 @@ impl Message {
     where
         B: Into<Vec<u8>>,
     {
-        Message::Binary(bin.into())
+        Message::Binary(Cow::Owned(bin.into()))
+    }
+
+    /// Create a new static binary WebSocket message from a &'static [u8].
+    pub fn static_binary(bin: &'static [u8]) -> Message {
+        Message::Binary(Cow::Borrowed(bin))
     }
 
     /// Indicates whether a message is a text message.
@@ -218,12 +229,11 @@ impl Message {
 
     /// Get the length of the WebSocket message.
     pub fn len(&self) -> usize {
-        match *self {
-            Message::Text(ref string) => string.len(),
-            Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
-                data.len()
-            }
-            Message::Close(ref data) => data.as_ref().map(|d| d.reason.len()).unwrap_or(0),
+        match self {
+            Message::Text(string) => string.len(),
+            Message::Binary(data) => data.len(),
+            Message::Ping(data) | Message::Pong(data) => data.len(),
+            Message::Close(data) => data.as_ref().map(|d| d.reason.len()).unwrap_or(0),
         }
     }
 
@@ -236,8 +246,9 @@ impl Message {
     /// Consume the WebSocket and return it as binary data.
     pub fn into_data(self) -> Vec<u8> {
         match self {
-            Message::Text(string) => string.into_bytes(),
-            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data,
+            Message::Text(string) => string.into_owned().into_bytes(),
+            Message::Binary(data) => data.into_owned(),
+            Message::Ping(data) | Message::Pong(data) => data,
             Message::Close(None) => Vec::new(),
             Message::Close(Some(frame)) => frame.reason.into_owned().into_bytes(),
         }
@@ -246,8 +257,11 @@ impl Message {
     /// Attempt to consume the WebSocket message and convert it to a String.
     pub fn into_text(self) -> Result<String> {
         match self {
-            Message::Text(string) => Ok(string),
-            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => {
+            Message::Text(string) => Ok(string.into_owned()),
+            Message::Binary(data) => {
+                Ok(String::from_utf8(data.into_owned()).map_err(|err| err.utf8_error())?)
+            }
+            Message::Ping(data) | Message::Pong(data) => {
                 Ok(String::from_utf8(data).map_err(|err| err.utf8_error())?)
             }
             Message::Close(None) => Ok(String::new()),
@@ -258,13 +272,12 @@ impl Message {
     /// Attempt to get a &str from the WebSocket message,
     /// this will try to convert binary data to utf8.
     pub fn to_text(&self) -> Result<&str> {
-        match *self {
-            Message::Text(ref string) => Ok(string),
-            Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
-                Ok(str::from_utf8(data)?)
-            }
+        match self {
+            Message::Text(string) => Ok(string.as_ref()),
+            Message::Binary(data) => Ok(str::from_utf8(data.as_ref())?),
+            Message::Ping(data) | Message::Pong(data) => Ok(str::from_utf8(data)?),
             Message::Close(None) => Ok(""),
-            Message::Close(Some(ref frame)) => Ok(&frame.reason),
+            Message::Close(Some(frame)) => Ok(&frame.reason),
         }
     }
 }

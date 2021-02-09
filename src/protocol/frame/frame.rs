@@ -201,7 +201,7 @@ impl FrameHeader {
 #[derive(Debug, Clone)]
 pub struct Frame {
     header: FrameHeader,
-    payload: Vec<u8>,
+    payload: Cow<'static, [u8]>,
 }
 
 impl Frame {
@@ -233,13 +233,13 @@ impl Frame {
 
     /// Get a reference to the frame's payload.
     #[inline]
-    pub fn payload(&self) -> &Vec<u8> {
+    pub fn payload(&self) -> &[u8] {
         &self.payload
     }
 
     /// Get a mutable reference to the frame's payload.
     #[inline]
-    pub fn payload_mut(&mut self) -> &mut Vec<u8> {
+    pub fn payload_mut(&mut self) -> &mut Cow<'static, [u8]> {
         &mut self.payload
     }
 
@@ -263,20 +263,28 @@ impl Frame {
     #[inline]
     pub(crate) fn apply_mask(&mut self) {
         if let Some(mask) = self.header.mask.take() {
-            apply_mask(&mut self.payload, mask)
+            match &mut self.payload {
+                Cow::Owned(data) => apply_mask(data, mask),
+                Cow::Borrowed(data) => {
+                    // can't modify static data, so we have to take ownership first
+                    let mut data = data.to_vec();
+                    apply_mask(&mut data, mask);
+                    self.payload = Cow::Owned(data);
+                }
+            }
         }
     }
 
     /// Consume the frame into its payload as binary.
     #[inline]
     pub fn into_data(self) -> Vec<u8> {
-        self.payload
+        self.payload.into_owned()
     }
 
     /// Consume the frame into its payload as string.
     #[inline]
     pub fn into_string(self) -> StdResult<String, FromUtf8Error> {
-        String::from_utf8(self.payload)
+        String::from_utf8(self.into_data())
     }
 
     /// Consume the frame into a closing frame.
@@ -286,7 +294,7 @@ impl Frame {
             0 => Ok(None),
             1 => Err(Error::Protocol(ProtocolError::InvalidCloseSequence)),
             _ => {
-                let mut data = self.payload;
+                let mut data = self.into_data();
                 let code = NetworkEndian::read_u16(&data[0..2]).into();
                 data.drain(0..2);
                 let text = String::from_utf8(data)?;
@@ -297,10 +305,16 @@ impl Frame {
 
     /// Create a new data frame.
     #[inline]
-    pub fn message(data: Vec<u8>, opcode: OpCode, is_final: bool) -> Frame {
+    pub fn message<D>(data: D, opcode: OpCode, is_final: bool) -> Frame
+    where
+        D: Into<Cow<'static, [u8]>>,
+    {
         debug_assert!(matches!(opcode, OpCode::Data(_)), "Invalid opcode for data frame.");
 
-        Frame { header: FrameHeader { is_final, opcode, ..FrameHeader::default() }, payload: data }
+        Frame {
+            header: FrameHeader { is_final, opcode, ..FrameHeader::default() },
+            payload: data.into(),
+        }
     }
 
     /// Create a new Pong control frame.
@@ -311,7 +325,7 @@ impl Frame {
                 opcode: OpCode::Control(Control::Pong),
                 ..FrameHeader::default()
             },
-            payload: data,
+            payload: Cow::Owned(data),
         }
     }
 
@@ -323,7 +337,7 @@ impl Frame {
                 opcode: OpCode::Control(Control::Ping),
                 ..FrameHeader::default()
             },
-            payload: data,
+            payload: Cow::Owned(data),
         }
     }
 
@@ -339,12 +353,12 @@ impl Frame {
             Vec::new()
         };
 
-        Frame { header: FrameHeader::default(), payload }
+        Frame { header: FrameHeader::default(), payload: Cow::Owned(payload) }
     }
 
     /// Create a frame from given header and data.
     pub fn from_payload(header: FrameHeader, payload: Vec<u8>) -> Self {
-        Frame { header, payload }
+        Frame { header, payload: Cow::Owned(payload) }
     }
 
     /// Write a frame out to a buffer
@@ -462,7 +476,7 @@ mod tests {
 
     #[test]
     fn display() {
-        let f = Frame::message("hi there".into(), OpCode::Data(Data::Text), true);
+        let f = Frame::message(&b"hi there"[..], OpCode::Data(Data::Text), true);
         let view = format!("{}", f);
         assert!(view.contains("payload:"));
     }

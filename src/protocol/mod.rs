@@ -24,6 +24,7 @@ use crate::{
     error::{Error, ProtocolError, Result},
     util::NonBlockingResult,
 };
+use std::borrow::Cow;
 
 /// Indicates a Client or Server role of the websocket
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -348,7 +349,12 @@ impl WebSocketContext {
         }
 
         let frame = match message {
-            Message::Text(data) => Frame::message(data.into(), OpCode::Data(OpData::Text), true),
+            Message::Text(Cow::Owned(data)) => {
+                Frame::message(data.into_bytes(), OpCode::Data(OpData::Text), true)
+            }
+            Message::Text(Cow::Borrowed(data)) => {
+                Frame::message(data.as_bytes(), OpCode::Data(OpData::Text), true)
+            }
             Message::Binary(data) => Frame::message(data, OpCode::Data(OpData::Binary), true),
             Message::Ping(data) => Frame::ping(data),
             Message::Pong(data) => {
@@ -700,8 +706,8 @@ mod tests {
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, None);
         assert_eq!(socket.read_message().unwrap(), Message::Ping(vec![1, 2]));
         assert_eq!(socket.read_message().unwrap(), Message::Pong(vec![3]));
-        assert_eq!(socket.read_message().unwrap(), Message::Text("Hello, World!".into()));
-        assert_eq!(socket.read_message().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03]));
+        assert_eq!(socket.read_message().unwrap(), Message::text("Hello, World!"));
+        assert_eq!(socket.read_message().unwrap(), Message::binary(vec![0x01, 0x02, 0x03]));
     }
 
     #[test]
