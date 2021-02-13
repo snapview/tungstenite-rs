@@ -14,6 +14,7 @@ use super::{
     mask::{apply_mask, generate_mask},
 };
 use crate::error::{Error, ProtocolError, Result};
+use crate::protocol::data::MessageData;
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -186,7 +187,7 @@ impl FrameHeader {
         // Disallow bad opcode
         match opcode {
             OpCode::Control(Control::Reserved(_)) | OpCode::Data(Data::Reserved(_)) => {
-                return Err(Error::Protocol(ProtocolError::InvalidOpcode(first & 0x0F)))
+                return Err(Error::Protocol(ProtocolError::InvalidOpcode(first & 0x0F)));
             }
             _ => (),
         }
@@ -201,7 +202,7 @@ impl FrameHeader {
 #[derive(Debug, Clone)]
 pub struct Frame {
     header: FrameHeader,
-    payload: Cow<'static, [u8]>,
+    payload: MessageData,
 }
 
 impl Frame {
@@ -234,13 +235,7 @@ impl Frame {
     /// Get a reference to the frame's payload.
     #[inline]
     pub fn payload(&self) -> &[u8] {
-        &self.payload
-    }
-
-    /// Get a mutable reference to the frame's payload.
-    #[inline]
-    pub fn payload_mut(&mut self) -> &mut Cow<'static, [u8]> {
-        &mut self.payload
+        self.payload.as_ref()
     }
 
     /// Test whether the frame is masked.
@@ -263,28 +258,20 @@ impl Frame {
     #[inline]
     pub(crate) fn apply_mask(&mut self) {
         if let Some(mask) = self.header.mask.take() {
-            match &mut self.payload {
-                Cow::Owned(data) => apply_mask(data, mask),
-                Cow::Borrowed(data) => {
-                    // can't modify static data, so we have to take ownership first
-                    let mut data = data.to_vec();
-                    apply_mask(&mut data, mask);
-                    self.payload = Cow::Owned(data);
-                }
-            }
+            apply_mask(self.payload.as_mut(), mask)
         }
     }
 
     /// Consume the frame into its payload as binary.
     #[inline]
     pub fn into_data(self) -> Vec<u8> {
-        self.payload.into_owned()
+        self.payload.into()
     }
 
     /// Consume the frame into its payload as string.
     #[inline]
     pub fn into_string(self) -> StdResult<String, FromUtf8Error> {
-        String::from_utf8(self.into_data())
+        String::from_utf8(self.payload.into())
     }
 
     /// Consume the frame into a closing frame.
@@ -297,7 +284,7 @@ impl Frame {
                 let mut data = self.into_data();
                 let code = NetworkEndian::read_u16(&data[0..2]).into();
                 data.drain(0..2);
-                let text = String::from_utf8(data)?;
+                let text = String::from_utf8(data.into())?;
                 Ok(Some(CloseFrame { code, reason: text.into() }))
             }
         }
@@ -307,7 +294,7 @@ impl Frame {
     #[inline]
     pub fn message<D>(data: D, opcode: OpCode, is_final: bool) -> Frame
     where
-        D: Into<Cow<'static, [u8]>>,
+        D: Into<MessageData>,
     {
         debug_assert!(matches!(opcode, OpCode::Data(_)), "Invalid opcode for data frame.");
 
@@ -325,7 +312,7 @@ impl Frame {
                 opcode: OpCode::Control(Control::Pong),
                 ..FrameHeader::default()
             },
-            payload: Cow::Owned(data),
+            payload: data.into(),
         }
     }
 
@@ -337,7 +324,7 @@ impl Frame {
                 opcode: OpCode::Control(Control::Ping),
                 ..FrameHeader::default()
             },
-            payload: Cow::Owned(data),
+            payload: data.into(),
         }
     }
 
@@ -353,12 +340,12 @@ impl Frame {
             Vec::new()
         };
 
-        Frame { header: FrameHeader::default(), payload: Cow::Owned(payload) }
+        Frame { header: FrameHeader::default(), payload: payload.into() }
     }
 
     /// Create a frame from given header and data.
     pub fn from_payload(header: FrameHeader, payload: Vec<u8>) -> Self {
-        Frame { header, payload: Cow::Owned(payload) }
+        Frame { header, payload: payload.into() }
     }
 
     /// Write a frame out to a buffer
@@ -391,7 +378,7 @@ payload: 0x{}
             // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
             self.len(),
             self.payload.len(),
-            self.payload.iter().map(|byte| format!("{:x}", byte)).collect::<String>()
+            self.payload.as_ref().iter().map(|byte| format!("{:x}", byte)).collect::<String>()
         )
     }
 }

@@ -2,6 +2,7 @@
 
 pub mod frame;
 
+mod data;
 mod message;
 
 pub use self::{frame::CloseFrame, message::Message};
@@ -24,7 +25,6 @@ use crate::{
     error::{Error, ProtocolError, Result},
     util::NonBlockingResult,
 };
-use std::borrow::Cow;
 
 /// Indicates a Client or Server role of the websocket
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -349,12 +349,7 @@ impl WebSocketContext {
         }
 
         let frame = match message {
-            Message::Text(Cow::Owned(data)) => {
-                Frame::message(data.into_bytes(), OpCode::Data(OpData::Text), true)
-            }
-            Message::Text(Cow::Borrowed(data)) => {
-                Frame::message(data.as_bytes(), OpCode::Data(OpData::Text), true)
-            }
+            Message::Text(data) => Frame::message(data, OpCode::Data(OpData::Text), true),
             Message::Binary(data) => Frame::message(data, OpCode::Data(OpData::Binary), true),
             Message::Ping(data) => Frame::ping(data),
             Message::Pong(data) => {
