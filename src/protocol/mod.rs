@@ -426,7 +426,7 @@ impl WebSocketContext {
     where
         Stream: Read + Write,
     {
-        if let Some(mut frame) = self
+        if let Some(frame) = self
             .frame
             .read_frame(stream, self.config.max_frame_size)
             .check_connection_reset(self.state)?
@@ -448,11 +448,7 @@ impl WebSocketContext {
 
             match self.role {
                 Role::Server => {
-                    if frame.is_masked() {
-                        // A server MUST remove masking for data frames received from a client
-                        // as described in Section 5.3. (RFC 6455)
-                        frame.apply_mask()
-                    } else if !self.config.accept_unmasked_frames {
+                    if !frame.is_masked() && !self.config.accept_unmasked_frames {
                         // The server MUST close the connection upon receiving a
                         // frame that is not masked. (RFC 6455)
                         // The only exception here is if the user explicitly accepts given
