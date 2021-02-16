@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use std::borrow::Cow;
 
 /// Binary message data
 #[derive(Debug, Clone)]
@@ -72,64 +73,6 @@ impl AsMut<[u8]> for MessageData {
     }
 }
 
-/// String message data
-#[derive(Debug, Clone)]
-pub struct MessageStringData(MessageStringDataImpl);
-
-/// opaque inner type to allow modifying the implementation in the future
-#[derive(Debug, Clone)]
-enum MessageStringDataImpl {
-    Static(&'static str),
-    Unique(String),
-}
-
-impl PartialEq for MessageStringData {
-    fn eq(&self, other: &MessageStringData) -> bool {
-        self.as_ref().eq(other.as_ref())
-    }
-}
-
-impl Eq for MessageStringData {}
-
-impl From<MessageStringData> for String {
-    fn from(data: MessageStringData) -> String {
-        match data.0 {
-            MessageStringDataImpl::Static(data) => data.into(),
-            MessageStringDataImpl::Unique(data) => data,
-        }
-    }
-}
-
-impl From<MessageStringData> for MessageData {
-    fn from(data: MessageStringData) -> MessageData {
-        match data.0 {
-            MessageStringDataImpl::Static(data) => MessageData::from(data.as_bytes()),
-            MessageStringDataImpl::Unique(data) => MessageData::from(data.into_bytes()),
-        }
-    }
-}
-
-impl AsRef<str> for MessageStringData {
-    fn as_ref(&self) -> &str {
-        match &self.0 {
-            MessageStringDataImpl::Static(data) => *data,
-            MessageStringDataImpl::Unique(data) => data.as_ref(),
-        }
-    }
-}
-
-impl From<String> for MessageStringData {
-    fn from(string: String) -> MessageStringData {
-        MessageStringData(MessageStringDataImpl::Unique(string))
-    }
-}
-
-impl From<&'static str> for MessageStringData {
-    fn from(string: &'static str) -> MessageStringData {
-        MessageStringData(MessageStringDataImpl::Static(string))
-    }
-}
-
 impl From<Vec<u8>> for MessageData {
     fn from(data: Vec<u8>) -> MessageData {
         MessageData(MessageDataImpl::Unique(data))
@@ -145,5 +88,36 @@ impl From<&'static [u8]> for MessageData {
 impl From<Bytes> for MessageData {
     fn from(data: Bytes) -> MessageData {
         MessageData(MessageDataImpl::Shared(data))
+    }
+}
+
+/// String message data
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MessageStringData(Cow<'static, str>);
+
+impl<T: Into<Cow<'static, str>>> From<T> for MessageStringData {
+    fn from(str: T) -> Self {
+        MessageStringData(str.into())
+    }
+}
+
+impl From<MessageStringData> for String {
+    fn from(data: MessageStringData) -> String {
+        data.0.into()
+    }
+}
+
+impl From<MessageStringData> for MessageData {
+    fn from(data: MessageStringData) -> MessageData {
+        match data.0 {
+            Cow::Borrowed(data) => MessageData::from(data.as_bytes()),
+            Cow::Owned(data) => MessageData::from(data.into_bytes()),
+        }
+    }
+}
+
+impl AsRef<str> for MessageStringData {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
     }
 }
