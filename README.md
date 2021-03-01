@@ -28,6 +28,11 @@ fn main () {
 
 Take a look at the examples section to see how to write a simple client/server.
 
+**NOTE:** `tungstenite-rs` is more like a barebone to build reliable modern networking applications
+using WebSockets. If you're looking for a modern production-ready "batteries included" WebSocket
+library that allows you to efficiently use non-blocking sockets and do "full-duplex" communication,
+take a look at [`tokio-tungstenite`](https://github.com/snapview/tokio-tungstenite).
+
 [![MIT licensed](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE-MIT)
 [![Apache-2.0 licensed](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE-APACHE)
 [![Crates.io](https://img.shields.io/crates/v/tungstenite.svg?maxAge=2592000)](https://crates.io/crates/tungstenite)
