@@ -51,7 +51,7 @@ pub enum Error {
     Capacity(CapacityError),
     /// Protocol violation.
     #[error("WebSocket protocol error: {0}")]
-    Protocol(ProtocolError),
+    Protocol(#[from] ProtocolError),
     /// Message send queue full.
     #[error("Send queue is full")]
     SendQueueFull(Message),
