@@ -48,7 +48,7 @@ pub enum Error {
     /// - When writing: your message is bigger than the configured max message size
     ///   (64MB by default).
     #[error("Space limit exceeded: {0}")]
-    Capacity(CapacityError),
+    Capacity(#[from] CapacityError),
     /// Protocol violation.
     #[error("WebSocket protocol error: {0}")]
     Protocol(#[from] ProtocolError),
@@ -60,7 +60,7 @@ pub enum Error {
     Utf8,
     /// Invalid URL.
     #[error("URL error: {0}")]
-    Url(UrlError),
+    Url(#[from] UrlError),
     /// HTTP error.
     #[error("HTTP error: {}", .0.status())]
     Http(Response<Option<String>>),
