@@ -9,14 +9,12 @@ use super::frame::CloseFrame;
 use crate::error::{CapacityError, Error, Result};
 
 mod string_collect {
-    use utf8::DecodeError;
-
     use crate::error::{Error, Result};
 
     #[derive(Debug)]
     pub struct StringCollector {
         data: String,
-        incomplete: Option<utf8::Incomplete>,
+        incomplete: Option<Vec<u8>>,
     }
 
     impl StringCollector {
@@ -25,46 +23,39 @@ mod string_collect {
         }
 
         pub fn len(&self) -> usize {
-            self.data
-                .len()
-                .saturating_add(self.incomplete.map(|i| i.buffer_len as usize).unwrap_or(0))
+            self.data.len().saturating_add(self.incomplete.as_ref().map(|i| i.len()).unwrap_or(0))
         }
 
         pub fn extend<T: AsRef<[u8]>>(&mut self, tail: T) -> Result<()> {
             let mut input: &[u8] = tail.as_ref();
-
-            if let Some(mut incomplete) = self.incomplete.take() {
-                if let Some((result, rest)) = incomplete.try_complete(input) {
-                    input = rest;
-                    if let Ok(text) = result {
-                        self.data.push_str(text);
-                    } else {
-                        return Err(Error::Utf8);
-                    }
-                } else {
-                    input = &[];
-                    self.incomplete = Some(incomplete);
-                }
+            if input.is_empty() {
+                return Ok(());
             }
 
-            if !input.is_empty() {
-                match utf8::decode(input) {
-                    Ok(text) => {
-                        self.data.push_str(text);
-                        Ok(())
-                    }
-                    Err(DecodeError::Incomplete { valid_prefix, incomplete_suffix }) => {
-                        self.data.push_str(valid_prefix);
-                        self.incomplete = Some(incomplete_suffix);
-                        Ok(())
-                    }
-                    Err(DecodeError::Invalid { valid_prefix, .. }) => {
-                        self.data.push_str(valid_prefix);
+            let incomplete = self.incomplete.take().map(|mut i| {
+                i.extend_from_slice(input);
+                i
+            });
+            if let Some(i) = incomplete.as_ref() {
+                input = i.as_slice();
+            }
+
+            match std::str::from_utf8(input) {
+                Ok(text) => {
+                    self.data.push_str(text);
+                    Ok(())
+                }
+                Err(e) => {
+                    // The incomplete part cannot be longer than 4 bytes (char).
+                    if e.valid_up_to() == 0 || input.len() - e.valid_up_to() > 4 {
                         Err(Error::Utf8)
+                    } else {
+                        let (valid, incomplete) = input.split_at(e.valid_up_to());
+                        self.data.push_str(unsafe { std::str::from_utf8_unchecked(valid) });
+                        self.incomplete = Some(incomplete.to_owned());
+                        Ok(())
                     }
                 }
-            } else {
-                Ok(())
             }
         }
 

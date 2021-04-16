@@ -33,7 +33,6 @@ rand = "0.8.0"
 sha-1 = "0.9"
 thiserror = "1.0.23"
 url = "2.1.0"
-utf-8 = "0.7.5"
 
 [dependencies.native-tls-crate]
 optional = true
