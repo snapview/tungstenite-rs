@@ -390,7 +390,7 @@ enum LengthFormat {
 }
 
 impl LengthFormat {
-    /// Get length format for a given data size.
+    /// Get the length format for a given data size.
     #[inline]
     fn for_length(length: u64) -> Self {
         if length < 126 {
@@ -402,7 +402,7 @@ impl LengthFormat {
         }
     }
 
-    /// Get the size of length encoding.
+    /// Get the size of the length encoding.
     #[inline]
     fn extra_bytes(&self) -> usize {
         match *self {
@@ -412,7 +412,7 @@ impl LengthFormat {
         }
     }
 
-    /// Encode the givem length.
+    /// Encode the given length.
     #[inline]
     fn length_byte(&self) -> u8 {
         match *self {
@@ -422,7 +422,7 @@ impl LengthFormat {
         }
     }
 
-    /// Get length format for a given length byte.
+    /// Get the length format for a given length byte.
     #[inline]
     fn for_byte(byte: u8) -> Self {
         match byte & 0x7F {
