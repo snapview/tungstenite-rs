@@ -72,10 +72,7 @@ mod encryption {
             Mode::Tls => {
                 let config = {
                     let mut config = ClientConfig::new();
-                    config.root_store = match rustls_native_certs::load_native_certs() {
-                        Ok(store) => store,
-                        Err((_, err)) => Err(err)?,
-                    };
+                    config.root_store = rustls_native_certs::load_native_certs().map_err(|(_, err)| err)?;
 
                     Arc::new(config)
                 };
