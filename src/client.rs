@@ -72,7 +72,7 @@ mod encryption {
             Mode::Tls => {
                 let config = {
                     let mut config = ClientConfig::new();
-                    config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+                    config.root_store = rustls_native_certs::load_native_certs().map_err(|(_, err)| err)?;
 
                     Arc::new(config)
                 };
