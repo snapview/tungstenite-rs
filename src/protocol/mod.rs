@@ -2,6 +2,7 @@
 
 pub mod frame;
 
+mod data;
 mod message;
 
 pub use self::{frame::CloseFrame, message::Message};
@@ -348,7 +349,7 @@ impl WebSocketContext {
         }
 
         let frame = match message {
-            Message::Text(data) => Frame::message(data.into(), OpCode::Data(OpData::Text), true),
+            Message::Text(data) => Frame::message(data, OpCode::Data(OpData::Text), true),
             Message::Binary(data) => Frame::message(data, OpCode::Data(OpData::Binary), true),
             Message::Ping(data) => Frame::ping(data),
             Message::Pong(data) => {
@@ -425,7 +426,7 @@ impl WebSocketContext {
     where
         Stream: Read + Write,
     {
-        if let Some(mut frame) = self
+        if let Some(frame) = self
             .frame
             .read_frame(stream, self.config.max_frame_size)
             .check_connection_reset(self.state)?
@@ -447,11 +448,7 @@ impl WebSocketContext {
 
             match self.role {
                 Role::Server => {
-                    if frame.is_masked() {
-                        // A server MUST remove masking for data frames received from a client
-                        // as described in Section 5.3. (RFC 6455)
-                        frame.apply_mask()
-                    } else if !self.config.accept_unmasked_frames {
+                    if !frame.is_masked() && !self.config.accept_unmasked_frames {
                         // The server MUST close the connection upon receiving a
                         // frame that is not masked. (RFC 6455)
                         // The only exception here is if the user explicitly accepts given
@@ -700,8 +697,8 @@ mod tests {
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, None);
         assert_eq!(socket.read_message().unwrap(), Message::Ping(vec![1, 2]));
         assert_eq!(socket.read_message().unwrap(), Message::Pong(vec![3]));
-        assert_eq!(socket.read_message().unwrap(), Message::Text("Hello, World!".into()));
-        assert_eq!(socket.read_message().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03]));
+        assert_eq!(socket.read_message().unwrap(), Message::text("Hello, World!"));
+        assert_eq!(socket.read_message().unwrap(), Message::binary(vec![0x01, 0x02, 0x03]));
     }
 
     #[test]

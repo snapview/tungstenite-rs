@@ -1,30 +1,31 @@
+use std::io::Write;
+
 /// Generate a random frame mask.
 #[inline]
 pub fn generate_mask() -> [u8; 4] {
     rand::random()
 }
 
-/// Mask/unmask a frame.
-#[inline]
-pub fn apply_mask(buf: &mut [u8], mask: [u8; 4]) {
-    apply_mask_fast32(buf, mask)
+/// Write data to an output, masking the data in the process
+pub fn write_masked(data: &[u8], output: &mut impl Write, mask: [u8; 4]) {
+    write_mask_fast32(data, output, mask)
 }
 
 /// A safe unoptimized mask application.
 #[inline]
-fn apply_mask_fallback(buf: &mut [u8], mask: [u8; 4]) {
-    for (i, byte) in buf.iter_mut().enumerate() {
-        *byte ^= mask[i & 3];
+fn write_mask_fallback(data: &[u8], output: &mut impl Write, mask: [u8; 4]) {
+    for (i, byte) in data.iter().enumerate() {
+        output.write(&[*byte ^ mask[i & 3]]).unwrap();
     }
 }
 
 /// Faster version of `apply_mask()` which operates on 4-byte blocks.
 #[inline]
-pub fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
+fn write_mask_fast32(data: &[u8], output: &mut impl Write, mask: [u8; 4]) {
     let mask_u32 = u32::from_ne_bytes(mask);
 
-    let (mut prefix, words, mut suffix) = unsafe { buf.align_to_mut::<u32>() };
-    apply_mask_fallback(&mut prefix, mask);
+    let (mut prefix, words, mut suffix) = unsafe { data.align_to::<u32>() };
+    write_mask_fallback(&mut prefix, output, mask);
     let head = prefix.len() & 3;
     let mask_u32 = if head > 0 {
         if cfg!(target_endian = "big") {
@@ -35,10 +36,11 @@ pub fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
     } else {
         mask_u32
     };
-    for word in words.iter_mut() {
-        *word ^= mask_u32;
+    for word in words {
+        let bytes = (*word ^ mask_u32).to_ne_bytes();
+        output.write(&bytes).unwrap();
     }
-    apply_mask_fallback(&mut suffix, mask_u32.to_ne_bytes());
+    write_mask_fallback(&mut suffix, output, mask_u32.to_ne_bytes());
 }
 
 #[cfg(test)]
@@ -60,11 +62,11 @@ mod tests {
                 if unmasked.len() < off {
                     continue;
                 }
-                let mut masked = unmasked.to_vec();
-                apply_mask_fallback(&mut masked[off..], mask);
+                let mut masked = Vec::new();
+                write_mask_fallback(&unmasked, &mut masked, mask);
 
-                let mut masked_fast = unmasked.to_vec();
-                apply_mask_fast32(&mut masked_fast[off..], mask);
+                let mut masked_fast = Vec::new();
+                write_mask_fast32(&unmasked, &mut masked_fast, mask);
 
                 assert_eq!(masked, masked_fast);
             }

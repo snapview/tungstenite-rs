@@ -79,6 +79,7 @@ mod string_collect {
 }
 
 use self::string_collect::StringCollector;
+use crate::protocol::data::{MessageData, MessageStringData};
 
 /// A struct representing the incomplete message.
 #[derive(Debug)]
@@ -140,10 +141,10 @@ impl IncompleteMessage {
     /// Convert an incomplete message into a complete one.
     pub fn complete(self) -> Result<Message> {
         match self.collector {
-            IncompleteMessageCollector::Binary(v) => Ok(Message::Binary(v)),
+            IncompleteMessageCollector::Binary(v) => Ok(Message::binary(v)),
             IncompleteMessageCollector::Text(t) => {
                 let text = t.into_string()?;
-                Ok(Message::Text(text))
+                Ok(Message::text(text))
             }
         }
     }
@@ -159,9 +160,9 @@ pub enum IncompleteMessageType {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Message {
     /// A text WebSocket message
-    Text(String),
+    Text(MessageStringData),
     /// A binary WebSocket message
-    Binary(Vec<u8>),
+    Binary(MessageData),
     /// A ping message with the specified payload
     ///
     /// The payload here must have a length less than 125 bytes
@@ -178,7 +179,7 @@ impl Message {
     /// Create a new text WebSocket message from a stringable.
     pub fn text<S>(string: S) -> Message
     where
-        S: Into<String>,
+        S: Into<MessageStringData>,
     {
         Message::Text(string.into())
     }
@@ -186,7 +187,7 @@ impl Message {
     /// Create a new binary WebSocket message by converting to Vec<u8>.
     pub fn binary<B>(bin: B) -> Message
     where
-        B: Into<Vec<u8>>,
+        B: Into<MessageData>,
     {
         Message::Binary(bin.into())
     }
@@ -218,12 +219,11 @@ impl Message {
 
     /// Get the length of the WebSocket message.
     pub fn len(&self) -> usize {
-        match *self {
-            Message::Text(ref string) => string.len(),
-            Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
-                data.len()
-            }
-            Message::Close(ref data) => data.as_ref().map(|d| d.reason.len()).unwrap_or(0),
+        match self {
+            Message::Text(string) => string.as_ref().len(),
+            Message::Binary(data) => data.as_ref().len(),
+            Message::Ping(data) | Message::Pong(data) => data.len(),
+            Message::Close(data) => data.as_ref().map(|d| d.reason.len()).unwrap_or(0),
         }
     }
 
@@ -236,8 +236,9 @@ impl Message {
     /// Consume the WebSocket and return it as binary data.
     pub fn into_data(self) -> Vec<u8> {
         match self {
-            Message::Text(string) => string.into_bytes(),
-            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data,
+            Message::Text(string) => String::from(string).into(),
+            Message::Binary(data) => data.into(),
+            Message::Ping(data) | Message::Pong(data) => data,
             Message::Close(None) => Vec::new(),
             Message::Close(Some(frame)) => frame.reason.into_owned().into_bytes(),
         }
@@ -246,8 +247,11 @@ impl Message {
     /// Attempt to consume the WebSocket message and convert it to a String.
     pub fn into_text(self) -> Result<String> {
         match self {
-            Message::Text(string) => Ok(string),
-            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => {
+            Message::Text(string) => Ok(string.into()),
+            Message::Binary(data) => {
+                Ok(String::from_utf8(data.into()).map_err(|err| err.utf8_error())?)
+            }
+            Message::Ping(data) | Message::Pong(data) => {
                 Ok(String::from_utf8(data).map_err(|err| err.utf8_error())?)
             }
             Message::Close(None) => Ok(String::new()),
@@ -258,13 +262,12 @@ impl Message {
     /// Attempt to get a &str from the WebSocket message,
     /// this will try to convert binary data to utf8.
     pub fn to_text(&self) -> Result<&str> {
-        match *self {
-            Message::Text(ref string) => Ok(string),
-            Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
-                Ok(str::from_utf8(data)?)
-            }
+        match self {
+            Message::Text(string) => Ok(string.as_ref()),
+            Message::Binary(data) => Ok(str::from_utf8(data.as_ref())?),
+            Message::Ping(data) | Message::Pong(data) => Ok(str::from_utf8(data)?),
             Message::Close(None) => Ok(""),
-            Message::Close(Some(ref frame)) => Ok(&frame.reason),
+            Message::Close(Some(frame)) => Ok(&frame.reason),
         }
     }
 }
@@ -277,13 +280,13 @@ impl From<String> for Message {
 
 impl<'s> From<&'s str> for Message {
     fn from(string: &'s str) -> Message {
-        Message::text(string)
+        Message::text(string.to_string())
     }
 }
 
 impl<'b> From<&'b [u8]> for Message {
     fn from(data: &'b [u8]) -> Message {
-        Message::binary(data)
+        Message::binary(data.to_vec())
     }
 }
 
@@ -293,9 +296,9 @@ impl From<Vec<u8>> for Message {
     }
 }
 
-impl Into<Vec<u8>> for Message {
-    fn into(self) -> Vec<u8> {
-        self.into_data()
+impl From<Message> for Vec<u8> {
+    fn from(message: Message) -> Vec<u8> {
+        message.into_data()
     }
 }
 

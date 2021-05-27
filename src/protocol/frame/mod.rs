@@ -4,11 +4,16 @@ pub mod coding;
 
 #[allow(clippy::module_inception)]
 mod frame;
+#[cfg(feature = "__expose_benchmark_fn")]
+#[allow(missing_docs)]
+pub mod mask;
+#[cfg(not(feature = "__expose_benchmark_fn"))]
 mod mask;
 
 pub use self::frame::{CloseFrame, Frame, FrameHeader};
 
 use crate::error::{CapacityError, Error, Result};
+use crate::protocol::frame::mask::write_masked;
 use input_buffer::{InputBuffer, MIN_READ};
 use log::*;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Write};
@@ -142,10 +147,28 @@ impl FrameCodec {
                     let input_size = cursor.get_ref().len() as u64 - cursor.position();
                     if length <= input_size {
                         // No truncation here since `length` is checked above
-                        let mut payload = Vec::with_capacity(length as usize);
+
+                        // take a slice from the cursor
+                        let payload_input = &cursor.get_ref().as_slice()
+                            [(cursor.position() as usize)..(cursor.position() + length) as usize];
+
+                        let mut payload = Vec::new();
                         if length > 0 {
-                            cursor.take(length).read_to_end(&mut payload)?;
+                            if let Some(mask) =
+                                self.header.as_ref().and_then(|header| header.0.mask)
+                            {
+                                // A server MUST remove masking for data frames received from a client
+                                // as described in Section 5.3. (RFC 6455)
+
+                                payload = Vec::with_capacity(length as usize);
+                                write_masked(payload_input, &mut payload, mask);
+                            } else {
+                                payload = payload_input.to_vec();
+                            }
                         }
+
+                        cursor.set_position(cursor.position() + length);
+
                         break payload;
                     }
                 }
