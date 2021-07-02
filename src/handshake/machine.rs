@@ -3,10 +3,10 @@ use log::*;
 use std::io::{Cursor, Read, Write};
 
 use crate::{
-    error::{CapacityError, Error, ProtocolError, Result},
+    error::{Error, ProtocolError, Result},
     util::NonBlockingResult,
+    ReadBuffer,
 };
-use input_buffer::{InputBuffer, MIN_READ};
 
 /// A generic handshake state machine.
 #[derive(Debug)]
@@ -18,10 +18,7 @@ pub struct HandshakeMachine<Stream> {
 impl<Stream> HandshakeMachine<Stream> {
     /// Start reading data from the peer.
     pub fn start_read(stream: Stream) -> Self {
-        HandshakeMachine {
-            stream,
-            state: HandshakeState::Reading(InputBuffer::with_capacity(MIN_READ)),
-        }
+        HandshakeMachine { stream, state: HandshakeState::Reading(ReadBuffer::new()) }
     }
     /// Start writing data to the peer.
     pub fn start_write<D: Into<Vec<u8>>>(stream: Stream, data: D) -> Self {
@@ -43,12 +40,7 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
         trace!("Doing handshake round.");
         match self.state {
             HandshakeState::Reading(mut buf) => {
-                let read = buf
-                    .prepare_reserve(MIN_READ)
-                    .with_limit(usize::max_value()) // TODO limit size
-                    .map_err(|_| Error::Capacity(CapacityError::HeaderTooLong))?
-                    .read_from(&mut self.stream)
-                    .no_block()?;
+                let read = buf.read_from(&mut self.stream).no_block()?;
                 match read {
                     Some(0) => Err(Error::Protocol(ProtocolError::HandshakeIncomplete)),
                     Some(_) => Ok(if let Some((size, obj)) = Obj::try_parse(Buf::chunk(&buf))? {
@@ -124,7 +116,7 @@ pub trait TryParse: Sized {
 #[derive(Debug)]
 enum HandshakeState {
     /// Reading data from the peer.
-    Reading(InputBuffer),
+    Reading(ReadBuffer),
     /// Sending data to the peer.
     Writing(Cursor<Vec<u8>>),
 }

@@ -6,12 +6,15 @@ pub mod coding;
 mod frame;
 mod mask;
 
-pub use self::frame::{CloseFrame, Frame, FrameHeader};
-
-use crate::error::{CapacityError, Error, Result};
-use input_buffer::{InputBuffer, MIN_READ};
-use log::*;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Write};
+
+use log::*;
+
+pub use self::frame::{CloseFrame, Frame, FrameHeader};
+use crate::{
+    error::{CapacityError, Error, Result},
+    ReadBuffer,
+};
 
 /// A reader and writer for WebSocket frames.
 #[derive(Debug)]
@@ -82,7 +85,7 @@ where
 #[derive(Debug)]
 pub(super) struct FrameCodec {
     /// Buffer to read data from the stream.
-    in_buffer: InputBuffer,
+    in_buffer: ReadBuffer,
     /// Buffer to send packets to the network.
     out_buffer: Vec<u8>,
     /// Header and remaining size of the incoming packet being processed.
@@ -92,17 +95,13 @@ pub(super) struct FrameCodec {
 impl FrameCodec {
     /// Create a new frame codec.
     pub(super) fn new() -> Self {
-        Self {
-            in_buffer: InputBuffer::with_capacity(MIN_READ),
-            out_buffer: Vec::new(),
-            header: None,
-        }
+        Self { in_buffer: ReadBuffer::new(), out_buffer: Vec::new(), header: None }
     }
 
     /// Create a new frame codec from partially read data.
     pub(super) fn from_partially_read(part: Vec<u8>) -> Self {
         Self {
-            in_buffer: InputBuffer::from_partially_read(part),
+            in_buffer: ReadBuffer::from_partially_read(part),
             out_buffer: Vec::new(),
             header: None,
         }
@@ -152,12 +151,7 @@ impl FrameCodec {
             }
 
             // Not enough data in buffer.
-            let size = self
-                .in_buffer
-                .prepare_reserve(MIN_READ)
-                .with_limit(usize::max_value())
-                .map_err(|_| Error::Capacity(CapacityError::TcpBufferFull))?
-                .read_from(stream)?;
+            let size = self.in_buffer.read_from(stream)?;
             if size == 0 {
                 trace!("no frame received");
                 return Ok(None);
