@@ -14,7 +14,7 @@
 
 pub use http;
 
-mod buffer;
+pub mod buffer;
 pub mod client;
 pub mod error;
 pub mod handshake;
