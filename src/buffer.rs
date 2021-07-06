@@ -45,9 +45,7 @@ impl<const CHUNK_SIZE: usize> ReadBuffer<CHUNK_SIZE> {
     pub fn into_vec(mut self) -> Vec<u8> {
         // Current implementation of `tungstenite-rs` expects that the `into_vec()` drains
         // the data from the container that has already been read by the cursor.
-        let pos = self.storage.position() as usize;
-        self.storage.get_mut().drain(0..pos).count();
-        self.storage.set_position(0);
+        self.clean_up();
 
         // Now we can safely return the internal container.
         self.storage.into_inner()
@@ -55,9 +53,17 @@ impl<const CHUNK_SIZE: usize> ReadBuffer<CHUNK_SIZE> {
 
     /// Read next portion of data from the given input stream.
     pub fn read_from<S: Read>(&mut self, stream: &mut S) -> IoResult<usize> {
+        self.clean_up();
         let size = stream.read(&mut self.chunk)?;
         self.storage.get_mut().extend_from_slice(&self.chunk[..size]);
         Ok(size)
+    }
+
+    /// Cleans ups the part of the vector that has been already read by the cursor.
+    fn clean_up(&mut self) {
+        let pos = self.storage.position() as usize;
+        self.storage.get_mut().drain(0..pos).count();
+        self.storage.set_position(0);
     }
 }
 
@@ -99,10 +105,12 @@ mod tests {
 
         buf.advance(2);
         assert_eq!(buf.chunk(), b"ll");
+        assert_eq!(buf.storage.get_mut(), b"Hell");
 
         let size = buf.read_from(&mut inp).unwrap();
         assert_eq!(size, 4);
         assert_eq!(buf.chunk(), b"llo Wo");
+        assert_eq!(buf.storage.get_mut(), b"llo Wo");
 
         let size = buf.read_from(&mut inp).unwrap();
         assert_eq!(size, 4);
