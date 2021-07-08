@@ -14,6 +14,7 @@
 
 pub use http;
 
+pub mod buffer;
 pub mod client;
 pub mod error;
 pub mod handshake;
@@ -21,6 +22,9 @@ pub mod protocol;
 pub mod server;
 pub mod stream;
 pub mod util;
+
+const READ_BUFFER_CHUNK_SIZE: usize = 4096;
+type ReadBuffer = buffer::ReadBuffer<READ_BUFFER_CHUNK_SIZE>;
 
 pub use crate::{
     client::{client, connect},

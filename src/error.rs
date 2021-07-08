@@ -127,8 +127,6 @@ pub enum CapacityError {
     #[error("Too many headers")]
     TooManyHeaders,
     /// Received header is too long.
-    #[error("Header too long")]
-    HeaderTooLong,
     /// Message is bigger than the maximum allowed size.
     #[error("Message too long: {size} > {max_size}")]
     MessageTooLong {
@@ -137,9 +135,6 @@ pub enum CapacityError {
         /// The maximum allowed message size.
         max_size: usize,
     },
-    /// TCP buffer is full.
-    #[error("Incoming TCP buffer is full")]
-    TcpBufferFull,
 }
 
 /// Indicates the specific type/cause of a protocol error.

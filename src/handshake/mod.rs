@@ -131,9 +131,6 @@ mod tests {
     #[test]
     fn key_conversion() {
         // example from RFC 6455
-        assert_eq!(
-            derive_accept_key(b"dGhlIHNhbXBsZSBub25jZQ=="),
-            "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
-        );
+        assert_eq!(derive_accept_key(b"dGhlIHNhbXBsZSBub25jZQ=="), "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=");
     }
 }
