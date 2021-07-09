@@ -1,3 +1,9 @@
+# 0.14.0
+
+- Use `rustls-native-certs` instead of `webpki-root` when `rustls-tls` feature is enabled.
+- New fast and safe implementation of the reading buffer (replacement for the `input_buffer`).
+- Remove some errors from the `Error` enum that can't be triggered anymore with the new buffer implementation.
+
 # 0.13.0
 
 - Add `CapacityError`, `UrlError`, and `ProtocolError` types to represent the different types of capacity, URL, and protocol errors respectively.
