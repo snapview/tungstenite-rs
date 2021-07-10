@@ -1,6 +1,7 @@
 # 0.14.0
 
 - Use `rustls-native-certs` instead of `webpki-root` when `rustls-tls` feature is enabled.
+- Don't use `native-tls` as a default feature (see #202 for more details).
 - New fast and safe implementation of the reading buffer (replacement for the `input_buffer`).
 - Remove some errors from the `Error` enum that can't be triggered anymore with the new buffer implementation.
 
