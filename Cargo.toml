@@ -20,6 +20,7 @@ default = []
 native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
 rustls-tls = ["rustls", "webpki", "rustls-native-certs"]
+no-verbose-logging = []
 
 [dependencies]
 base64 = "0.13.0"

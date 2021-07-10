@@ -135,11 +135,14 @@ impl FrameHeader {
             if cursor.read(&mut head)? != 2 {
                 return Ok(None);
             }
+            #[cfg(not(feature = "no-verbose-logging"))]
             trace!("Parsed headers {:?}", head);
             (head[0], head[1])
         };
-
+        #[cfg(not(feature = "no-verbose-logging"))]
         trace!("First: {:b}", first);
+
+        #[cfg(not(feature = "no-verbose-logging"))]
         trace!("Second: {:b}", second);
 
         let is_final = first & 0x80 != 0;
@@ -149,9 +152,11 @@ impl FrameHeader {
         let rsv3 = first & 0x10 != 0;
 
         let opcode = OpCode::from(first & 0x0F);
+        #[cfg(not(feature = "no-verbose-logging"))]
         trace!("Opcode: {:?}", opcode);
 
         let masked = second & 0x80 != 0;
+        #[cfg(not(feature = "no-verbose-logging"))]
         trace!("Masked: {:?}", masked);
 
         let length = {

@@ -37,6 +37,7 @@ impl<Stream> HandshakeMachine<Stream> {
 impl<Stream: Read + Write> HandshakeMachine<Stream> {
     /// Perform a single handshake round.
     pub fn single_round<Obj: TryParse>(mut self) -> Result<RoundResult<Obj, Stream>> {
+        #[cfg(not(feature = "no-verbose-logging"))]
         trace!("Doing handshake round.");
         match self.state {
             HandshakeState::Reading(mut buf) => {

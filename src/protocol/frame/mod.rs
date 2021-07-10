@@ -153,6 +153,7 @@ impl FrameCodec {
             // Not enough data in buffer.
             let size = self.in_buffer.read_from(stream)?;
             if size == 0 {
+                #[cfg(not(feature = "no-verbose-logging"))]
                 trace!("no frame received");
                 return Ok(None);
             }
@@ -161,6 +162,7 @@ impl FrameCodec {
         let (header, length) = self.header.take().expect("Bug: no frame header");
         debug_assert_eq!(payload.len() as u64, length);
         let frame = Frame::from_payload(header, payload);
+        #[cfg(not(feature = "no-verbose-logging"))]
         trace!("received frame {}", frame);
         Ok(Some(frame))
     }
@@ -170,6 +172,7 @@ impl FrameCodec {
     where
         Stream: Write,
     {
+        #[cfg(not(feature = "no-verbose-logging"))]
         trace!("writing frame {}", frame);
         self.out_buffer.reserve(frame.len());
         frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
