@@ -76,12 +76,12 @@ mod encryption {
                 let config = {
                     #[allow(unused_mut)]
                     let mut config = ClientConfig::new();
-                    #[cfg(feature = "rustls-native-roots")]
+                    #[cfg(feature = "rustls-tls-native-roots")]
                     {
                         config.root_store =
                             rustls_native_certs::load_native_certs().map_err(|(_, err)| err)?;
                     }
-                    #[cfg(feature = "rustls-webpki-roots")]
+                    #[cfg(feature = "rustls-tls-webpki-roots")]
                     {
                         config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
                     }
