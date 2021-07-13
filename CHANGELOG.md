@@ -1,3 +1,14 @@
+# 0.15.0 (unreleased)
+
+- Allow selecting the method of loading root certificates if `rustls` is used as TLS implementation.
+  - Two new feature flags `rustls-tls-native-roots` and `rustls-tls-webpki-roots` have been added
+    that activate the respective method to load certificates.
+  - The `rustls-tls` flag was removed to raise awareness of this change. Otherwise, compilation
+    would have continue to work and potential errors (due to different or missing certificates)
+    only occurred at runtime.
+  - The new feature flags are additive. If both are enabled, both methods will be used to add
+    certificates to the TLS configuration.
+
 # 0.14.0
 
 - Use `rustls-native-certs` instead of `webpki-root` when `rustls-tls` feature is enabled.
