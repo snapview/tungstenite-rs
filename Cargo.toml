@@ -19,9 +19,8 @@ all-features = true
 default = []
 native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
-rustls-tls = ["rustls", "webpki"]
-rustls-tls-native-roots = ["rustls-tls", "rustls-native-certs"]
-rustls-tls-webpki-roots = ["rustls-tls", "webpki-roots"]
+rustls-tls-native-roots = ["rustls", "webpki", "rustls-native-certs"]
+rustls-tls-webpki-roots = ["rustls", "webpki", "webpki-roots"]
 
 [dependencies]
 base64 = "0.13.0"

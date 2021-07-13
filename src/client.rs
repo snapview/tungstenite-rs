@@ -50,7 +50,10 @@ mod encryption {
     }
 }
 
-#[cfg(all(feature = "rustls-tls", not(feature = "native-tls")))]
+#[cfg(all(
+    any(feature = "rustls-tls-native-roots", feature = "rustls-tls-webpki-roots"),
+    not(feature = "native-tls")
+))]
 mod encryption {
     use rustls::ClientConfig;
     pub use rustls::{ClientSession, StreamOwned};
@@ -96,7 +99,11 @@ mod encryption {
     }
 }
 
-#[cfg(not(any(feature = "native-tls", feature = "rustls-tls")))]
+#[cfg(not(any(
+    feature = "native-tls",
+    feature = "rustls-tls-native-roots",
+    feature = "rustls-tls-webpki-roots"
+)))]
 mod encryption {
     use std::net::TcpStream;
 
