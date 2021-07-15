@@ -50,7 +50,10 @@ mod encryption {
     }
 }
 
-#[cfg(all(feature = "rustls-tls", not(feature = "native-tls")))]
+#[cfg(all(
+    any(feature = "rustls-tls-native-roots", feature = "rustls-tls-webpki-roots"),
+    not(feature = "native-tls")
+))]
 mod encryption {
     use rustls::ClientConfig;
     pub use rustls::{ClientSession, StreamOwned};
@@ -71,12 +74,21 @@ mod encryption {
             Mode::Plain => Ok(StreamSwitcher::Plain(stream)),
             Mode::Tls => {
                 let config = {
+                    #[allow(unused_mut)]
                     let mut config = ClientConfig::new();
-                    config.root_store =
-                        rustls_native_certs::load_native_certs().map_err(|(_, err)| err)?;
+                    #[cfg(feature = "rustls-tls-native-roots")]
+                    {
+                        config.root_store =
+                            rustls_native_certs::load_native_certs().map_err(|(_, err)| err)?;
+                    }
+                    #[cfg(feature = "rustls-tls-webpki-roots")]
+                    {
+                        config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+                    }
 
                     Arc::new(config)
                 };
+
                 let domain = DNSNameRef::try_from_ascii_str(domain).map_err(TlsError::Dns)?;
                 let client = ClientSession::new(&config, domain);
                 let stream = StreamOwned::new(client, stream);
@@ -87,7 +99,11 @@ mod encryption {
     }
 }
 
-#[cfg(not(any(feature = "native-tls", feature = "rustls-tls")))]
+#[cfg(not(any(
+    feature = "native-tls",
+    feature = "rustls-tls-native-roots",
+    feature = "rustls-tls-webpki-roots"
+)))]
 mod encryption {
     use std::net::TcpStream;
 

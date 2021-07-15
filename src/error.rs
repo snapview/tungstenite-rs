@@ -253,11 +253,11 @@ pub enum TlsError {
     #[error("native-tls error: {0}")]
     Native(#[from] native_tls_crate::Error),
     /// Rustls error.
-    #[cfg(feature = "rustls-tls")]
+    #[cfg(any(feature = "rustls-tls-native-roots", feature = "rustls-tls-webpki-roots"))]
     #[error("rustls error: {0}")]
     Rustls(#[from] rustls::TLSError),
     /// DNS name resolution error.
-    #[cfg(feature = "rustls-tls")]
+    #[cfg(any(feature = "rustls-tls-native-roots", feature = "rustls-tls-webpki-roots"))]
     #[error("Invalid DNS name: {0}")]
     Dns(#[from] webpki::InvalidDNSNameError),
 }

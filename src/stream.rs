@@ -10,7 +10,7 @@ use std::net::TcpStream;
 
 #[cfg(feature = "native-tls")]
 use native_tls_crate::TlsStream;
-#[cfg(feature = "rustls-tls")]
+#[cfg(any(feature = "rustls-tls-native-roots", feature = "rustls-tls-webpki-roots"))]
 use rustls::StreamOwned;
 
 /// Stream mode, either plain TCP or TLS.
@@ -41,7 +41,7 @@ impl<S: Read + Write + NoDelay> NoDelay for TlsStream<S> {
     }
 }
 
-#[cfg(feature = "rustls-tls")]
+#[cfg(any(feature = "rustls-tls-native-roots", feature = "rustls-tls-webpki-roots"))]
 impl<S: rustls::Session, T: Read + Write + NoDelay> NoDelay for StreamOwned<S, T> {
     fn set_nodelay(&mut self, nodelay: bool) -> IoResult<()> {
         self.sock.set_nodelay(nodelay)

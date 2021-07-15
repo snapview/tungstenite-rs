@@ -19,7 +19,8 @@ all-features = true
 default = []
 native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
-rustls-tls = ["rustls", "webpki", "rustls-native-certs"]
+rustls-tls-native-roots = ["rustls", "webpki", "rustls-native-certs"]
+rustls-tls-webpki-roots = ["rustls", "webpki", "webpki-roots"]
 
 [dependencies]
 base64 = "0.13.0"
@@ -43,13 +44,17 @@ version = "0.2.3"
 optional = true
 version = "0.19.0"
 
+[dependencies.rustls-native-certs]
+optional = true
+version = "0.5.0"
+
 [dependencies.webpki]
 optional = true
 version = "0.21"
 
-[dependencies.rustls-native-certs]
+[dependencies.webpki-roots]
 optional = true
-version = "0.5.0"
+version = "0.21"
 
 [dev-dependencies]
 criterion = "0.3.4"
