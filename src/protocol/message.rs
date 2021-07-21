@@ -1,5 +1,5 @@
 use std::{
-    convert::{AsRef, From, Into},
+    convert::{AsRef, From, Into, TryFrom},
     fmt,
     result::Result as StdResult,
     str,
@@ -270,32 +270,40 @@ impl Message {
 }
 
 impl From<String> for Message {
-    fn from(string: String) -> Message {
+    fn from(string: String) -> Self {
         Message::text(string)
     }
 }
 
 impl<'s> From<&'s str> for Message {
-    fn from(string: &'s str) -> Message {
+    fn from(string: &'s str) -> Self {
         Message::text(string)
     }
 }
 
 impl<'b> From<&'b [u8]> for Message {
-    fn from(data: &'b [u8]) -> Message {
+    fn from(data: &'b [u8]) -> Self {
         Message::binary(data)
     }
 }
 
 impl From<Vec<u8>> for Message {
-    fn from(data: Vec<u8>) -> Message {
+    fn from(data: Vec<u8>) -> Self {
         Message::binary(data)
     }
 }
 
-impl Into<Vec<u8>> for Message {
-    fn into(self) -> Vec<u8> {
-        self.into_data()
+impl From<Message> for Vec<u8> {
+    fn from(message: Message) -> Self {
+        message.into_data()
+    }
+}
+
+impl TryFrom<Message> for String {
+    type Error = Error;
+
+    fn try_from(value: Message) -> StdResult<Self, Self::Error> {
+        value.into_text()
     }
 }
 
