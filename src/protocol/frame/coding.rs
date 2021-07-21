@@ -71,14 +71,14 @@ impl fmt::Display for OpCode {
     }
 }
 
-impl Into<u8> for OpCode {
-    fn into(self) -> u8 {
+impl From<OpCode> for u8 {
+    fn from(code: OpCode) -> Self {
         use self::{
             Control::{Close, Ping, Pong},
             Data::{Binary, Continue, Text},
             OpCode::*,
         };
-        match self {
+        match code {
             Data(Continue) => 0,
             Data(Text) => 1,
             Data(Binary) => 2,

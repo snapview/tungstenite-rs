@@ -84,6 +84,7 @@ impl FrameHeader {
     }
 
     /// Get the size of the header formatted with given payload length.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self, length: u64) -> usize {
         2 + LengthFormat::for_length(length).extra_bytes() + if self.mask.is_some() { 4 } else { 0 }
     }
