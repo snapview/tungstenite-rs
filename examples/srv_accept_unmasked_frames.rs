@@ -1,8 +1,8 @@
 use std::{net::TcpListener, thread::spawn};
 use tungstenite::{
+    accept_hdr_with_config,
     handshake::server::{Request, Response},
     protocol::WebSocketConfig,
-    server::accept_hdr_with_config,
 };
 
 fn main() {

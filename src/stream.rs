@@ -4,13 +4,16 @@
 //! `native_tls` or `openssl` will work as long as there is a TLS stream supporting standard
 //! `Read + Write` traits.
 
-use std::io::{Read, Result as IoResult, Write};
+use std::{
+    fmt::{self, Debug},
+    io::{Read, Result as IoResult, Write},
+};
 
 use std::net::TcpStream;
 
 #[cfg(feature = "native-tls")]
 use native_tls_crate::TlsStream;
-#[cfg(any(feature = "rustls-tls-native-roots", feature = "rustls-tls-webpki-roots"))]
+#[cfg(feature = "__rustls-tls")]
 use rustls::StreamOwned;
 
 /// Stream mode, either plain TCP or TLS.
@@ -41,51 +44,95 @@ impl<S: Read + Write + NoDelay> NoDelay for TlsStream<S> {
     }
 }
 
-#[cfg(any(feature = "rustls-tls-native-roots", feature = "rustls-tls-webpki-roots"))]
+#[cfg(feature = "__rustls-tls")]
 impl<S: rustls::Session, T: Read + Write + NoDelay> NoDelay for StreamOwned<S, T> {
     fn set_nodelay(&mut self, nodelay: bool) -> IoResult<()> {
         self.sock.set_nodelay(nodelay)
     }
 }
 
-/// Stream, either plain TCP or TLS.
-#[derive(Debug)]
-pub enum Stream<S, T> {
+/// A stream that might be protected with TLS.
+#[non_exhaustive]
+pub enum MaybeTlsStream<S: Read + Write> {
     /// Unencrypted socket stream.
     Plain(S),
-    /// Encrypted socket stream.
-    Tls(T),
+    #[cfg(feature = "native-tls")]
+    /// Encrypted socket stream using `native-tls`.
+    NativeTls(native_tls_crate::TlsStream<S>),
+    #[cfg(feature = "__rustls-tls")]
+    /// Encrypted socket stream using `rustls`.
+    Rustls(rustls::StreamOwned<rustls::ClientSession, S>),
 }
 
-impl<S: Read, T: Read> Read for Stream<S, T> {
+impl<S: Read + Write + Debug> Debug for MaybeTlsStream<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Plain(s) => f.debug_tuple("MaybeTlsStream::Plain").field(s).finish(),
+            #[cfg(feature = "native-tls")]
+            Self::NativeTls(s) => f.debug_tuple("MaybeTlsStream::NativeTls").field(s).finish(),
+            #[cfg(feature = "__rustls-tls")]
+            Self::Rustls(s) => {
+                struct RustlsStreamDebug<'a, S: Read + Write>(
+                    &'a rustls::StreamOwned<rustls::ClientSession, S>,
+                );
+
+                impl<'a, S: Read + Write + Debug> Debug for RustlsStreamDebug<'a, S> {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.debug_struct("StreamOwned")
+                            .field("sess", &self.0.sess)
+                            .field("sock", &self.0.sock)
+                            .finish()
+                    }
+                }
+
+                f.debug_tuple("MaybeTlsStream::Rustls").field(&RustlsStreamDebug(s)).finish()
+            }
+        }
+    }
+}
+
+impl<S: Read + Write> Read for MaybeTlsStream<S> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match *self {
-            Stream::Plain(ref mut s) => s.read(buf),
-            Stream::Tls(ref mut s) => s.read(buf),
+            MaybeTlsStream::Plain(ref mut s) => s.read(buf),
+            #[cfg(feature = "native-tls")]
+            MaybeTlsStream::NativeTls(ref mut s) => s.read(buf),
+            #[cfg(feature = "__rustls-tls")]
+            MaybeTlsStream::Rustls(ref mut s) => s.read(buf),
         }
     }
 }
 
-impl<S: Write, T: Write> Write for Stream<S, T> {
+impl<S: Read + Write> Write for MaybeTlsStream<S> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match *self {
-            Stream::Plain(ref mut s) => s.write(buf),
-            Stream::Tls(ref mut s) => s.write(buf),
+            MaybeTlsStream::Plain(ref mut s) => s.write(buf),
+            #[cfg(feature = "native-tls")]
+            MaybeTlsStream::NativeTls(ref mut s) => s.write(buf),
+            #[cfg(feature = "__rustls-tls")]
+            MaybeTlsStream::Rustls(ref mut s) => s.write(buf),
         }
     }
+
     fn flush(&mut self) -> IoResult<()> {
         match *self {
-            Stream::Plain(ref mut s) => s.flush(),
-            Stream::Tls(ref mut s) => s.flush(),
+            MaybeTlsStream::Plain(ref mut s) => s.flush(),
+            #[cfg(feature = "native-tls")]
+            MaybeTlsStream::NativeTls(ref mut s) => s.flush(),
+            #[cfg(feature = "__rustls-tls")]
+            MaybeTlsStream::Rustls(ref mut s) => s.flush(),
         }
     }
 }
 
-impl<S: NoDelay, T: NoDelay> NoDelay for Stream<S, T> {
+impl<S: Read + Write + NoDelay> NoDelay for MaybeTlsStream<S> {
     fn set_nodelay(&mut self, nodelay: bool) -> IoResult<()> {
         match *self {
-            Stream::Plain(ref mut s) => s.set_nodelay(nodelay),
-            Stream::Tls(ref mut s) => s.set_nodelay(nodelay),
+            MaybeTlsStream::Plain(ref mut s) => s.set_nodelay(nodelay),
+            #[cfg(feature = "native-tls")]
+            MaybeTlsStream::NativeTls(ref mut s) => s.set_nodelay(nodelay),
+            #[cfg(feature = "__rustls-tls")]
+            MaybeTlsStream::Rustls(ref mut s) => s.set_nodelay(nodelay),
         }
     }
 }

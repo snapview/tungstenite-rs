@@ -7,7 +7,7 @@ use http::Response;
 use thiserror::Error;
 
 /// Result type of all Tungstenite library calls.
-pub type Result<T> = result::Result<T, Error>;
+pub type Result<T, E = Error> = result::Result<T, E>;
 
 /// Possible WebSocket errors.
 #[derive(Error, Debug)]
@@ -253,11 +253,11 @@ pub enum TlsError {
     #[error("native-tls error: {0}")]
     Native(#[from] native_tls_crate::Error),
     /// Rustls error.
-    #[cfg(any(feature = "rustls-tls-native-roots", feature = "rustls-tls-webpki-roots"))]
+    #[cfg(feature = "__rustls-tls")]
     #[error("rustls error: {0}")]
     Rustls(#[from] rustls::TLSError),
     /// DNS name resolution error.
-    #[cfg(any(feature = "rustls-tls-native-roots", feature = "rustls-tls-webpki-roots"))]
+    #[cfg(feature = "__rustls-tls")]
     #[error("Invalid DNS name: {0}")]
     Dns(#[from] webpki::InvalidDNSNameError),
 }
