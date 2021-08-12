@@ -1,4 +1,4 @@
-# 0.15.0 (unreleased)
+# 0.15.0
 
 - Allow selecting the method of loading root certificates if `rustls` is used as TLS implementation.
   - Two new feature flags `rustls-tls-native-roots` and `rustls-tls-webpki-roots` have been added
