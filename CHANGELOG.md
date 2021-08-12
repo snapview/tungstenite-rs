@@ -8,6 +8,7 @@
     only occurred at runtime.
   - The new feature flags are additive. If both are enabled, both methods will be used to add
     certificates to the TLS configuration.
+- Allow specifying a connector (for more fine-grained configuration of the TLS).
 
 # 0.14.0
 
