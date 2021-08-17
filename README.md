@@ -5,7 +5,7 @@ Lightweight stream-based WebSocket implementation for [Rust](https://www.rust-la
 ```rust
 use std::net::TcpListener;
 use std::thread::spawn;
-use tungstenite::server::accept;
+use tungstenite::accept;
 
 /// A WebSocket echo server
 fn main () {
