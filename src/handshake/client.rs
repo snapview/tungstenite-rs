@@ -5,7 +5,7 @@ use std::{
     marker::PhantomData,
 };
 
-use http::{HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode};
+use http::{header, HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode};
 use httparse::Status;
 use log::*;
 
@@ -125,6 +125,14 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
     .unwrap();
 
     for (k, v) in request.headers() {
+        if k == header::CONNECTION
+            || k == header::UPGRADE
+            || k == header::SEC_WEBSOCKET_VERSION
+            || k == header::SEC_WEBSOCKET_KEY
+            || k == header::HOST
+        {
+            return Err(Error::Protocol(ProtocolError::InvalidHeader(k.clone())));
+        }
         let mut k = k.as_str();
         if k == "sec-websocket-protocol" {
             k = "Sec-WebSocket-Protocol";
