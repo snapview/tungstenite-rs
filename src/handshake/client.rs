@@ -17,6 +17,7 @@ use super::{
 };
 use crate::{
     error::{Error, ProtocolError, Result, UrlError},
+    extensions::{self, DeflateContext},
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -55,7 +56,7 @@ impl<S: Read + Write> ClientHandshake<S> {
         let key = generate_key();
 
         let machine = {
-            let req = generate_request(request, &key)?;
+            let req = generate_request(request, &key, &config)?;
             HandshakeMachine::start_write(stream, req)
         };
 
@@ -82,10 +83,15 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
                 ProcessingResult::Continue(HandshakeMachine::start_read(stream))
             }
             StageResult::DoneReading { stream, result, tail } => {
-                let result = self.verify_data.verify_response(result)?;
+                let (result, pmce) = self.verify_data.verify_response(result, &self.config)?;
                 debug!("Client handshake done.");
-                let websocket =
-                    WebSocket::from_partially_read(stream, tail, Role::Client, self.config);
+                let websocket = WebSocket::from_partially_read_with_compression(
+                    stream,
+                    tail,
+                    Role::Client,
+                    self.config,
+                    pmce,
+                );
                 ProcessingResult::Done((websocket, result))
             }
         })
@@ -93,7 +99,11 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
 }
 
 /// Generate client request.
-fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
+fn generate_request(
+    request: Request,
+    key: &str,
+    config: &Option<WebSocketConfig>,
+) -> Result<Vec<u8>> {
     let mut req = Vec::new();
     let uri = request.uri();
 
@@ -131,6 +141,10 @@ fn generate_request(request: Request, key: &str) -> Result<Vec<u8>> {
         }
         writeln!(req, "{}: {}\r", k, v.to_str()?).unwrap();
     }
+    if let Some(compression) = &config.and_then(|c| c.compression) {
+        let offer = compression.negotiation_offers();
+        writeln!(req, "Sec-WebSocket-Extensions: {}\r", offer.to_str()?).unwrap();
+    }
     writeln!(req, "\r").unwrap();
     trace!("Request: {:?}", String::from_utf8_lossy(&req));
     Ok(req)
@@ -144,7 +158,11 @@ struct VerifyData {
 }
 
 impl VerifyData {
-    pub fn verify_response(&self, response: Response) -> Result<Response> {
+    pub fn verify_response(
+        &self,
+        response: Response,
+        config: &Option<WebSocketConfig>,
+    ) -> Result<(Response, Option<DeflateContext>)> {
         // 1. If the status code received from the server is not 101, the
         // client handles the response per HTTP [RFC2616] procedures. (RFC 6455)
         if response.status() != StatusCode::SWITCHING_PROTOCOLS {
@@ -184,12 +202,39 @@ impl VerifyData {
         if !headers.get("Sec-WebSocket-Accept").map(|h| h == &self.accept_key).unwrap_or(false) {
             return Err(Error::Protocol(ProtocolError::SecWebSocketAcceptKeyMismatch));
         }
+        let mut pmce = None;
         // 5.  If the response includes a |Sec-WebSocket-Extensions| header
         // field and this header field indicates the use of an extension
         // that was not present in the client's handshake (the server has
         // indicated an extension not requested by the client), the client
         // MUST _Fail the WebSocket Connection_. (RFC 6455)
-        // TODO
+        if let Some(exts) = headers
+            .get("Sec-WebSocket-Extensions")
+            .and_then(|h| h.to_str().ok())
+            .map(extensions::parse_header)
+        {
+            if let Some(compression) = &config.and_then(|c| c.compression) {
+                for (name, params) in exts {
+                    if name != compression.name() {
+                        return Err(Error::Protocol(ProtocolError::InvalidExtension(
+                            name.to_string(),
+                        )));
+                    }
+
+                    // Already had PMCE configured
+                    if pmce.is_some() {
+                        return Err(Error::Protocol(ProtocolError::ExtensionConflict(
+                            name.to_string(),
+                        )));
+                    }
+
+                    pmce = Some(compression.accept_response(&params)?);
+                }
+            } else if let Some((name, _)) = exts.get(0) {
+                // The client didn't request anything, but got something
+                return Err(Error::Protocol(ProtocolError::InvalidExtension(name.to_string())));
+            }
+        }
 
         // 6.  If the response includes a |Sec-WebSocket-Protocol| header field
         // and this header field indicates the use of a subprotocol that was
@@ -198,7 +243,7 @@ impl VerifyData {
         // the WebSocket Connection_. (RFC 6455)
         // TODO
 
-        Ok(response)
+        Ok((response, pmce))
     }
 }
 
@@ -243,7 +288,7 @@ fn generate_key() -> String {
 #[cfg(test)]
 mod tests {
     use super::{super::machine::TryParse, generate_key, generate_request, Response};
-    use crate::client::IntoClientRequest;
+    use crate::{client::IntoClientRequest, extensions::DeflateConfig, protocol::WebSocketConfig};
 
     #[test]
     fn random_keys() {
@@ -273,7 +318,7 @@ mod tests {
             Sec-WebSocket-Version: 13\r\n\
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
-        let request = generate_request(request, key).unwrap();
+        let request = generate_request(request, key, &None).unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }
@@ -290,7 +335,7 @@ mod tests {
             Sec-WebSocket-Version: 13\r\n\
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
-        let request = generate_request(request, key).unwrap();
+        let request = generate_request(request, key, &None).unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }
@@ -307,7 +352,33 @@ mod tests {
             Sec-WebSocket-Version: 13\r\n\
             Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
             \r\n";
-        let request = generate_request(request, key).unwrap();
+        let request = generate_request(request, key, &None).unwrap();
+        println!("Request: {}", String::from_utf8_lossy(&request));
+        assert_eq!(&request[..], &correct[..]);
+    }
+
+    #[test]
+    fn request_with_compression() {
+        let request = "ws://localhost/getCaseCount".into_client_request().unwrap();
+        let key = "A70tsIbeMZUbJHh5BWFw6Q==";
+        let correct = b"\
+            GET /getCaseCount HTTP/1.1\r\n\
+            Host: localhost\r\n\
+            Connection: Upgrade\r\n\
+            Upgrade: websocket\r\n\
+            Sec-WebSocket-Version: 13\r\n\
+            Sec-WebSocket-Key: A70tsIbeMZUbJHh5BWFw6Q==\r\n\
+            Sec-WebSocket-Extensions: permessage-deflate\r\n\
+            \r\n";
+        let request = generate_request(
+            request,
+            key,
+            &Some(WebSocketConfig {
+                compression: Some(DeflateConfig::default()),
+                ..WebSocketConfig::default()
+            }),
+        )
+        .unwrap();
         println!("Request: {}", String::from_utf8_lossy(&request));
         assert_eq!(&request[..], &correct[..]);
     }

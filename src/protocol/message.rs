@@ -84,6 +84,7 @@ use self::string_collect::StringCollector;
 #[derive(Debug)]
 pub struct IncompleteMessage {
     collector: IncompleteMessageCollector,
+    compressed: bool,
 }
 
 #[derive(Debug)]
@@ -94,7 +95,7 @@ enum IncompleteMessageCollector {
 
 impl IncompleteMessage {
     /// Create new.
-    pub fn new(message_type: IncompleteMessageType) -> Self {
+    pub fn new(message_type: IncompleteMessageType, compressed: bool) -> Self {
         IncompleteMessage {
             collector: match message_type {
                 IncompleteMessageType::Binary => IncompleteMessageCollector::Binary(Vec::new()),
@@ -102,7 +103,12 @@ impl IncompleteMessage {
                     IncompleteMessageCollector::Text(StringCollector::new())
                 }
             },
+            compressed,
         }
+    }
+
+    pub fn compressed(&self) -> bool {
+        self.compressed
     }
 
     /// Get the current filled size of the buffer.

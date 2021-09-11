@@ -2,7 +2,10 @@
 
 use std::{io, result, str, string};
 
-use crate::protocol::{frame::coding::Data, Message};
+use crate::{
+    extensions,
+    protocol::{frame::coding::Data, Message},
+};
 use http::Response;
 use thiserror::Error;
 
@@ -67,6 +70,9 @@ pub enum Error {
     /// HTTP format error.
     #[error("HTTP format error: {0}")]
     HttpFormat(#[from] http::Error),
+    /// Error from `permessage-deflate` extension.
+    #[error("deflate error: {0}")]
+    Deflate(#[from] extensions::DeflateError),
 }
 
 impl From<str::Utf8Error> for Error {
@@ -138,7 +144,7 @@ pub enum CapacityError {
 }
 
 /// Indicates the specific type/cause of a protocol error.
-#[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Error, Debug, PartialEq, Eq, Clone)]
 pub enum ProtocolError {
     /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method be used).
     #[error("Unsupported HTTP method used - only GET is allowed")]
@@ -191,6 +197,9 @@ pub enum ProtocolError {
     /// Control frames must not be fragmented.
     #[error("Fragmented control frame")]
     FragmentedControlFrame,
+    /// Control frames must not be compressed.
+    #[error("Compressed control frame")]
+    CompressedControlFrame,
     /// Control frames must have a payload of 125 bytes or less.
     #[error("Control frame too big (payload must be 125 bytes or less)")]
     ControlFrameTooBig,
@@ -203,6 +212,9 @@ pub enum ProtocolError {
     /// Received a continue frame despite there being nothing to continue.
     #[error("Continue frame but nothing to continue")]
     UnexpectedContinueFrame,
+    /// Received a compressed continue frame.
+    #[error("Continue frame must not have compress bit set")]
+    CompressedContinueFrame,
     /// Received data while waiting for more fragments.
     #[error("While waiting for more fragments received: {0}")]
     ExpectedFragment(Data),
@@ -215,6 +227,12 @@ pub enum ProtocolError {
     /// The payload for the closing frame is invalid.
     #[error("Invalid close sequence")]
     InvalidCloseSequence,
+    /// The negotiation response included an extension not offered.
+    #[error("Extension negotiation response had invalid extension: {0}")]
+    InvalidExtension(String),
+    /// The negotiation response included an extension more than once.
+    #[error("Extension negotiation response had conflicting extension: {0}")]
+    ExtensionConflict(String),
 }
 
 /// Indicates the specific type/cause of URL error.

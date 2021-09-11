@@ -17,6 +17,7 @@ pub use http;
 pub mod buffer;
 pub mod client;
 pub mod error;
+pub mod extensions;
 pub mod handshake;
 pub mod protocol;
 mod server;

@@ -20,6 +20,7 @@ use super::{
 };
 use crate::{
     error::{Error, ProtocolError, Result},
+    extensions,
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -202,6 +203,8 @@ pub struct ServerHandshake<S, C> {
     config: Option<WebSocketConfig>,
     /// Error code/flag. If set, an error will be returned after sending response to the client.
     error_response: Option<ErrorResponse>,
+    // Negotiated Per-Message Compression Extension context for server.
+    pmce: Option<extensions::DeflateContext>,
     /// Internal stream type.
     _marker: PhantomData<S>,
 }
@@ -219,6 +222,7 @@ impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
                 callback: Some(callback),
                 config,
                 error_response: None,
+                pmce: None,
                 _marker: PhantomData,
             },
         }
@@ -240,7 +244,20 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                     return Err(Error::Protocol(ProtocolError::JunkAfterRequest));
                 }
 
-                let response = create_response(&result)?;
+                let mut response = create_response(&result)?;
+                if let Some(compression) = &self.config.and_then(|c| c.compression) {
+                    if let Some(extensions) = result
+                        .headers()
+                        .get("Sec-WebSocket-Extensions")
+                        .and_then(|v| v.to_str().ok())
+                    {
+                        if let Some((agreed, pmce)) = compression.negotiation_response(extensions) {
+                            self.pmce = Some(pmce);
+                            response.headers_mut().insert("Sec-WebSocket-Extensions", agreed);
+                        }
+                    }
+                }
+
                 let callback_result = if let Some(callback) = self.callback.take() {
                     callback.on_request(&result, response)
                 } else {
@@ -280,7 +297,12 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                     return Err(Error::Http(err));
                 } else {
                     debug!("Server handshake done.");
-                    let websocket = WebSocket::from_raw_socket(stream, Role::Server, self.config);
+                    let websocket = WebSocket::from_raw_socket_with_compression(
+                        stream,
+                        Role::Server,
+                        self.config,
+                        self.pmce.take(),
+                    );
                     ProcessingResult::Done(websocket)
                 }
             }
