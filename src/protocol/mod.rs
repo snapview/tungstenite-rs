@@ -395,28 +395,8 @@ impl WebSocketContext {
         }
 
         let frame = match message {
-            Message::Text(data) => {
-                if let Some(pmce) = self.pmce.as_mut() {
-                    Frame::compressed_message(
-                        pmce.compress(data.as_bytes())?,
-                        OpCode::Data(OpData::Text),
-                        true,
-                    )
-                } else {
-                    Frame::message(data.into(), OpCode::Data(OpData::Text), true)
-                }
-            }
-            Message::Binary(data) => {
-                if let Some(pmce) = self.pmce.as_mut() {
-                    Frame::compressed_message(
-                        pmce.compress(&data)?,
-                        OpCode::Data(OpData::Binary),
-                        true,
-                    )
-                } else {
-                    Frame::message(data, OpCode::Data(OpData::Binary), true)
-                }
-            }
+            Message::Text(data) => self.prepare_data_frame(data.into(), OpData::Text)?,
+            Message::Binary(data) => self.prepare_data_frame(data, OpData::Binary)?,
             Message::Ping(data) => Frame::ping(data),
             Message::Pong(data) => {
                 self.pong = Some(Frame::pong(data));
@@ -427,6 +407,18 @@ impl WebSocketContext {
 
         self.send_queue.push_back(frame);
         self.write_pending(stream)
+    }
+
+    fn prepare_data_frame(&mut self, data: Vec<u8>, opdata: OpData) -> Result<Frame> {
+        debug_assert!(matches!(opdata, OpData::Text | OpData::Binary), "Invalid data frame kind");
+        let opcode = OpCode::Data(opdata);
+        let is_final = true;
+        let frame = if let Some(pmce) = self.pmce.as_mut() {
+            Frame::compressed_message(pmce.compress(&data)?, opcode, is_final)
+        } else {
+            Frame::message(data, opcode, is_final)
+        };
+        Ok(frame)
     }
 
     /// Flush the pending send queue.
