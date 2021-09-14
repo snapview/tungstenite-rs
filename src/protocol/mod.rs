@@ -505,17 +505,14 @@ impl WebSocketContext {
             // the negotiated extensions defines the meaning of such a nonzero
             // value, the receiving endpoint MUST _Fail the WebSocket
             // Connection_.
-            let mut is_compressed = false;
-            {
+            let is_compressed = {
                 let hdr = frame.header();
                 if (hdr.rsv1 && self.pmce.is_none()) || hdr.rsv2 || hdr.rsv3 {
                     return Err(Error::Protocol(ProtocolError::NonZeroReservedBits));
                 }
 
-                if hdr.rsv1 && self.pmce.is_some() {
-                    is_compressed = true;
-                }
-            }
+                hdr.rsv1
+            };
 
             match self.role {
                 Role::Server => {
