@@ -71,7 +71,7 @@ pub enum Error {
     #[error("HTTP format error: {0}")]
     HttpFormat(#[from] http::Error),
     /// Error from `permessage-deflate` extension.
-    #[error("deflate error: {0}")]
+    #[error("Deflate error: {0}")]
     Deflate(#[from] extensions::DeflateError),
 }
 

@@ -21,10 +21,10 @@ const TRAILER: [u8; 4] = [0x00, 0x00, 0xff, 0xff];
 #[derive(Debug, Error)]
 pub enum DeflateError {
     /// Compress failed
-    #[error("failed to compress: {0}")]
+    #[error("Failed to compress: {0}")]
     Compress(std::io::Error),
     /// Decompress failed
-    #[error("failed to decompress: {0}")]
+    #[error("Failed to decompress: {0}")]
     Decompress(std::io::Error),
 }
 
