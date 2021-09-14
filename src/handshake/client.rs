@@ -142,7 +142,7 @@ fn generate_request(
         writeln!(req, "{}: {}\r", k, v.to_str()?).unwrap();
     }
     if let Some(compression) = &config.and_then(|c| c.compression) {
-        let offer = compression.negotiation_offers();
+        let offer = compression.generate_offer();
         writeln!(req, "Sec-WebSocket-Extensions: {}\r", offer.to_str()?).unwrap();
     }
     writeln!(req, "\r").unwrap();

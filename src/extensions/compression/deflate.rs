@@ -57,8 +57,9 @@ impl DeflateConfig {
         PER_MESSAGE_DEFLATE
     }
 
+    // TODO? Support stacked offers?
     /// Value for `Sec-WebSocket-Extensions` request header.
-    pub(crate) fn negotiation_offers(&self) -> HeaderValue {
+    pub(crate) fn generate_offer(&self) -> HeaderValue {
         let mut offers = Vec::new();
         if self.server_no_context_takeover {
             offers.push(Param::new(SERVER_NO_CONTEXT_TAKEOVER));
