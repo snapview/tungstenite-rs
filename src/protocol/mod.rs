@@ -6,6 +6,7 @@ mod message;
 
 pub use self::{frame::CloseFrame, message::Message};
 
+use http::HeaderValue;
 use log::*;
 use std::{
     collections::VecDeque,
@@ -69,6 +70,39 @@ impl Default for WebSocketConfig {
             max_frame_size: Some(16 << 20),
             accept_unmasked_frames: false,
             compression: None,
+        }
+    }
+}
+
+impl WebSocketConfig {
+    // Generate extension negotiation offers for configured extensions.
+    // Only `permessage-deflate` is supported at the moment.
+    pub(crate) fn generate_offers(&self) -> Option<HeaderValue> {
+        self.compression.map(|c| c.generate_offer())
+    }
+
+    // TODO Replace `DeflateContext` with something more general
+    // This can be used with `WebSocket::from_raw_socket_with_compression` for integration.
+    /// Returns negotiation response based on offers and `DeflateContext` to manage per message compression.
+    pub fn accept_offers<'a>(
+        &'a self,
+        extensions: impl Iterator<Item = &'a HeaderValue>,
+    ) -> Option<(HeaderValue, DeflateContext)> {
+        if let Some(compression) = &self.compression {
+            let extensions = crate::extensions::iter_all(extensions);
+            let offers =
+                extensions.filter_map(
+                    |(k, v)| {
+                        if k == compression.name() {
+                            Some(v)
+                        } else {
+                            None
+                        }
+                    },
+                );
+            compression.accept_offer(offers)
+        } else {
+            None
         }
     }
 }

@@ -141,9 +141,8 @@ fn generate_request(
         }
         writeln!(req, "{}: {}\r", k, v.to_str()?).unwrap();
     }
-    if let Some(compression) = &config.and_then(|c| c.compression) {
-        let offer = compression.generate_offer();
-        writeln!(req, "Sec-WebSocket-Extensions: {}\r", offer.to_str()?).unwrap();
+    if let Some(offers) = config.and_then(|c| c.generate_offers()) {
+        writeln!(req, "Sec-WebSocket-Extensions: {}\r", offers.to_str()?).unwrap();
     }
     writeln!(req, "\r").unwrap();
     trace!("Request: {:?}", String::from_utf8_lossy(&req));

@@ -4,7 +4,7 @@ use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, 
 use http::HeaderValue;
 use thiserror::Error;
 
-use crate::{extensions, protocol::Role};
+use crate::protocol::Role;
 
 const PER_MESSAGE_DEFLATE: &str = "permessage-deflate";
 const CLIENT_NO_CONTEXT_TAKEOVER: &str = "client_no_context_takeover";
@@ -67,11 +67,10 @@ impl DeflateConfig {
         to_header_value(&offers)
     }
 
-    // This can be used for `WebSocket::from_raw_socket_with_compression`.
     /// Returns negotiation response based on offers and `DeflateContext` to manage per message compression.
-    pub fn negotiation_response<'a>(
+    pub(crate) fn accept_offer<'a>(
         &'a self,
-        extensions: impl Iterator<Item = &'a HeaderValue>,
+        offers: impl Iterator<Item = impl Iterator<Item = (&'a str, Option<&'a str>)>>,
     ) -> Option<(HeaderValue, DeflateContext)> {
         // Accept the first valid offer for `permessage-deflate`.
         // A server MUST decline an extension negotiation offer for this
@@ -83,9 +82,7 @@ impl DeflateConfig {
         // * The negotiation offer contains multiple extension parameters with
         //   the same name.
         // * The server doesn't support the offered configuration.
-        'outer: for (_, offer) in
-            extensions::iter_all(extensions).filter(|&(k, _)| k == self.name())
-        {
+        'outer: for offer in offers {
             let mut config =
                 DeflateConfig { compression: self.compression, ..DeflateConfig::default() };
             let mut agreed = Vec::new();
