@@ -246,17 +246,10 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
 
                 let mut response = create_response(&result)?;
                 if let Some(compression) = &self.config.and_then(|c| c.compression) {
-                    for extensions in result
-                        .headers()
-                        .get_all("Sec-WebSocket-Extensions")
-                        .iter()
-                        .filter_map(|h| h.to_str().ok())
-                    {
-                        if let Some((agreed, pmce)) = compression.negotiation_response(extensions) {
-                            self.pmce = Some(pmce);
-                            response.headers_mut().insert("Sec-WebSocket-Extensions", agreed);
-                            break;
-                        }
+                    let extensions = result.headers().get_all("Sec-WebSocket-Extensions").iter();
+                    if let Some((agreed, pmce)) = compression.negotiation_response(extensions) {
+                        self.pmce = Some(pmce);
+                        response.headers_mut().insert("Sec-WebSocket-Extensions", agreed);
                     }
                 }
 

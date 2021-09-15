@@ -208,11 +208,13 @@ impl VerifyData {
         // that was not present in the client's handshake (the server has
         // indicated an extension not requested by the client), the client
         // MUST _Fail the WebSocket Connection_. (RFC 6455)
-        if let Some(exts) = headers
-            .get("Sec-WebSocket-Extensions")
-            .and_then(|h| h.to_str().ok())
-            .map(extensions::parse_header)
-        {
+        let mut extensions = headers.get_all("Sec-WebSocket-Extensions").iter();
+        if let Some(value) = extensions.next() {
+            if extensions.next().is_some() {
+                return Err(Error::Protocol(ProtocolError::MultipleExtensionsHeaderInResponse));
+            }
+
+            let mut exts = extensions::iter_all(std::iter::once(value));
             if let Some(compression) = &config.and_then(|c| c.compression) {
                 for (name, params) in exts {
                     if name != compression.name() {
@@ -227,10 +229,9 @@ impl VerifyData {
                             name.to_string(),
                         )));
                     }
-
-                    pmce = Some(compression.accept_response(&params)?);
+                    pmce = Some(compression.accept_response(params)?);
                 }
-            } else if let Some((name, _)) = exts.get(0) {
+            } else if let Some((name, _)) = exts.next() {
                 // The client didn't request anything, but got something
                 return Err(Error::Protocol(ProtocolError::InvalidExtension(name.to_string())));
             }

@@ -4,10 +4,7 @@ use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, 
 use http::HeaderValue;
 use thiserror::Error;
 
-use crate::{
-    extensions::{self, Param},
-    protocol::Role,
-};
+use crate::{extensions, protocol::Role};
 
 const PER_MESSAGE_DEFLATE: &str = "permessage-deflate";
 const CLIENT_NO_CONTEXT_TAKEOVER: &str = "client_no_context_takeover";
@@ -62,17 +59,20 @@ impl DeflateConfig {
     pub(crate) fn generate_offer(&self) -> HeaderValue {
         let mut offers = Vec::new();
         if self.server_no_context_takeover {
-            offers.push(Param::new(SERVER_NO_CONTEXT_TAKEOVER));
+            offers.push(HeaderValue::from_static(SERVER_NO_CONTEXT_TAKEOVER));
         }
         if self.client_no_context_takeover {
-            offers.push(Param::new(CLIENT_NO_CONTEXT_TAKEOVER));
+            offers.push(HeaderValue::from_static(CLIENT_NO_CONTEXT_TAKEOVER));
         }
         to_header_value(&offers)
     }
 
     // This can be used for `WebSocket::from_raw_socket_with_compression`.
     /// Returns negotiation response based on offers and `DeflateContext` to manage per message compression.
-    pub fn negotiation_response(&self, extensions: &str) -> Option<(HeaderValue, DeflateContext)> {
+    pub fn negotiation_response<'a>(
+        &'a self,
+        extensions: impl Iterator<Item = &'a HeaderValue>,
+    ) -> Option<(HeaderValue, DeflateContext)> {
         // Accept the first valid offer for `permessage-deflate`.
         // A server MUST decline an extension negotiation offer for this
         // extension if any of the following conditions are met:
@@ -84,7 +84,7 @@ impl DeflateConfig {
         //   the same name.
         // * The server doesn't support the offered configuration.
         'outer: for (_, offer) in
-            extensions::parse_header(extensions).iter().filter(|(k, _)| k == self.name())
+            extensions::iter_all(extensions).filter(|&(k, _)| k == self.name())
         {
             let mut config =
                 DeflateConfig { compression: self.compression, ..DeflateConfig::default() };
@@ -92,8 +92,8 @@ impl DeflateConfig {
             let mut seen_server_no_context_takeover = false;
             let mut seen_client_no_context_takeover = false;
             let mut seen_client_max_window_bits = false;
-            for param in offer {
-                match param.name() {
+            for (key, _val) in offer {
+                match key {
                     SERVER_NO_CONTEXT_TAKEOVER => {
                         // Invalid offer with multiple params with same name is declined.
                         if seen_server_no_context_takeover {
@@ -101,7 +101,7 @@ impl DeflateConfig {
                         }
                         seen_server_no_context_takeover = true;
                         config.server_no_context_takeover = true;
-                        agreed.push(Param::new(SERVER_NO_CONTEXT_TAKEOVER));
+                        agreed.push(HeaderValue::from_static(SERVER_NO_CONTEXT_TAKEOVER));
                     }
 
                     CLIENT_NO_CONTEXT_TAKEOVER => {
@@ -111,7 +111,7 @@ impl DeflateConfig {
                         }
                         seen_client_no_context_takeover = true;
                         config.client_no_context_takeover = true;
-                        agreed.push(Param::new(CLIENT_NO_CONTEXT_TAKEOVER));
+                        agreed.push(HeaderValue::from_static(CLIENT_NO_CONTEXT_TAKEOVER));
                     }
 
                     // Max window bits are not supported at the moment.
@@ -142,11 +142,14 @@ impl DeflateConfig {
         None
     }
 
-    pub(crate) fn accept_response(&self, agreed: &[Param]) -> Result<DeflateContext, DeflateError> {
+    pub(crate) fn accept_response<'a>(
+        &'a self,
+        agreed: impl Iterator<Item = (&'a str, Option<&'a str>)>,
+    ) -> Result<DeflateContext, DeflateError> {
         let mut config =
             DeflateConfig { compression: self.compression, ..DeflateConfig::default() };
-        for param in agreed {
-            match param.name() {
+        for (key, _val) in agreed {
+            match key {
                 SERVER_NO_CONTEXT_TAKEOVER => {
                     config.server_no_context_takeover = true;
                 }
@@ -276,15 +279,11 @@ impl DeflateContext {
     }
 }
 
-fn to_header_value(params: &[Param]) -> HeaderValue {
+fn to_header_value(params: &[HeaderValue]) -> HeaderValue {
     let mut value = Vec::new();
     write!(value, "{}", PER_MESSAGE_DEFLATE).unwrap();
     for param in params {
-        if let Some(v) = param.value() {
-            write!(value, "; {}={}", param.name(), v).unwrap();
-        } else {
-            write!(value, "; {}", param.name()).unwrap();
-        }
+        write!(value, "; {}", param.to_str().unwrap()).unwrap();
     }
-    HeaderValue::from_bytes(&value).unwrap()
+    HeaderValue::from_bytes(&value).expect("joining HeaderValue should be valid")
 }

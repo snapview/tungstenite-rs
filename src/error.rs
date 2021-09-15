@@ -233,6 +233,10 @@ pub enum ProtocolError {
     /// The negotiation response included an extension more than once.
     #[error("Extension negotiation response had conflicting extension: {0}")]
     ExtensionConflict(String),
+    // https://datatracker.ietf.org/doc/html/rfc6455#section-11.3.2
+    /// `Sec-WebSocket-Extensions` header appeared multiple times in HTTP response
+    #[error("Sec-WebSocket-Extensions header must not appear more than once in response")]
+    MultipleExtensionsHeaderInResponse,
 }
 
 /// Indicates the specific type/cause of URL error.
