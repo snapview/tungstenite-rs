@@ -70,7 +70,7 @@ impl DeflateConfig {
     /// Returns negotiation response based on offers and `DeflateContext` to manage per message compression.
     pub(crate) fn accept_offer<'a>(
         &'a self,
-        offers: impl Iterator<Item = impl Iterator<Item = (&'a str, Option<&'a str>)>>,
+        mut offers: impl Iterator<Item = impl Iterator<Item = (&'a str, Option<&'a str>)>>,
     ) -> Option<(HeaderValue, DeflateContext)> {
         // Accept the first valid offer for `permessage-deflate`.
         // A server MUST decline an extension negotiation offer for this
@@ -82,7 +82,7 @@ impl DeflateConfig {
         // * The negotiation offer contains multiple extension parameters with
         //   the same name.
         // * The server doesn't support the offered configuration.
-        'outer: for offer in offers {
+        offers.find_map(|offer| {
             let mut config =
                 DeflateConfig { compression: self.compression, ..DeflateConfig::default() };
             let mut agreed = Vec::new();
@@ -94,7 +94,7 @@ impl DeflateConfig {
                     SERVER_NO_CONTEXT_TAKEOVER => {
                         // Invalid offer with multiple params with same name is declined.
                         if seen_server_no_context_takeover {
-                            continue 'outer;
+                            return None;
                         }
                         seen_server_no_context_takeover = true;
                         config.server_no_context_takeover = true;
@@ -104,7 +104,7 @@ impl DeflateConfig {
                     CLIENT_NO_CONTEXT_TAKEOVER => {
                         // Invalid offer with multiple params with same name is declined.
                         if seen_client_no_context_takeover {
-                            continue 'outer;
+                            return None;
                         }
                         seen_client_no_context_takeover = true;
                         config.client_no_context_takeover = true;
@@ -115,28 +115,26 @@ impl DeflateConfig {
                     SERVER_MAX_WINDOW_BITS => {
                         // A server declines an extension negotiation offer with this parameter
                         // if the server doesn't support it.
-                        continue 'outer;
+                        return None;
                     }
                     // Not supported, but server may ignore and accept the offer.
                     CLIENT_MAX_WINDOW_BITS => {
                         // Invalid offer with multiple params with same name is declined.
                         if seen_client_max_window_bits {
-                            continue 'outer;
+                            return None;
                         }
                         seen_client_max_window_bits = true;
                     }
 
                     // Offer with unknown parameter MUST be declined.
                     _ => {
-                        continue 'outer;
+                        return None;
                     }
                 }
             }
 
-            return Some((to_header_value(&agreed), DeflateContext::new(Role::Server, config)));
-        }
-
-        None
+            Some((to_header_value(&agreed), DeflateContext::new(Role::Server, config)))
+        })
     }
 
     pub(crate) fn accept_response<'a>(
