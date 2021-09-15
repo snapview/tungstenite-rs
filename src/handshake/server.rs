@@ -20,7 +20,7 @@ use super::{
 };
 use crate::{
     error::{Error, ProtocolError, Result},
-    extensions,
+    extensions::Extensions,
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -203,8 +203,8 @@ pub struct ServerHandshake<S, C> {
     config: Option<WebSocketConfig>,
     /// Error code/flag. If set, an error will be returned after sending response to the client.
     error_response: Option<ErrorResponse>,
-    // Negotiated Per-Message Compression Extension context for server.
-    pmce: Option<extensions::DeflateContext>,
+    // Negotiated extension context for server.
+    extensions: Option<Extensions>,
     /// Internal stream type.
     _marker: PhantomData<S>,
 }
@@ -222,7 +222,7 @@ impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
                 callback: Some(callback),
                 config,
                 error_response: None,
-                pmce: None,
+                extensions: None,
                 _marker: PhantomData,
             },
         }
@@ -246,10 +246,10 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
 
                 let mut response = create_response(&result)?;
                 if let Some(config) = &self.config {
-                    let extensions = result.headers().get_all("Sec-WebSocket-Extensions").iter();
-                    if let Some((agreed, pmce)) = config.accept_offers(extensions) {
-                        self.pmce = Some(pmce);
+                    let values = result.headers().get_all("Sec-WebSocket-Extensions").iter();
+                    if let Some((agreed, extensions)) = config.accept_offers(values) {
                         response.headers_mut().insert("Sec-WebSocket-Extensions", agreed);
+                        self.extensions = Some(extensions);
                     }
                 }
 
@@ -292,11 +292,11 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                     return Err(Error::Http(err));
                 } else {
                     debug!("Server handshake done.");
-                    let websocket = WebSocket::from_raw_socket_with_compression(
+                    let websocket = WebSocket::from_raw_socket_with_extensions(
                         stream,
                         Role::Server,
                         self.config,
-                        self.pmce.take(),
+                        self.extensions.take(),
                     );
                     ProcessingResult::Done(websocket)
                 }

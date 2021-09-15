@@ -2,8 +2,16 @@
 // Only `permessage-deflate` is supported at the moment.
 
 mod compression;
-pub use compression::deflate::{DeflateConfig, DeflateContext, DeflateError};
+use compression::deflate::DeflateContext;
+pub use compression::deflate::{DeflateConfig, DeflateError};
 use http::HeaderValue;
+
+/// Container for configured extensions.
+#[derive(Debug, Default)]
+pub struct Extensions {
+    // Per-Message Compression. Only `permessage-deflate` is supported.
+    pub(crate) compression: Option<DeflateContext>,
+}
 
 /// Iterator of all extension offers/responses in `Sec-WebSocket-Extensions` values.
 pub(crate) fn iter_all<'a>(

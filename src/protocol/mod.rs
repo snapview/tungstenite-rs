@@ -23,7 +23,7 @@ use self::{
 };
 use crate::{
     error::{Error, ProtocolError, Result},
-    extensions::{self, DeflateContext},
+    extensions::{self, Extensions},
     util::NonBlockingResult,
 };
 
@@ -81,15 +81,14 @@ impl WebSocketConfig {
         self.compression.map(|c| c.generate_offer())
     }
 
-    // TODO Replace `DeflateContext` with something more general
-    // This can be used with `WebSocket::from_raw_socket_with_compression` for integration.
-    /// Returns negotiation response based on offers and `DeflateContext` to manage per message compression.
+    // This can be used with `WebSocket::from_raw_socket_with_extensions` for integration.
+    /// Returns negotiation response based on offers and `Extensions` to manage extensions.
     pub fn accept_offers<'a>(
         &'a self,
         extensions: impl Iterator<Item = &'a HeaderValue>,
-    ) -> Option<(HeaderValue, DeflateContext)> {
+    ) -> Option<(HeaderValue, Extensions)> {
         if let Some(compression) = &self.compression {
-            let extensions = crate::extensions::iter_all(extensions);
+            let extensions = extensions::iter_all(extensions);
             let offers =
                 extensions.filter_map(
                     |(k, v)| {
@@ -100,7 +99,12 @@ impl WebSocketConfig {
                         }
                     },
                 );
-            compression.accept_offer(offers)
+
+            // To support more extensions, store extension context in `Extensions` and
+            // concatenate negotiation responses from each extension.
+            compression
+                .accept_offer(offers)
+                .map(|(agreed, pmce)| (agreed, Extensions { compression: Some(pmce) }))
         } else {
             None
         }
@@ -130,14 +134,14 @@ impl<Stream> WebSocket<Stream> {
     }
 
     /// Convert a raw socket into a WebSocket without performing a handshake.
-    pub fn from_raw_socket_with_compression(
+    pub fn from_raw_socket_with_extensions(
         stream: Stream,
         role: Role,
         config: Option<WebSocketConfig>,
-        pmce: Option<DeflateContext>,
+        extensions: Option<Extensions>,
     ) -> Self {
         let mut context = WebSocketContext::new(role, config);
-        context.pmce = pmce;
+        context.extensions = extensions;
         WebSocket { socket: stream, context }
     }
 
@@ -158,17 +162,17 @@ impl<Stream> WebSocket<Stream> {
         }
     }
 
-    pub(crate) fn from_partially_read_with_compression(
+    pub(crate) fn from_partially_read_with_extensions(
         stream: Stream,
         part: Vec<u8>,
         role: Role,
         config: Option<WebSocketConfig>,
-        pmce: Option<DeflateContext>,
+        extensions: Option<Extensions>,
     ) -> Self {
         WebSocket {
             socket: stream,
-            context: WebSocketContext::from_partially_read_with_compression(
-                part, role, config, pmce,
+            context: WebSocketContext::from_partially_read_with_extensions(
+                part, role, config, extensions,
             ),
         }
     }
@@ -306,8 +310,8 @@ pub struct WebSocketContext {
     pong: Option<Frame>,
     /// The configuration for the websocket session.
     config: WebSocketConfig,
-    /// Per-Message Compression Extension. Only deflate is supported at the moment.
-    pub(crate) pmce: Option<extensions::DeflateContext>,
+    // Container for extensions.
+    pub(crate) extensions: Option<Extensions>,
 }
 
 impl WebSocketContext {
@@ -321,7 +325,7 @@ impl WebSocketContext {
             send_queue: VecDeque::new(),
             pong: None,
             config: config.unwrap_or_else(WebSocketConfig::default),
-            pmce: None,
+            extensions: None,
         }
     }
 
@@ -333,15 +337,15 @@ impl WebSocketContext {
         }
     }
 
-    pub(crate) fn from_partially_read_with_compression(
+    pub(crate) fn from_partially_read_with_extensions(
         part: Vec<u8>,
         role: Role,
         config: Option<WebSocketConfig>,
-        pmce: Option<DeflateContext>,
+        extensions: Option<Extensions>,
     ) -> Self {
         WebSocketContext {
             frame: FrameCodec::from_partially_read(part),
-            pmce,
+            extensions,
             ..WebSocketContext::new(role, config)
         }
     }
@@ -447,11 +451,12 @@ impl WebSocketContext {
         debug_assert!(matches!(opdata, OpData::Text | OpData::Binary), "Invalid data frame kind");
         let opcode = OpCode::Data(opdata);
         let is_final = true;
-        let frame = if let Some(pmce) = self.pmce.as_mut() {
-            Frame::compressed_message(pmce.compress(&data)?, opcode, is_final)
-        } else {
-            Frame::message(data, opcode, is_final)
-        };
+        let frame =
+            if let Some(pmce) = self.extensions.as_mut().and_then(|e| e.compression.as_mut()) {
+                Frame::compressed_message(pmce.compress(&data)?, opcode, is_final)
+            } else {
+                Frame::message(data, opcode, is_final)
+            };
         Ok(frame)
     }
 
@@ -533,7 +538,7 @@ impl WebSocketContext {
             // Connection_.
             let is_compressed = {
                 let hdr = frame.header();
-                if (hdr.rsv1 && self.pmce.is_none()) || hdr.rsv2 || hdr.rsv3 {
+                if (hdr.rsv1 && !self.has_compression()) || hdr.rsv2 || hdr.rsv3 {
                     return Err(Error::Protocol(ProtocolError::NonZeroReservedBits));
                 }
 
@@ -606,8 +611,9 @@ impl WebSocketContext {
                             if let Some(ref mut msg) = self.incomplete {
                                 let data = if msg.compressed() {
                                     // `msg.compressed` is only set when compression is enabled so it's safe to unwrap
-                                    self.pmce
+                                    self.extensions
                                         .as_mut()
+                                        .and_then(|x| x.compression.as_mut())
                                         .unwrap()
                                         .decompress(frame.into_data(), fin)?
                                 } else {
@@ -637,8 +643,9 @@ impl WebSocketContext {
                                 };
                                 let mut m = IncompleteMessage::new(message_type, is_compressed);
                                 let data = if is_compressed {
-                                    self.pmce
+                                    self.extensions
                                         .as_mut()
+                                        .and_then(|x| x.compression.as_mut())
                                         .unwrap()
                                         .decompress(frame.into_data(), fin)?
                                 } else {
@@ -728,6 +735,10 @@ impl WebSocketContext {
 
         trace!("Sending frame: {:?}", frame);
         self.frame.write_frame(stream, frame).check_connection_reset(self.state)
+    }
+
+    fn has_compression(&self) -> bool {
+        self.extensions.as_ref().and_then(|c| c.compression.as_ref()).is_some()
     }
 }
 

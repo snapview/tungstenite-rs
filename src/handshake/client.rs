@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     error::{Error, ProtocolError, Result, UrlError},
-    extensions::{self, DeflateContext},
+    extensions::{self, Extensions},
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -83,14 +83,15 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
                 ProcessingResult::Continue(HandshakeMachine::start_read(stream))
             }
             StageResult::DoneReading { stream, result, tail } => {
-                let (result, pmce) = self.verify_data.verify_response(result, &self.config)?;
+                let (result, extensions) =
+                    self.verify_data.verify_response(result, &self.config)?;
                 debug!("Client handshake done.");
-                let websocket = WebSocket::from_partially_read_with_compression(
+                let websocket = WebSocket::from_partially_read_with_extensions(
                     stream,
                     tail,
                     Role::Client,
                     self.config,
-                    pmce,
+                    extensions,
                 );
                 ProcessingResult::Done((websocket, result))
             }
@@ -161,7 +162,7 @@ impl VerifyData {
         &self,
         response: Response,
         config: &Option<WebSocketConfig>,
-    ) -> Result<(Response, Option<DeflateContext>)> {
+    ) -> Result<(Response, Option<Extensions>)> {
         // 1. If the status code received from the server is not 101, the
         // client handles the response per HTTP [RFC2616] procedures. (RFC 6455)
         if response.status() != StatusCode::SWITCHING_PROTOCOLS {
@@ -201,15 +202,15 @@ impl VerifyData {
         if !headers.get("Sec-WebSocket-Accept").map(|h| h == &self.accept_key).unwrap_or(false) {
             return Err(Error::Protocol(ProtocolError::SecWebSocketAcceptKeyMismatch));
         }
-        let mut pmce = None;
+        let mut extensions = None;
         // 5.  If the response includes a |Sec-WebSocket-Extensions| header
         // field and this header field indicates the use of an extension
         // that was not present in the client's handshake (the server has
         // indicated an extension not requested by the client), the client
         // MUST _Fail the WebSocket Connection_. (RFC 6455)
-        let mut extensions = headers.get_all("Sec-WebSocket-Extensions").iter();
-        if let Some(value) = extensions.next() {
-            if extensions.next().is_some() {
+        let mut extensions_values = headers.get_all("Sec-WebSocket-Extensions").iter();
+        if let Some(value) = extensions_values.next() {
+            if extensions_values.next().is_some() {
                 return Err(Error::Protocol(ProtocolError::MultipleExtensionsHeaderInResponse));
             }
 
@@ -223,12 +224,15 @@ impl VerifyData {
                     }
 
                     // Already had PMCE configured
-                    if pmce.is_some() {
+                    if extensions.is_some() {
                         return Err(Error::Protocol(ProtocolError::ExtensionConflict(
                             name.to_string(),
                         )));
                     }
-                    pmce = Some(compression.accept_response(params)?);
+
+                    extensions = Some(Extensions {
+                        compression: Some(compression.accept_response(params)?),
+                    });
                 }
             } else if let Some((name, _)) = exts.next() {
                 // The client didn't request anything, but got something
@@ -243,7 +247,7 @@ impl VerifyData {
         // the WebSocket Connection_. (RFC 6455)
         // TODO
 
-        Ok((response, pmce))
+        Ok((response, extensions))
     }
 }
 
