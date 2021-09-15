@@ -35,7 +35,8 @@ fn main() {
                 // rare cases where it is necessary to integrate with existing/legacy
                 // clients which are sending unmasked frames
                 accept_unmasked_frames: true,
-                ..WebSocketConfig::default()
+                #[cfg(feature = "deflate")]
+                compression: None,
             });
 
             let mut websocket = accept_hdr_with_config(stream.unwrap(), callback, config).unwrap();

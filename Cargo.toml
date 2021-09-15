@@ -23,12 +23,21 @@ native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
 rustls-tls-native-roots = ["__rustls-tls", "rustls-native-certs"]
 rustls-tls-webpki-roots = ["__rustls-tls", "webpki-roots"]
 __rustls-tls = ["rustls", "webpki"]
+deflate = ["flate2"]
+# deflate-zlib = ["flate2/zlib"]
+
+[[example]]
+name = "autobahn-client"
+required-features = ["deflate"]
+
+[[example]]
+name = "autobahn-server"
+required-features = ["deflate"]
 
 [dependencies]
 base64 = "0.13.0"
 byteorder = "1.3.2"
 bytes = "1.0"
-flate2 = "1.0"
 http = "0.2"
 httparse = "1.3.4"
 log = "0.4.8"
@@ -37,6 +46,10 @@ sha-1 = "0.9"
 thiserror = "1.0.23"
 url = "2.1.0"
 utf-8 = "0.7.5"
+
+[dependencies.flate2]
+optional = true
+version = "1.0"
 
 [dependencies.native-tls-crate]
 optional = true

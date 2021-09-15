@@ -23,7 +23,7 @@ use self::{
 };
 use crate::{
     error::{Error, ProtocolError, Result},
-    extensions::{self, Extensions},
+    extensions::Extensions,
     util::NonBlockingResult,
 };
 
@@ -59,7 +59,8 @@ pub struct WebSocketConfig {
     /// By default this option is set to `false`, i.e. according to RFC 6455.
     pub accept_unmasked_frames: bool,
     /// Optional configuration for Per-Message Compression Extension.
-    pub compression: Option<extensions::DeflateConfig>,
+    #[cfg(feature = "deflate")]
+    pub compression: Option<crate::extensions::DeflateConfig>,
 }
 
 impl Default for WebSocketConfig {
@@ -69,6 +70,7 @@ impl Default for WebSocketConfig {
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
             accept_unmasked_frames: false,
+            #[cfg(feature = "deflate")]
             compression: None,
         }
     }
@@ -78,34 +80,48 @@ impl WebSocketConfig {
     // Generate extension negotiation offers for configured extensions.
     // Only `permessage-deflate` is supported at the moment.
     pub(crate) fn generate_offers(&self) -> Option<HeaderValue> {
-        self.compression.map(|c| c.generate_offer())
+        #[cfg(feature = "deflate")]
+        {
+            self.compression.map(|c| c.generate_offer())
+        }
+        #[cfg(not(feature = "deflate"))]
+        {
+            None
+        }
     }
 
     // This can be used with `WebSocket::from_raw_socket_with_extensions` for integration.
     /// Returns negotiation response based on offers and `Extensions` to manage extensions.
     pub fn accept_offers<'a>(
         &'a self,
-        extensions: impl Iterator<Item = &'a HeaderValue>,
+        _extensions: impl Iterator<Item = &'a HeaderValue>,
     ) -> Option<(HeaderValue, Extensions)> {
-        if let Some(compression) = &self.compression {
-            let extensions = extensions::iter_all(extensions);
-            let offers =
-                extensions.filter_map(
-                    |(k, v)| {
-                        if k == compression.name() {
-                            Some(v)
-                        } else {
-                            None
-                        }
-                    },
-                );
+        #[cfg(feature = "deflate")]
+        {
+            if let Some(compression) = &self.compression {
+                let extensions = crate::extensions::iter_all(_extensions);
+                let offers =
+                    extensions.filter_map(
+                        |(k, v)| {
+                            if k == compression.name() {
+                                Some(v)
+                            } else {
+                                None
+                            }
+                        },
+                    );
 
-            // To support more extensions, store extension context in `Extensions` and
-            // concatenate negotiation responses from each extension.
-            compression
-                .accept_offer(offers)
-                .map(|(agreed, pmce)| (agreed, Extensions { compression: Some(pmce) }))
-        } else {
+                // To support more extensions, store extension context in `Extensions` and
+                // concatenate negotiation responses from each extension.
+                compression
+                    .accept_offer(offers)
+                    .map(|(agreed, pmce)| (agreed, Extensions { compression: Some(pmce) }))
+            } else {
+                None
+            }
+        }
+        #[cfg(not(feature = "deflate"))]
+        {
             None
         }
     }
@@ -451,12 +467,15 @@ impl WebSocketContext {
         debug_assert!(matches!(opdata, OpData::Text | OpData::Binary), "Invalid data frame kind");
         let opcode = OpCode::Data(opdata);
         let is_final = true;
+        #[cfg(feature = "deflate")]
         let frame =
             if let Some(pmce) = self.extensions.as_mut().and_then(|e| e.compression.as_mut()) {
                 Frame::compressed_message(pmce.compress(&data)?, opcode, is_final)
             } else {
                 Frame::message(data, opcode, is_final)
             };
+        #[cfg(not(feature = "deflate"))]
+        let frame = Frame::message(data, opcode, is_final);
         Ok(frame)
     }
 
@@ -609,6 +628,7 @@ impl WebSocketContext {
                             }
 
                             if let Some(ref mut msg) = self.incomplete {
+                                #[cfg(feature = "deflate")]
                                 let data = if msg.compressed() {
                                     // `msg.compressed` is only set when compression is enabled so it's safe to unwrap
                                     self.extensions
@@ -619,6 +639,8 @@ impl WebSocketContext {
                                 } else {
                                     frame.into_data()
                                 };
+                                #[cfg(not(feature = "deflate"))]
+                                let data = frame.into_data();
                                 msg.extend(data, self.config.max_message_size)?;
                                 if fin {
                                     Ok(Some(self.incomplete.take().unwrap().complete()?))
@@ -642,6 +664,7 @@ impl WebSocketContext {
                                     _ => panic!("Bug: message is not text nor binary"),
                                 };
                                 let mut m = IncompleteMessage::new(message_type, is_compressed);
+                                #[cfg(feature = "deflate")]
                                 let data = if is_compressed {
                                     self.extensions
                                         .as_mut()
@@ -651,6 +674,8 @@ impl WebSocketContext {
                                 } else {
                                     frame.into_data()
                                 };
+                                #[cfg(not(feature = "deflate"))]
+                                let data = frame.into_data();
                                 m.extend(data, self.config.max_message_size)?;
                                 m
                             };
@@ -738,7 +763,14 @@ impl WebSocketContext {
     }
 
     fn has_compression(&self) -> bool {
-        self.extensions.as_ref().and_then(|c| c.compression.as_ref()).is_some()
+        #[cfg(feature = "deflate")]
+        {
+            self.extensions.as_ref().and_then(|c| c.compression.as_ref()).is_some()
+        }
+        #[cfg(not(feature = "deflate"))]
+        {
+            false
+        }
     }
 }
 

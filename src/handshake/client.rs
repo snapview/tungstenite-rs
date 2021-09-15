@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     error::{Error, ProtocolError, Result, UrlError},
-    extensions::{self, Extensions},
+    extensions::Extensions,
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -161,7 +161,7 @@ impl VerifyData {
     pub fn verify_response(
         &self,
         response: Response,
-        config: &Option<WebSocketConfig>,
+        _config: &Option<WebSocketConfig>,
     ) -> Result<(Response, Option<Extensions>)> {
         // 1. If the status code received from the server is not 101, the
         // client handles the response per HTTP [RFC2616] procedures. (RFC 6455)
@@ -202,43 +202,58 @@ impl VerifyData {
         if !headers.get("Sec-WebSocket-Accept").map(|h| h == &self.accept_key).unwrap_or(false) {
             return Err(Error::Protocol(ProtocolError::SecWebSocketAcceptKeyMismatch));
         }
-        let mut extensions = None;
         // 5.  If the response includes a |Sec-WebSocket-Extensions| header
         // field and this header field indicates the use of an extension
         // that was not present in the client's handshake (the server has
         // indicated an extension not requested by the client), the client
         // MUST _Fail the WebSocket Connection_. (RFC 6455)
         let mut extensions_values = headers.get_all("Sec-WebSocket-Extensions").iter();
-        if let Some(value) = extensions_values.next() {
+        let extensions = if let Some(value) = extensions_values.next() {
             if extensions_values.next().is_some() {
                 return Err(Error::Protocol(ProtocolError::MultipleExtensionsHeaderInResponse));
             }
 
-            let mut exts = extensions::iter_all(std::iter::once(value));
-            if let Some(compression) = &config.and_then(|c| c.compression) {
-                for (name, params) in exts {
-                    if name != compression.name() {
-                        return Err(Error::Protocol(ProtocolError::InvalidExtension(
-                            name.to_string(),
-                        )));
-                    }
+            let mut exts = crate::extensions::iter_all(std::iter::once(value));
+            #[cfg(feature = "deflate")]
+            {
+                let mut extensions = None;
+                if let Some(compression) = _config.and_then(|c| c.compression) {
+                    for (name, params) in exts {
+                        if name != compression.name() {
+                            return Err(Error::Protocol(ProtocolError::InvalidExtension(
+                                name.to_string(),
+                            )));
+                        }
 
-                    // Already had PMCE configured
-                    if extensions.is_some() {
-                        return Err(Error::Protocol(ProtocolError::ExtensionConflict(
-                            name.to_string(),
-                        )));
-                    }
+                        // Already had PMCE configured
+                        if extensions.is_some() {
+                            return Err(Error::Protocol(ProtocolError::ExtensionConflict(
+                                name.to_string(),
+                            )));
+                        }
 
-                    extensions = Some(Extensions {
-                        compression: Some(compression.accept_response(params)?),
-                    });
+                        extensions = Some(Extensions {
+                            compression: Some(compression.accept_response(params)?),
+                        });
+                    }
+                } else if let Some((name, _)) = exts.next() {
+                    // The client didn't request anything, but got something
+                    return Err(Error::Protocol(ProtocolError::InvalidExtension(name.to_string())));
                 }
-            } else if let Some((name, _)) = exts.next() {
-                // The client didn't request anything, but got something
-                return Err(Error::Protocol(ProtocolError::InvalidExtension(name.to_string())));
+                extensions
             }
-        }
+
+            #[cfg(not(feature = "deflate"))]
+            {
+                if let Some((name, _)) = exts.next() {
+                    // The client didn't request anything, but got something
+                    return Err(Error::Protocol(ProtocolError::InvalidExtension(name.to_string())));
+                }
+                None
+            }
+        } else {
+            None
+        };
 
         // 6.  If the response includes a |Sec-WebSocket-Protocol| header field
         // and this header field indicates the use of a subprotocol that was
@@ -292,7 +307,9 @@ fn generate_key() -> String {
 #[cfg(test)]
 mod tests {
     use super::{super::machine::TryParse, generate_key, generate_request, Response};
-    use crate::{client::IntoClientRequest, extensions::DeflateConfig, protocol::WebSocketConfig};
+    use crate::client::IntoClientRequest;
+    #[cfg(feature = "deflate")]
+    use crate::{extensions::DeflateConfig, protocol::WebSocketConfig};
 
     #[test]
     fn random_keys() {
@@ -361,6 +378,7 @@ mod tests {
         assert_eq!(&request[..], &correct[..]);
     }
 
+    #[cfg(feature = "deflate")]
     #[test]
     fn request_with_compression() {
         let request = "ws://localhost/getCaseCount".into_client_request().unwrap();

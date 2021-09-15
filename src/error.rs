@@ -2,10 +2,7 @@
 
 use std::{io, result, str, string};
 
-use crate::{
-    extensions,
-    protocol::{frame::coding::Data, Message},
-};
+use crate::protocol::{frame::coding::Data, Message};
 use http::Response;
 use thiserror::Error;
 
@@ -71,8 +68,9 @@ pub enum Error {
     #[error("HTTP format error: {0}")]
     HttpFormat(#[from] http::Error),
     /// Error from `permessage-deflate` extension.
+    #[cfg(feature = "deflate")]
     #[error("Deflate error: {0}")]
-    Deflate(#[from] extensions::DeflateError),
+    Deflate(#[from] crate::extensions::DeflateError),
 }
 
 impl From<str::Utf8Error> for Error {

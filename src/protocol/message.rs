@@ -107,6 +107,7 @@ impl IncompleteMessage {
         }
     }
 
+    #[cfg(feature = "deflate")]
     pub fn compressed(&self) -> bool {
         self.compressed
     }
