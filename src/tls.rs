@@ -70,10 +70,10 @@ mod encryption {
 
     #[cfg(feature = "__rustls-tls")]
     pub mod rustls {
-        use rustls::{ClientConfig, ClientSession, StreamOwned};
-        use webpki::DNSNameRef;
+        use rustls::{ClientConfig, ClientConnection, RootCertStore, ServerName, StreamOwned};
 
         use std::{
+            convert::TryFrom,
             io::{Read, Write},
             sync::Arc,
         };
@@ -100,24 +100,40 @@ mod encryption {
                         Some(config) => config,
                         None => {
                             #[allow(unused_mut)]
-                            let mut config = ClientConfig::new();
+                            let mut root_store = RootCertStore::empty();
+
                             #[cfg(feature = "rustls-tls-native-roots")]
                             {
-                                config.root_store = rustls_native_certs::load_native_certs()
-                                    .map_err(|(_, err)| err)?;
+                                for cert in rustls_native_certs::load_native_certs()? {
+                                    root_store
+                                        .add(&rustls::Certificate(cert.0))
+                                        .map_err(TlsError::Webpki)?;
+                                }
                             }
                             #[cfg(feature = "rustls-tls-webpki-roots")]
                             {
-                                config
-                                    .root_store
-                                    .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+                                root_store.add_server_trust_anchors(
+                                    webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+                                        rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
+                                            ta.subject,
+                                            ta.spki,
+                                            ta.name_constraints,
+                                        )
+                                    })
+                                );
                             }
 
-                            Arc::new(config)
+                            Arc::new(
+                                ClientConfig::builder()
+                                    .with_safe_defaults()
+                                    .with_root_certificates(root_store)
+                                    .with_no_client_auth(),
+                            )
                         }
                     };
-                    let domain = DNSNameRef::try_from_ascii_str(domain).map_err(TlsError::Dns)?;
-                    let client = ClientSession::new(&config, domain);
+                    let domain =
+                        ServerName::try_from(domain).map_err(|_| TlsError::InvalidDnsName)?;
+                    let client = ClientConnection::new(config, domain).map_err(TlsError::Rustls)?;
                     let stream = StreamOwned::new(client, socket);
 
                     Ok(MaybeTlsStream::Rustls(stream))
@@ -185,7 +201,7 @@ where
         None => Err(Error::Url(UrlError::NoHostName)),
     }?;
 
-    let mode = uri_mode(&request.uri())?;
+    let mode = uri_mode(request.uri())?;
 
     let stream = match connector {
         Some(conn) => match conn {
