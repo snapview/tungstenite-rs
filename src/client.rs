@@ -56,7 +56,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
             Mode::Tls => 443,
         });
         let addrs = (host, port).to_socket_addrs()?;
-        let mut stream = connect_to_some(addrs.as_slice(), &request.uri())?;
+        let mut stream = connect_to_some(addrs.as_slice(), request.uri())?;
         NoDelay::set_nodelay(&mut stream, true)?;
 
         #[cfg(not(any(feature = "native-tls", feature = "__rustls-tls")))]
