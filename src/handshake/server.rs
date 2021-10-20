@@ -82,7 +82,7 @@ fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
 
 /// Create a response for the request.
 pub fn create_response(request: &Request) -> Result<Response> {
-    Ok(create_parts(&request)?.body(())?)
+    Ok(create_parts(request)?.body(())?)
 }
 
 /// Create a response for the request with a custom body.
@@ -90,7 +90,7 @@ pub fn create_response_with_body<T>(
     request: &HttpRequest<T>,
     generate_body: impl FnOnce() -> T,
 ) -> Result<HttpResponse<T>> {
-    Ok(create_parts(&request)?.body(generate_body())?)
+    Ok(create_parts(request)?.body(generate_body())?)
 }
 
 // Assumes that this is a valid response
@@ -263,7 +263,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                         let resp = self.error_response.as_ref().unwrap();
 
                         let mut output = vec![];
-                        write_response(&mut output, &resp)?;
+                        write_response(&mut output, resp)?;
 
                         if let Some(body) = resp.body() {
                             output.extend_from_slice(body.as_bytes());
