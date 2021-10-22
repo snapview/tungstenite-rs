@@ -103,7 +103,7 @@ fn write_response<T>(mut w: impl io::Write, response: &HttpResponse<T>) -> Resul
     )?;
 
     for (k, v) in response.headers() {
-        writeln!(w, "{}: {}\r", k, v.to_str()?).unwrap();
+        writeln!(w, "{}: {}\r", k, v.to_str()?)?;
     }
 
     writeln!(w, "\r")?;
