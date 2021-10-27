@@ -12,7 +12,7 @@ use bytes::Buf;
 #[derive(Debug)]
 pub struct ReadBuffer<const CHUNK_SIZE: usize> {
     storage: Cursor<Vec<u8>>,
-    chunk: [u8; CHUNK_SIZE],
+    chunk: Box<[u8; CHUNK_SIZE]>,
 }
 
 impl<const CHUNK_SIZE: usize> ReadBuffer<CHUNK_SIZE> {
@@ -28,7 +28,7 @@ impl<const CHUNK_SIZE: usize> ReadBuffer<CHUNK_SIZE> {
 
     /// Create a input buffer filled with previously read data.
     pub fn from_partially_read(part: Vec<u8>) -> Self {
-        Self { storage: Cursor::new(part), chunk: [0; CHUNK_SIZE] }
+        Self { storage: Cursor::new(part), chunk: Box::new([0; CHUNK_SIZE]) }
     }
 
     /// Get a cursor to the data storage.
@@ -54,7 +54,7 @@ impl<const CHUNK_SIZE: usize> ReadBuffer<CHUNK_SIZE> {
     /// Read next portion of data from the given input stream.
     pub fn read_from<S: Read>(&mut self, stream: &mut S) -> IoResult<usize> {
         self.clean_up();
-        let size = stream.read(&mut self.chunk)?;
+        let size = stream.read(&mut *self.chunk)?;
         self.storage.get_mut().extend_from_slice(&self.chunk[..size]);
         Ok(size)
     }
