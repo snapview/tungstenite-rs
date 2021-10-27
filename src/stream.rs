@@ -4,6 +4,8 @@
 //! `native_tls` or `openssl` will work as long as there is a TLS stream supporting standard
 //! `Read + Write` traits.
 
+#[cfg(feature = "__rustls-tls")]
+use std::ops::Deref;
 use std::{
     fmt::{self, Debug},
     io::{Read, Result as IoResult, Write},
@@ -45,7 +47,12 @@ impl<S: Read + Write + NoDelay> NoDelay for TlsStream<S> {
 }
 
 #[cfg(feature = "__rustls-tls")]
-impl<S: rustls::Session, T: Read + Write + NoDelay> NoDelay for StreamOwned<S, T> {
+impl<S, SD, T> NoDelay for StreamOwned<S, T>
+where
+    S: Deref<Target = rustls::ConnectionCommon<SD>>,
+    SD: rustls::SideData,
+    T: Read + Write + NoDelay,
+{
     fn set_nodelay(&mut self, nodelay: bool) -> IoResult<()> {
         self.sock.set_nodelay(nodelay)
     }
@@ -61,7 +68,7 @@ pub enum MaybeTlsStream<S: Read + Write> {
     NativeTls(native_tls_crate::TlsStream<S>),
     #[cfg(feature = "__rustls-tls")]
     /// Encrypted socket stream using `rustls`.
-    Rustls(rustls::StreamOwned<rustls::ClientSession, S>),
+    Rustls(rustls::StreamOwned<rustls::ClientConnection, S>),
 }
 
 impl<S: Read + Write + Debug> Debug for MaybeTlsStream<S> {
@@ -73,13 +80,13 @@ impl<S: Read + Write + Debug> Debug for MaybeTlsStream<S> {
             #[cfg(feature = "__rustls-tls")]
             Self::Rustls(s) => {
                 struct RustlsStreamDebug<'a, S: Read + Write>(
-                    &'a rustls::StreamOwned<rustls::ClientSession, S>,
+                    &'a rustls::StreamOwned<rustls::ClientConnection, S>,
                 );
 
                 impl<'a, S: Read + Write + Debug> Debug for RustlsStreamDebug<'a, S> {
                     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                         f.debug_struct("StreamOwned")
-                            .field("sess", &self.0.sess)
+                            .field("conn", &self.0.conn)
                             .field("sock", &self.0.sock)
                             .finish()
                     }

@@ -48,11 +48,11 @@ version = "0.20.0"
 
 [dependencies.rustls-native-certs]
 optional = true
-version = "0.5.0"
+version = "0.6.0"
 
 [dependencies.webpki]
 optional = true
-version = "0.21"
+version = "0.22"
 
 [dependencies.webpki-roots]
 optional = true
