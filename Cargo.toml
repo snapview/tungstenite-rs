@@ -49,8 +49,6 @@ version = "0.20.0"
 [dependencies.rustls-native-certs]
 optional = true
 version = "0.6.0"
-git = "https://github.com/rustls/rustls-native-certs.git"
-rev = "87b84b51bcf38eb9d377e0f5606c444ced43cc60"
 
 [dependencies.webpki]
 optional = true
