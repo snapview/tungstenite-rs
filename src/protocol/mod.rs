@@ -356,6 +356,7 @@ impl WebSocketContext {
                 return self.write_pending(stream);
             }
             Message::Close(code) => return self.close(stream, code),
+            Message::Frame(f) => f,
         };
 
         self.send_queue.push_back(frame);

@@ -21,7 +21,7 @@ fn handle_client(stream: TcpStream) -> Result<()> {
             msg @ Message::Text(_) | msg @ Message::Binary(_) => {
                 socket.write_message(msg)?;
             }
-            Message::Ping(_) | Message::Pong(_) | Message::Close(_) => {}
+            Message::Ping(_) | Message::Pong(_) | Message::Close(_) | Message::Frame(_) => {}
         }
     }
 }

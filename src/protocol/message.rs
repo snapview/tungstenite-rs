@@ -5,7 +5,7 @@ use std::{
     str,
 };
 
-use super::frame::CloseFrame;
+use super::frame::{CloseFrame, Frame};
 use crate::error::{CapacityError, Error, Result};
 
 mod string_collect {
@@ -172,6 +172,8 @@ pub enum Message {
     Pong(Vec<u8>),
     /// A close message with the optional close frame.
     Close(Option<CloseFrame<'static>>),
+    /// Raw frame. Note, that you're not going to get this value while reading the message.
+    Frame(Frame),
 }
 
 impl Message {
@@ -224,6 +226,7 @@ impl Message {
                 data.len()
             }
             Message::Close(ref data) => data.as_ref().map(|d| d.reason.len()).unwrap_or(0),
+            Message::Frame(ref frame) => frame.len(),
         }
     }
 
@@ -240,6 +243,7 @@ impl Message {
             Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data,
             Message::Close(None) => Vec::new(),
             Message::Close(Some(frame)) => frame.reason.into_owned().into_bytes(),
+            Message::Frame(frame) => frame.into_data(),
         }
     }
 
@@ -248,10 +252,11 @@ impl Message {
         match self {
             Message::Text(string) => Ok(string),
             Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => {
-                Ok(String::from_utf8(data).map_err(|err| err.utf8_error())?)
+                Ok(String::from_utf8(data)?)
             }
             Message::Close(None) => Ok(String::new()),
             Message::Close(Some(frame)) => Ok(frame.reason.into_owned()),
+            Message::Frame(frame) => Ok(frame.into_string()?),
         }
     }
 
@@ -265,6 +270,7 @@ impl Message {
             }
             Message::Close(None) => Ok(""),
             Message::Close(Some(ref frame)) => Ok(&frame.reason),
+            Message::Frame(ref frame) => Ok(frame.to_text()?),
         }
     }
 }
