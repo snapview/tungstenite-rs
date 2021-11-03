@@ -3,7 +3,7 @@
 use std::{io, result, str, string};
 
 use crate::protocol::{frame::coding::Data, Message};
-use http::Response;
+use http::{header::HeaderName, Response};
 use thiserror::Error;
 
 /// Result type of all Tungstenite library calls.
@@ -138,7 +138,7 @@ pub enum CapacityError {
 }
 
 /// Indicates the specific type/cause of a protocol error.
-#[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Error, Debug, PartialEq, Eq, Clone)]
 pub enum ProtocolError {
     /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method be used).
     #[error("Unsupported HTTP method used - only GET is allowed")]
@@ -167,6 +167,10 @@ pub enum ProtocolError {
     /// Custom responses must be unsuccessful.
     #[error("Custom response must not be successful")]
     CustomResponseSuccessful,
+    /// Invalid header is passed. This header is formed by the library automatically
+    /// and must not be overwritten by the user.
+    #[error("Not allowed to pass overwrite the standard header {0}")]
+    InvalidHeader(HeaderName),
     /// No more data while still performing handshake.
     #[error("Handshake not finished")]
     HandshakeIncomplete,
