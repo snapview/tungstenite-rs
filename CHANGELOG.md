@@ -1,3 +1,9 @@
+# 0.16.0
+
+- Update of dependencies (primarily `rustls`, `webpki-roots`, `rustls-native-certs`).
+- When the close frame is received, the reply that is automatically sent to the initiator has the same code (so we just echo the frame back). Previously a new close frame was created (i.e. the close code / reason was always the same regardless of what code / reason specified by the initiator). Now it’s more symmetrical and arguably more intuitive behavior (see [#246](https://github.com/snapview/tungstenite-rs/pull/246) for more context).
+- The internal `ReadBuffer` implementation uses heap instead of stack to store the buffer. This should solve issues with possible stack overflows in some scenarios (see [#241](https://github.com/snapview/tungstenite-rs/pull/241) for more context).
+
 # 0.15.0
 
 - Allow selecting the method of loading root certificates if `rustls` is used as TLS implementation.
