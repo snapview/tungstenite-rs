@@ -119,6 +119,48 @@ pub fn connect<Req: IntoClientRequest>(
     connect_with_config(request, None, 3)
 }
 
+/// Connect to the given WebSocket in non-blocking mode.
+///
+/// Uses a websocket configuration passed as an argument to the function. Calling it with `None` is
+/// equal to calling the `connect_nonblocking()` function.
+///
+/// The URL may be either ws:// or wss://.
+/// To support wss:// URLs, feature `native-tls` or `rustls-tls` must be turned on.
+///
+/// This function "just works" for those who want a simple non-blocking solution
+/// similar to `std::net::TcpStream`. If you want a custom stream, call `client` instead.
+///
+/// This function uses `native_tls` or `rustls` to do TLS depending on the feature flags enabled. If
+/// you want to use other TLS libraries, use `client` instead. There is no need to enable any of
+/// the `*-tls` features if you don't call `connect` since it's the only function that uses them.
+pub fn connect_nonblocking_with_config<Req: IntoClientRequest>(
+    request: Req,
+    config: Option<WebSocketConfig>,
+    max_redirects: u8,
+) -> Result<(WebSocket<MaybeTlsStream<TcpStream>>, Response)> {
+    let (ws, resp) = connect_with_config(request, config, max_redirects)?;
+    let MaybeTlsStream::Plain(s) = ws.get_ref();
+    s.set_nonblocking(true)?;
+    Ok((ws, resp))
+}
+
+/// Connect to the given WebSocket in non-blocking mode.
+///
+/// The URL may be either ws:// or wss://.
+/// To support wss:// URLs, feature `native-tls` or `rustls-tls` must be turned on.
+///
+/// This function "just works" for those who want a simple non-blocking solution
+/// similar to `std::net::TcpStream`. If you want a custom stream, call `client` instead.
+///
+/// This function uses `native_tls` or `rustls` to do TLS depending on the feature flags enabled. If
+/// you want to use other TLS libraries, use `client` instead. There is no need to enable any of
+/// the `*-tls` features if you don't call `connect` since it's the only function that uses them.
+pub fn connect_nonblocking<Req: IntoClientRequest>(
+    request: Req,
+) -> Result<(WebSocket<MaybeTlsStream<TcpStream>>, Response)> {
+    connect_nonblocking_with_config(request, None, 3)
+}
+
 fn connect_to_some(addrs: &[SocketAddr], uri: &Uri) -> Result<TcpStream> {
     for addr in addrs {
         debug!("Trying to contact {} at {}...", uri, addr);
