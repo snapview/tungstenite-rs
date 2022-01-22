@@ -88,7 +88,10 @@ impl<Stream> WebSocket<Stream> {
     /// or together with an existing one. If you need an initial handshake, use
     /// `connect()` or `accept()` functions of the crate to construct a websocket.
     pub fn from_raw_socket(stream: Stream, role: Role, config: Option<WebSocketConfig>) -> Self {
-        WebSocket { socket: stream, context: WebSocketContext::new(role, config) }
+        WebSocket {
+            socket: stream,
+            context: WebSocketContext::new(role, config),
+        }
     }
 
     /// Convert a raw socket into a WebSocket without performing a handshake.
@@ -308,7 +311,7 @@ impl WebSocketContext {
             // If we get here, either write blocks or we have nothing to write.
             // Thus if read blocks, just let it return WouldBlock.
             if let Some(message) = self.read_message_frame(stream)? {
-                trace!("Received message {}", message);
+                // trace!("Received message {}", message);
                 return Ok(message);
             }
         }
@@ -375,11 +378,11 @@ impl WebSocketContext {
         // response, unless it already received a Close frame. It SHOULD
         // respond with Pong frame as soon as is practical. (RFC 6455)
         if let Some(pong) = self.pong.take() {
-            trace!("Sending pong reply");
+            // trace!("Sending pong reply");
             self.send_one_frame(stream, pong)?;
         }
         // If we have any unsent frames, send them.
-        trace!("Frames still in queue: {}", self.send_queue.len());
+        // trace!("Frames still in queue: {}", self.send_queue.len());
         while let Some(data) = self.send_queue.pop_front() {
             self.send_one_frame(stream, data)?;
         }
@@ -602,8 +605,10 @@ impl WebSocketContext {
             }
         }
 
-        trace!("Sending frame: {:?}", frame);
-        self.frame.write_frame(stream, frame).check_connection_reset(self.state)
+        // trace!("Sending frame: {:?}", frame);
+        self.frame
+            .write_frame(stream, frame)
+            .check_connection_reset(self.state)
     }
 }
 
@@ -698,8 +703,14 @@ mod tests {
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, None);
         assert_eq!(socket.read_message().unwrap(), Message::Ping(vec![1, 2]));
         assert_eq!(socket.read_message().unwrap(), Message::Pong(vec![3]));
-        assert_eq!(socket.read_message().unwrap(), Message::Text("Hello, World!".into()));
-        assert_eq!(socket.read_message().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03]));
+        assert_eq!(
+            socket.read_message().unwrap(),
+            Message::Text("Hello, World!".into())
+        );
+        assert_eq!(
+            socket.read_message().unwrap(),
+            Message::Binary(vec![0x01, 0x02, 0x03])
+        );
     }
 
     #[test]
@@ -708,24 +719,36 @@ mod tests {
             0x01, 0x07, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x80, 0x06, 0x57, 0x6f, 0x72,
             0x6c, 0x64, 0x21,
         ]);
-        let limit = WebSocketConfig { max_message_size: Some(10), ..WebSocketConfig::default() };
+        let limit = WebSocketConfig {
+            max_message_size: Some(10),
+            ..WebSocketConfig::default()
+        };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
 
         assert!(matches!(
             socket.read_message(),
-            Err(Error::Capacity(CapacityError::MessageTooLong { size: 13, max_size: 10 }))
+            Err(Error::Capacity(CapacityError::MessageTooLong {
+                size: 13,
+                max_size: 10
+            }))
         ));
     }
 
     #[test]
     fn size_limiting_binary() {
         let incoming = Cursor::new(vec![0x82, 0x03, 0x01, 0x02, 0x03]);
-        let limit = WebSocketConfig { max_message_size: Some(2), ..WebSocketConfig::default() };
+        let limit = WebSocketConfig {
+            max_message_size: Some(2),
+            ..WebSocketConfig::default()
+        };
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
 
         assert!(matches!(
             socket.read_message(),
-            Err(Error::Capacity(CapacityError::MessageTooLong { size: 3, max_size: 2 }))
+            Err(Error::Capacity(CapacityError::MessageTooLong {
+                size: 3,
+                max_size: 2
+            }))
         ));
     }
 }

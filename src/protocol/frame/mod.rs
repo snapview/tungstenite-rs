@@ -28,12 +28,18 @@ pub struct FrameSocket<Stream> {
 impl<Stream> FrameSocket<Stream> {
     /// Create a new frame socket.
     pub fn new(stream: Stream) -> Self {
-        FrameSocket { stream, codec: FrameCodec::new() }
+        FrameSocket {
+            stream,
+            codec: FrameCodec::new(),
+        }
     }
 
     /// Create a new frame socket from partially read data.
     pub fn from_partially_read(stream: Stream, part: Vec<u8>) -> Self {
-        FrameSocket { stream, codec: FrameCodec::from_partially_read(part) }
+        FrameSocket {
+            stream,
+            codec: FrameCodec::from_partially_read(part),
+        }
     }
 
     /// Extract a stream from the socket.
@@ -95,7 +101,11 @@ pub(super) struct FrameCodec {
 impl FrameCodec {
     /// Create a new frame codec.
     pub(super) fn new() -> Self {
-        Self { in_buffer: ReadBuffer::new(), out_buffer: Vec::new(), header: None }
+        Self {
+            in_buffer: ReadBuffer::new(),
+            out_buffer: Vec::new(),
+            header: None,
+        }
     }
 
     /// Create a new frame codec from partially read data.
@@ -153,7 +163,7 @@ impl FrameCodec {
             // Not enough data in buffer.
             let size = self.in_buffer.read_from(stream)?;
             if size == 0 {
-                trace!("no frame received");
+                // trace!("no frame received");
                 return Ok(None);
             }
         };
@@ -161,7 +171,7 @@ impl FrameCodec {
         let (header, length) = self.header.take().expect("Bug: no frame header");
         debug_assert_eq!(payload.len() as u64, length);
         let frame = Frame::from_payload(header, payload);
-        trace!("received frame {}", frame);
+        // trace!("received frame {}", frame);
         Ok(Some(frame))
     }
 
@@ -170,9 +180,11 @@ impl FrameCodec {
     where
         Stream: Write,
     {
-        trace!("writing frame {}", frame);
+        // trace!("writing frame {}", frame);
         self.out_buffer.reserve(frame.len());
-        frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
+        frame
+            .format(&mut self.out_buffer)
+            .expect("Bug: can't write to vector");
         self.write_pending(stream)
     }
 
@@ -219,7 +231,10 @@ mod tests {
             sock.read_frame(None).unwrap().unwrap().into_data(),
             vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
-        assert_eq!(sock.read_frame(None).unwrap().unwrap().into_data(), vec![0x03, 0x02, 0x01]);
+        assert_eq!(
+            sock.read_frame(None).unwrap().unwrap().into_data(),
+            vec![0x03, 0x02, 0x01]
+        );
         assert!(sock.read_frame(None).unwrap().is_none());
 
         let (_, rest) = sock.into_inner();
@@ -265,7 +280,10 @@ mod tests {
         let mut sock = FrameSocket::new(raw);
         assert!(matches!(
             sock.read_frame(Some(5)),
-            Err(Error::Capacity(CapacityError::MessageTooLong { size: 7, max_size: 5 }))
+            Err(Error::Capacity(CapacityError::MessageTooLong {
+                size: 7,
+                max_size: 5
+            }))
         ));
     }
 }
