@@ -8,8 +8,6 @@ mod mask;
 
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Write};
 
-use log::*;
-
 pub use self::frame::{CloseFrame, Frame, FrameHeader};
 use crate::{
     error::{CapacityError, Error, Result},

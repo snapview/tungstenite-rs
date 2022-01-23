@@ -1,5 +1,4 @@
 use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
-use log::*;
 use std::{
     borrow::Cow,
     default::Default,
