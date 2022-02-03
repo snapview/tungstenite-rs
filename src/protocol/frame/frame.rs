@@ -283,7 +283,7 @@ impl Frame {
 
     /// Get frame payload as `&str`.
     #[inline]
-    pub fn to_text<'a>(&'a self) -> Result<&'a str, Utf8Error> {
+    pub fn to_text(&self) -> Result<&str, Utf8Error> {
         std::str::from_utf8(&self.payload)
     }
 
