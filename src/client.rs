@@ -12,7 +12,7 @@ use log::*;
 use url::Url;
 
 use crate::{
-    handshake::client::{Request, Response},
+    handshake::client::{generate_key, Request, Response},
     protocol::WebSocketConfig,
     stream::MaybeTlsStream,
 };
@@ -178,7 +178,11 @@ where
 /// Trait for converting various types into HTTP requests used for a client connection.
 ///
 /// This trait is implemented by default for string slices, strings, `url::Url`, `http::Uri` and
-/// `http::Request<()>`.
+/// `http::Request<()>`. Note that the implementation for `http::Request<()>` is trivial and will
+/// simply take your request and pass it as is further without altering any headers or URLs, so
+/// be aware of this. If you just want to connect to the endpoint with a certain URL, better pass
+/// a regular string containing the URL in which case `tungstenite-rs` will take care for generating
+/// the proper `http::Request<()>` for you.
 pub trait IntoClientRequest {
     /// Convert into a `Request` that can be used for a client connection.
     fn into_client_request(self) -> Result<Request>;
@@ -210,7 +214,26 @@ impl<'a> IntoClientRequest for &'a Uri {
 
 impl IntoClientRequest for Uri {
     fn into_client_request(self) -> Result<Request> {
-        Ok(Request::get(self).body(())?)
+        let authority = self.authority().ok_or(Error::Url(UrlError::NoHostName))?.as_str();
+        let host = authority
+            .find('@')
+            .map(|idx| authority.split_at(idx + 1).1)
+            .unwrap_or_else(|| authority);
+
+        if host.is_empty() {
+            return Err(Error::Url(UrlError::EmptyHostName));
+        }
+
+        let req = Request::builder()
+            .method("GET")
+            .header("Host", host)
+            .header("Connection", "Upgrade")
+            .header("Upgrade", "websocket")
+            .header("Sec-WebSocket-Version", "13")
+            .header("Sec-WebSocket-Key", generate_key())
+            .uri(self)
+            .body(())?;
+        Ok(req)
     }
 }
 
