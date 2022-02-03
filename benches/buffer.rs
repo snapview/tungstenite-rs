@@ -1,5 +1,5 @@
-use std::io::{Cursor, Read};
 use std::io::Result as IoResult;
+use std::io::{Cursor, Read};
 
 use bytes::Buf;
 use criterion::*;
@@ -114,8 +114,12 @@ fn benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("buffers");
     group.throughput(Throughput::Bytes(STREAM_SIZE as u64));
     group.bench_function("InputBuffer", |b| b.iter(|| input_buffer(black_box(stream.clone()))));
-    group.bench_function("ReadBuffer (stack)", |b| b.iter(|| stack_read_buffer(black_box(stream.clone()))));
-    group.bench_function("ReadBuffer (heap)", |b| b.iter(|| heap_read_buffer(black_box(stream.clone()))));
+    group.bench_function("ReadBuffer (stack)", |b| {
+        b.iter(|| stack_read_buffer(black_box(stream.clone())))
+    });
+    group.bench_function("ReadBuffer (heap)", |b| {
+        b.iter(|| heap_read_buffer(black_box(stream.clone())))
+    });
     group.finish();
 }
 
