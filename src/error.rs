@@ -167,9 +167,8 @@ pub enum ProtocolError {
     /// Custom responses must be unsuccessful.
     #[error("Custom response must not be successful")]
     CustomResponseSuccessful,
-    /// Invalid header is passed. This header is formed by the library automatically
-    /// and must not be overwritten by the user.
-    #[error("Not allowed to pass overwrite the standard header {0}")]
+    /// Invalid header is passed. Or the header is missing in the request. Or not present at all. Check the request that you pass.
+    #[error("Missing, duplicated or incorrect header {0}")]
     InvalidHeader(HeaderName),
     /// No more data while still performing handshake.
     #[error("Handshake not finished")]
