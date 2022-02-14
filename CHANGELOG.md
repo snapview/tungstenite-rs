@@ -1,3 +1,9 @@
+# 0.17.0
+
+- Update of dependencies (primarily `sha1`).
+- Add support of the fragmented messages (allow the user to send the frames without composing the full message).
+- Overhaul of the client's request generation process. Now the users are able to pass the constructed `http::Request` "as is" to `tungstenite-rs`, letting the library to check the correctness of the request and specifying their own headers (including its own key if necessary). No changes for those ones who used the client in a normal way by connecting using a URL/URI (most common use-case).
+
 # 0.16.0
 
 - Update of dependencies (primarily `rustls`, `webpki-roots`, `rustls-native-certs`).
