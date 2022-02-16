@@ -1,3 +1,7 @@
+# 0.17.1
+
+- Specify the minimum required Rust version.
+
 # 0.17.0
 
 - Update of dependencies (primarily `sha1`).
