@@ -131,7 +131,7 @@ fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
         let value = headers.remove(header).ok_or_else(|| {
             Error::Protocol(ProtocolError::InvalidHeader(HeaderName::from_static(header)))
         })?;
-        write!(req, "{header}: {value}\r\n", value = value.to_str()?).unwrap();
+        write!(req, "{header}: {value}\r\n", header = header, value = value.to_str()?).unwrap();
     }
 
     // Now we must ensure that the headers that we've written once are not anymore present in the map.
@@ -296,7 +296,9 @@ mod tests {
             Upgrade: websocket\r\n\
             Sec-WebSocket-Version: 13\r\n\
             Sec-WebSocket-Key: {key}\r\n\
-            \r\n"
+            \r\n",
+            host = host,
+            key = key
         )
         .into_bytes()
     }
