@@ -114,7 +114,9 @@ fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
         .headers()
         .get(KEY_HEADERNAME)
         .ok_or_else(|| {
-            Error::Protocol(ProtocolError::InvalidHeader(HeaderName::from_static(KEY_HEADERNAME)))
+            Error::Protocol(ProtocolError::InvalidHeader(
+                HeaderName::from_bytes(KEY_HEADERNAME.as_bytes()).unwrap(),
+            ))
         })?
         .to_str()?
         .to_owned();
@@ -129,7 +131,9 @@ fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
     let headers = request.headers_mut();
     for header in WEBSOCKET_HEADERS {
         let value = headers.remove(header).ok_or_else(|| {
-            Error::Protocol(ProtocolError::InvalidHeader(HeaderName::from_static(header)))
+            Error::Protocol(ProtocolError::InvalidHeader(
+                HeaderName::from_bytes(header.as_bytes()).unwrap(),
+            ))
         })?;
         write!(req, "{header}: {value}\r\n", value = value.to_str()?).unwrap();
     }
