@@ -1,3 +1,8 @@
+# 0.17.2
+
+- Fix panic when invalid manually constructed `http::Request` is passed to `tungstenite`.
+- Downgrade the MSRV to `1.56` due to some other crates that rely on us not being quite ready for `1.58`.
+
 # 0.17.1
 
 - Specify the minimum required Rust version.
