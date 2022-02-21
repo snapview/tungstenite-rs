@@ -336,4 +336,10 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
         assert_eq!(resp.headers().get("Content-Type").unwrap(), &b"text/html"[..],);
     }
+
+    #[test]
+    fn invalid_custom_request() {
+        let request = http::Request::builder().method("GET").body(()).unwrap();
+        assert!(generate_request(request).is_err());
+    }
 }
