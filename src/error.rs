@@ -70,6 +70,10 @@ pub enum Error {
     #[error("HTTP format error: {0}")]
     #[cfg(feature = "handshake")]
     HttpFormat(#[from] http::Error),
+    /// Error from `permessage-deflate` extension.
+    #[cfg(feature = "deflate")]
+    #[error("Deflate error: {0}")]
+    Deflate(#[from] crate::extensions::DeflateError),
 }
 
 impl From<str::Utf8Error> for Error {
@@ -206,6 +210,9 @@ pub enum ProtocolError {
     /// Control frames must not be fragmented.
     #[error("Fragmented control frame")]
     FragmentedControlFrame,
+    /// Control frames must not be compressed.
+    #[error("Compressed control frame")]
+    CompressedControlFrame,
     /// Control frames must have a payload of 125 bytes or less.
     #[error("Control frame too big (payload must be 125 bytes or less)")]
     ControlFrameTooBig,
@@ -218,6 +225,9 @@ pub enum ProtocolError {
     /// Received a continue frame despite there being nothing to continue.
     #[error("Continue frame but nothing to continue")]
     UnexpectedContinueFrame,
+    /// Received a compressed continue frame.
+    #[error("Continue frame must not have compress bit set")]
+    CompressedContinueFrame,
     /// Received data while waiting for more fragments.
     #[error("While waiting for more fragments received: {0}")]
     ExpectedFragment(Data),
@@ -230,6 +240,15 @@ pub enum ProtocolError {
     /// The payload for the closing frame is invalid.
     #[error("Invalid close sequence")]
     InvalidCloseSequence,
+    /// The negotiation response included an extension not offered.
+    #[error("Extension negotiation response had invalid extension: {0}")]
+    InvalidExtension(String),
+    /// The negotiation response included an extension more than once.
+    #[error("Extension negotiation response had conflicting extension: {0}")]
+    ExtensionConflict(String),
+    /// The `Sec-WebSocket-Extensions` header is invalid.
+    #[error("Invalid \"Sec-WebSocket-Extensions\" header")]
+    InvalidExtensionsHeader,
 }
 
 /// Indicates the specific type/cause of URL error.
