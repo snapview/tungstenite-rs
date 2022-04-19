@@ -30,7 +30,8 @@ use crate::{
 /// equal to calling `connect()` function.
 ///
 /// The URL may be either ws:// or wss://.
-/// To support wss:// URLs, feature `native-tls` or `rustls-tls` must be turned on.
+/// To support wss:// URLs, you must activate the TLS feature on the crate level. Please refer to the
+/// project's [README][readme] for more information on available features.
 ///
 /// This function "just works" for those who wants a simple blocking solution
 /// similar to `std::net::TcpStream`. If you want a non-blocking or other
@@ -39,6 +40,8 @@ use crate::{
 /// This function uses `native_tls` or `rustls` to do TLS depending on the feature flags enabled. If
 /// you want to use other TLS libraries, use `client` instead. There is no need to enable any of
 /// the `*-tls` features if you don't call `connect` since it's the only function that uses them.
+///
+/// [readme]: https://github.com/snapview/tungstenite-rs/#features
 pub fn connect_with_config<Req: IntoClientRequest>(
     request: Req,
     config: Option<WebSocketConfig>,

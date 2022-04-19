@@ -69,8 +69,8 @@ features are available:
 
 Choose the one that is appropriate for your needs.
 
-By default **no TLS feature is activated**, so make sure you use `native-tls` or
-`rustls-tls` feature if you need support of the TLS.
+By default **no TLS feature is activated**, so make sure you use one of the TLS features,
+otherwise you won't be able to communicate with the TLS endpoints.
 
 There is no support for permessage-deflate at the moment, but the PRs are welcome :wink:
 
