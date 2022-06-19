@@ -158,6 +158,10 @@ fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
             name = "Sec-WebSocket-Protocol";
         }
 
+        if name == "origin" {
+            name = "Origin";
+        }
+
         writeln!(req, "{}: {}\r", name, v.to_str()?).unwrap();
     }
 
