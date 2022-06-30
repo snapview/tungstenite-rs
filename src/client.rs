@@ -178,6 +178,39 @@ where
     client_with_config(request, stream, None)
 }
 
+/// Do the client handshake over the given stream given a web socket configuration. Passing `None`
+/// as configurationis equal to calling `client_allow_blocking()` function.
+///
+/// This works like `client_with_config()`, but does not return an error if the stream would block on
+/// the handshake.
+pub fn client_with_config_allow_blocking<Stream, Req>(
+    request: Req,
+    stream: Stream,
+    config: Option<WebSocketConfig>,
+) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
+where
+    Stream: Read + Write,
+    Req: IntoClientRequest,
+{
+    ClientHandshake::start(stream, request.into_client_request()?, config)?
+        .handshake_allow_blocking()
+}
+
+/// Do the client handshake over the given stream.
+///
+/// This works like `client()`, but does not return an error if the stream would block on
+/// the handshake.
+pub fn client_allow_blocking<Stream, Req>(
+    request: Req,
+    stream: Stream,
+) -> StdResult<(WebSocket<Stream>, Response), HandshakeError<ClientHandshake<Stream>>>
+where
+    Stream: Read + Write,
+    Req: IntoClientRequest,
+{
+    client_with_config_allow_blocking(request, stream, None)
+}
+
 /// Trait for converting various types into HTTP requests used for a client connection.
 ///
 /// This trait is implemented by default for string slices, strings, `url::Url`, `http::Uri` and

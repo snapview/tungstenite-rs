@@ -35,13 +35,32 @@ impl<Role: HandshakeRole> MidHandshake<Role> {
         &mut self.machine
     }
 
-    /// Restarts the handshake process.
-    pub fn handshake(mut self) -> Result<Role::FinalResult, HandshakeError<Role>> {
+    /// Restarts the handshake process, but returns an error if the stream would block
+    pub fn handshake(self) -> Result<Role::FinalResult, HandshakeError<Role>> {
+        self.handshake_internal(false)
+    }
+
+    /// Restarts the handshake process, but allows the stream to block
+    pub fn handshake_allow_blocking(self) -> Result<Role::FinalResult, HandshakeError<Role>> {
+        self.handshake_internal(true)
+    }
+
+    fn handshake_internal(
+        mut self,
+        allow_blocking: bool,
+    ) -> Result<Role::FinalResult, HandshakeError<Role>> {
         let mut mach = self.machine;
         loop {
             mach = match mach.single_round()? {
                 RoundResult::WouldBlock(m) => {
-                    return Err(HandshakeError::Interrupted(MidHandshake { machine: m, ..self }))
+                    if allow_blocking {
+                        m
+                    } else {
+                        return Err(HandshakeError::Interrupted(MidHandshake {
+                            machine: m,
+                            ..self
+                        }));
+                    }
                 }
                 RoundResult::Incomplete(m) => m,
                 RoundResult::StageFinished(s) => match self.role.stage_finished(s)? {
