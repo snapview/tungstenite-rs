@@ -1,3 +1,7 @@
+# 0.17.3
+
+- Respect the case-sentitivity of the "Origin" header to keep compatibility with the older servers that use case-sensitive comparison.
+
 # 0.17.2
 
 - Fix panic when invalid manually constructed `http::Request` is passed to `tungstenite`.
