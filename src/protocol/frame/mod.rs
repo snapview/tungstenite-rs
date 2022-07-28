@@ -66,13 +66,9 @@ impl<Stream> FrameSocket<Stream>
 where
     Stream: Write,
 {
-    /// Write a frame to stream.
-    ///
-    /// This function guarantees that the frame is queued regardless of any errors.
-    /// There is no need to resend the frame. In order to handle WouldBlock or Incomplete,
-    /// call write_pending() afterwards.
-    pub fn write_frame(&mut self, frame: Frame) -> Result<()> {
-        self.codec.write_frame(&mut self.stream, frame)
+    /// Add a frame to the end of the output buffer.
+    pub fn queue_frame(&mut self, frame: Frame) {
+        self.codec.queue_frame(frame);
     }
 
     /// Complete pending write, if any.
@@ -96,6 +92,10 @@ impl FrameCodec {
     /// Create a new frame codec.
     pub(super) fn new() -> Self {
         Self { in_buffer: ReadBuffer::new(), out_buffer: Vec::new(), header: None }
+    }
+
+    pub(super) fn has_unsent(&self) -> bool {
+        !self.out_buffer.is_empty()
     }
 
     /// Create a new frame codec from partially read data.
@@ -165,15 +165,12 @@ impl FrameCodec {
         Ok(Some(frame))
     }
 
-    /// Write a frame to the provided stream.
-    pub(super) fn write_frame<Stream>(&mut self, stream: &mut Stream, frame: Frame) -> Result<()>
-    where
-        Stream: Write,
+    /// Add a frame to the end of the output buffer.
+    pub(super) fn queue_frame(&mut self, frame: Frame)
     {
         trace!("writing frame {}", frame);
         self.out_buffer.reserve(frame.len());
         frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
-        self.write_pending(stream)
     }
 
     /// Complete pending write, if any.
@@ -241,10 +238,28 @@ mod tests {
         let mut sock = FrameSocket::new(Vec::new());
 
         let frame = Frame::ping(vec![0x04, 0x05]);
-        sock.write_frame(frame).unwrap();
+        sock.queue_frame(frame);
+        sock.write_pending().unwrap();
 
         let frame = Frame::pong(vec![0x01]);
-        sock.write_frame(frame).unwrap();
+        sock.queue_frame(frame);
+        sock.write_pending().unwrap();
+
+        let (buf, _) = sock.into_inner();
+        assert_eq!(buf, vec![0x89, 0x02, 0x04, 0x05, 0x8a, 0x01, 0x01]);
+    }
+
+    #[test]
+    fn queue_frames() {
+        let mut sock = FrameSocket::new(Vec::new());
+
+        let frame = Frame::ping(vec![0x04, 0x05]);
+        sock.queue_frame(frame);
+
+        let frame = Frame::pong(vec![0x01]);
+        sock.queue_frame(frame);
+
+        sock.write_pending().unwrap();
 
         let (buf, _) = sock.into_inner();
         assert_eq!(buf, vec![0x89, 0x02, 0x04, 0x05, 0x8a, 0x01, 0x01]);
