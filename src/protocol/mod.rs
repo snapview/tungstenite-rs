@@ -688,6 +688,64 @@ mod tests {
         }
     }
 
+    struct WouldBlockStreamMoc;
+
+    impl io::Write for WouldBlockStreamMoc {
+        fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+            Err(io::Error::new(io::ErrorKind::WouldBlock, "would block"))
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::Error::new(io::ErrorKind::WouldBlock, "would block"))
+        }
+    }
+
+    impl io::Read for WouldBlockStreamMoc {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            Err(io::Error::new(io::ErrorKind::WouldBlock, "would block"))
+        }
+    }
+
+    #[test]
+    fn queue_logic() {
+        // Create a socket with the queue size of 1.
+        let mut socket = WebSocket::from_raw_socket(
+            WouldBlockStreamMoc,
+            Role::Client,
+            Some(WebSocketConfig { max_send_queue: Some(1), ..Default::default() }),
+        );
+
+        // Test message that we're going to send.
+        let message = Message::Binary(vec![0xFF; 1024]);
+
+        // Helper to check the error.
+        let assert_would_block = |error| {
+            if let Error::Io(io_error) = error {
+                assert_eq!(io_error.kind(), io::ErrorKind::WouldBlock);
+            } else {
+                panic!("Expected WouldBlock error");
+            }
+        };
+
+        // The first attempt of writing must not fail, since the queue is empty at start.
+        // But since the underlying mock object always returns `WouldBlock`, so is the result.
+        assert_would_block(dbg!(socket.write_message(message.clone()).unwrap_err()));
+
+        // Any subsequent attempts must return an error telling that the queue is full.
+        for _i in 0..100 {
+            assert!(matches!(
+                socket.write_message(message.clone()).unwrap_err(),
+                Error::SendQueueFull(..)
+            ));
+        }
+
+        // The size of the output buffer must not be bigger than the size of that message
+        // that we managed to write to the output buffer at first. Since we could not make
+        // any progress (because of the logic of the moc buffer), the size remains unchanged.
+        if socket.context.frame.output_buffer_len() > message.len() {
+            panic!("Too many frames in the queue");
+        }
+    }
+
     #[test]
     fn receive_messages() {
         let incoming = Cursor::new(vec![
