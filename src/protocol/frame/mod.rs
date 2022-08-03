@@ -199,6 +199,14 @@ impl FrameCodec {
 }
 
 #[cfg(test)]
+impl FrameCodec {
+    /// Returns the size of the output buffer.
+    pub(super) fn output_buffer_len(&self) -> usize {
+        self.out_buffer.len()
+    }
+}
+
+#[cfg(test)]
 mod tests {
 
     use crate::error::{CapacityError, Error};
