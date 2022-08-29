@@ -13,7 +13,7 @@ fn main() {
             let callback = |_req: &Request, _resp| {
                 let resp = Response::builder()
                     .status(StatusCode::FORBIDDEN)
-                    .body(Some("Access denied".into()))
+                    .body("Access denied".into())
                     .unwrap();
                 Err(resp)
             };

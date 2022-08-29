@@ -30,7 +30,7 @@ pub type Request = HttpRequest<()>;
 pub type Response = HttpResponse<()>;
 
 /// Server error response type.
-pub type ErrorResponse = HttpResponse<Option<String>>;
+pub type ErrorResponse = HttpResponse<Vec<u8>>;
 
 fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
     if request.method() != http::Method::GET {
@@ -265,9 +265,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                         let mut output = vec![];
                         write_response(&mut output, resp)?;
 
-                        if let Some(body) = resp.body() {
-                            output.extend_from_slice(body.as_bytes());
-                        }
+                        output.extend_from_slice(resp.body());
 
                         ProcessingResult::Continue(HandshakeMachine::start_write(stream, output))
                     }
