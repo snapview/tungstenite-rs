@@ -8,10 +8,12 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "handshake")]
 use tungstenite::{accept, connect, error::ProtocolError, Error, Message};
 use url::Url;
 
 #[test]
+#[cfg(feature = "handshake")]
 fn test_no_send_after_close() {
     env_logger::init();
 

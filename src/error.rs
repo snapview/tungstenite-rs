@@ -3,6 +3,7 @@
 use std::{io, result, str, string};
 
 use crate::protocol::{frame::coding::Data, Message};
+#[cfg(feature = "handshake")]
 use http::{header::HeaderName, Response};
 use thiserror::Error;
 
@@ -63,9 +64,11 @@ pub enum Error {
     Url(#[from] UrlError),
     /// HTTP error.
     #[error("HTTP error: {}", .0.status())]
+    #[cfg(feature = "handshake")]
     Http(Response<Option<String>>),
     /// HTTP format error.
     #[error("HTTP format error: {0}")]
+    #[cfg(feature = "handshake")]
     HttpFormat(#[from] http::Error),
 }
 
@@ -81,36 +84,42 @@ impl From<string::FromUtf8Error> for Error {
     }
 }
 
+#[cfg(feature = "handshake")]
 impl From<http::header::InvalidHeaderValue> for Error {
     fn from(err: http::header::InvalidHeaderValue) -> Self {
         Error::HttpFormat(err.into())
     }
 }
 
+#[cfg(feature = "handshake")]
 impl From<http::header::InvalidHeaderName> for Error {
     fn from(err: http::header::InvalidHeaderName) -> Self {
         Error::HttpFormat(err.into())
     }
 }
 
+#[cfg(feature = "handshake")]
 impl From<http::header::ToStrError> for Error {
     fn from(_: http::header::ToStrError) -> Self {
         Error::Utf8
     }
 }
 
+#[cfg(feature = "handshake")]
 impl From<http::uri::InvalidUri> for Error {
     fn from(err: http::uri::InvalidUri) -> Self {
         Error::HttpFormat(err.into())
     }
 }
 
+#[cfg(feature = "handshake")]
 impl From<http::status::InvalidStatusCode> for Error {
     fn from(err: http::status::InvalidStatusCode) -> Self {
         Error::HttpFormat(err.into())
     }
 }
 
+#[cfg(feature = "handshake")]
 impl From<httparse::Error> for Error {
     fn from(err: httparse::Error) -> Self {
         match err {
@@ -138,6 +147,7 @@ pub enum CapacityError {
 }
 
 /// Indicates the specific type/cause of a protocol error.
+#[allow(missing_copy_implementations)]
 #[derive(Error, Debug, PartialEq, Eq, Clone)]
 pub enum ProtocolError {
     /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method be used).
@@ -169,12 +179,14 @@ pub enum ProtocolError {
     CustomResponseSuccessful,
     /// Invalid header is passed. Or the header is missing in the request. Or not present at all. Check the request that you pass.
     #[error("Missing, duplicated or incorrect header {0}")]
+    #[cfg(feature = "handshake")]
     InvalidHeader(HeaderName),
     /// No more data while still performing handshake.
     #[error("Handshake not finished")]
     HandshakeIncomplete,
     /// Wrapper around a [`httparse::Error`] value.
     #[error("httparse error: {0}")]
+    #[cfg(feature = "handshake")]
     HttparseError(#[from] httparse::Error),
     /// Not allowed to send after having sent a closing frame.
     #[error("Sending after closing is not allowed")]

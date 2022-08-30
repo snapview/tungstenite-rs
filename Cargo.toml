@@ -18,7 +18,8 @@ include = ["benches/**/*", "src/**/*", "LICENSE-*", "README.md", "CHANGELOG.md"]
 all-features = true
 
 [features]
-default = []
+default = ["handshake"]
+handshake = ["base64", "http", "httparse", "sha1", "url"]
 native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
 rustls-tls-native-roots = ["__rustls-tls", "rustls-native-certs"]
@@ -26,16 +27,16 @@ rustls-tls-webpki-roots = ["__rustls-tls", "webpki-roots"]
 __rustls-tls = ["rustls", "webpki"]
 
 [dependencies]
-base64 = "0.13.0"
+base64 = { version = "0.13.0", optional = true }
 byteorder = "1.3.2"
 bytes = "1.0"
-http = "0.2"
-httparse = "1.3.4"
+http = { version = "0.2", optional = true }
+httparse = { version = "1.3.4", optional = true }
 log = "0.4.8"
 rand = "0.8.0"
-sha1 = "0.10"
+sha1 = { version = "0.10", optional = true }
 thiserror = "1.0.23"
-url = "2.1.0"
+url = { version = "2.1.0", optional = true }
 utf-8 = "0.7.5"
 
 [dependencies.native-tls-crate]
