@@ -12,13 +12,17 @@
     unused_import_braces
 )]
 
+#[cfg(feature = "handshake")]
 pub use http;
 
 pub mod buffer;
+#[cfg(feature = "handshake")]
 pub mod client;
 pub mod error;
+#[cfg(feature = "handshake")]
 pub mod handshake;
 pub mod protocol;
+#[cfg(feature = "handshake")]
 mod server;
 pub mod stream;
 #[cfg(any(feature = "native-tls", feature = "__rustls-tls"))]
@@ -29,10 +33,14 @@ const READ_BUFFER_CHUNK_SIZE: usize = 4096;
 type ReadBuffer = buffer::ReadBuffer<READ_BUFFER_CHUNK_SIZE>;
 
 pub use crate::{
-    client::{client, connect},
     error::{Error, Result},
-    handshake::{client::ClientHandshake, server::ServerHandshake, HandshakeError},
     protocol::{Message, WebSocket},
+};
+
+#[cfg(feature = "handshake")]
+pub use crate::{
+    client::{client, connect},
+    handshake::{client::ClientHandshake, server::ServerHandshake, HandshakeError},
     server::{accept, accept_hdr, accept_hdr_with_config, accept_with_config},
 };
 
