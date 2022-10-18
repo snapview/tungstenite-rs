@@ -26,7 +26,7 @@ use crate::{
 pub type Request = HttpRequest<()>;
 
 /// Client response type.
-pub type Response = HttpResponse<Vec<u8>>;
+pub type Response = HttpResponse<Option<Vec<u8>>>;
 
 /// Client handshake role.
 #[derive(Debug)]
@@ -86,7 +86,7 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
                 let result = match self.verify_data.verify_response(result) {
                     Ok(r) => r,
                     Err(Error::Http(mut e)) => {
-                        *e.body_mut() = tail;
+                        *e.body_mut() = Some(tail);
                         return Err(Error::Http(e))
                     },
                     Err(e) => return Err(e),
@@ -263,7 +263,7 @@ impl<'h, 'b: 'h> FromHttparse<httparse::Response<'h, 'b>> for Response {
 
         let headers = HeaderMap::from_httparse(raw.headers)?;
 
-        let mut response = Response::new(vec![]);
+        let mut response = Response::new(None);
         *response.status_mut() = StatusCode::from_u16(raw.code.expect("Bug: no HTTP status code"))?;
         *response.headers_mut() = headers;
         // TODO: httparse only supports HTTP 0.9/1.0/1.1 but not HTTP 2.0
