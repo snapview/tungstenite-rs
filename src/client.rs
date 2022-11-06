@@ -120,14 +120,14 @@ pub fn connect_with_config<Req: IntoClientRequest>(
 /// you want to use other TLS libraries, use `client` instead.
 ///
 /// [readme]: https://github.com/snapview/tungstenite-rs/#features
-pub fn connect_to_raw_stream<Req: IntoClientRequest>(
+pub fn connect_to_raw_stream<Req: IntoClientRequest, Stream: Read + Write + NoDelay>(
     request: Req,
-    stream: TcpStream,
-) -> Result<(WebSocket<MaybeTlsStream<TcpStream>>, Response)> {
-    fn try_client_handshake(
+    stream: Stream,
+) -> Result<(WebSocket<MaybeTlsStream<Stream>>, Response)> {
+    fn try_client_handshake<Stream: Read + Write + NoDelay>(
         request: Request,
-        mut stream: TcpStream,
-    ) -> Result<(WebSocket<MaybeTlsStream<TcpStream>>, Response)> {
+        mut stream: Stream,
+    ) -> Result<(WebSocket<MaybeTlsStream<Stream>>, Response)> {
         NoDelay::set_nodelay(&mut stream, true)?;
 
         #[cfg(not(any(feature = "native-tls", feature = "__rustls-tls")))]
