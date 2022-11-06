@@ -104,6 +104,56 @@ pub fn connect_with_config<Req: IntoClientRequest>(
     unreachable!("Bug in a redirect handling logic")
 }
 
+/// Connect to the given raw Socket in blocking mode.
+///
+/// Uses a websocket configuration passed as an argument to the function.
+///
+/// The URL may be either ws:// or wss://.
+/// To support wss:// URLs, you must activate the TLS feature on the crate level. Please refer to the
+/// project's [README][readme] for more information on available features.
+///
+/// This function "just works" for those who wants a simple blocking solution
+/// similar to `std::net::TcpStream`. If you want a non-blocking or other
+/// custom stream, call `client` instead.
+///
+/// This function uses `native_tls` or `rustls` to do TLS depending on the feature flags enabled. If
+/// you want to use other TLS libraries, use `client` instead.
+///
+/// [readme]: https://github.com/snapview/tungstenite-rs/#features
+pub fn connect_to_raw_stream<Req: IntoClientRequest>(
+    request: Req,
+    stream: TcpStream,
+) -> Result<(WebSocket<MaybeTlsStream<TcpStream>>, Response)> {
+    fn try_client_handshake(
+        request: Request,
+        mut stream: TcpStream,
+    ) -> Result<(WebSocket<MaybeTlsStream<TcpStream>>, Response)> {
+        NoDelay::set_nodelay(&mut stream, true)?;
+
+        #[cfg(not(any(feature = "native-tls", feature = "__rustls-tls")))]
+        let client = client_with_config(request, MaybeTlsStream::Plain(stream), None);
+        #[cfg(any(feature = "native-tls", feature = "__rustls-tls"))]
+        let client = crate::tls::client_tls_with_config(request, stream, None, None);
+
+        client.map_err(|e| match e {
+            HandshakeError::Failure(f) => f,
+            HandshakeError::Interrupted(_) => panic!("Bug: blocking handshake not blocked"),
+        })
+    }
+
+    fn create_request(parts: &Parts, uri: &Uri) -> Request {
+        let mut builder =
+            Request::builder().uri(uri.clone()).method(parts.method.clone()).version(parts.version);
+        *builder.headers_mut().expect("Failed to create `Request`") = parts.headers.clone();
+        builder.body(()).expect("Failed to create `Request`")
+    }
+
+    let (parts, _) = request.into_client_request()?.into_parts();
+    let uri = parts.uri.clone();
+    let request = create_request(&parts, &uri);
+    try_client_handshake(request, stream)
+}
+
 /// Connect to the given WebSocket in blocking mode.
 ///
 /// The URL may be either ws:// or wss://.
