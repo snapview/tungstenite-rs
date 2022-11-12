@@ -1,3 +1,5 @@
+//! handshake machine.
+
 use bytes::Buf;
 use log::*;
 use std::io::{Cursor, Read, Write};

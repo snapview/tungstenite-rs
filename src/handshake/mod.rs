@@ -3,8 +3,6 @@
 pub mod client;
 pub mod headers;
 pub mod server;
-
-#[allow(missing_docs)]
 pub mod machine;
 
 use std::{
