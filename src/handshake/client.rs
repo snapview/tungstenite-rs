@@ -94,7 +94,7 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
 }
 
 /// Verifies and generates a client WebSocket request from the original request and extracts a WebSocket key from it.
-fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
+pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
     let mut req = Vec::new();
     write!(
         req,

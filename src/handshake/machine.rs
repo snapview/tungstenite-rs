@@ -101,6 +101,7 @@ pub enum RoundResult<Obj, Stream> {
 #[derive(Debug)]
 pub enum StageResult<Obj, Stream> {
     /// Reading round finished.
+    #[allow(missing_docs)]
     DoneReading { result: Obj, stream: Stream, tail: Vec<u8> },
     /// Writing round finished.
     DoneWriting(Stream),

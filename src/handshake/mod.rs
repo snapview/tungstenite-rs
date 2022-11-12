@@ -4,7 +4,8 @@ pub mod client;
 pub mod headers;
 pub mod server;
 
-mod machine;
+#[allow(missing_docs)]
+pub mod machine;
 
 use std::{
     error::Error as ErrorTrait,
