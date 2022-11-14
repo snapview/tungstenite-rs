@@ -151,7 +151,13 @@ impl FrameCodec {
             }
 
             // Not enough data in buffer.
-            let size = self.in_buffer.read_from(stream)?;
+            let size = self.in_buffer.read_from(stream).or_else(|error| {
+                if error.kind() == IoErrorKind::UnexpectedEof {
+                    Ok(0)
+                } else {
+                    Err(error)
+                }
+            })?;
             if size == 0 {
                 trace!("no frame received");
                 return Ok(None);
