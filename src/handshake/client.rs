@@ -26,7 +26,7 @@ use crate::{
 pub type Request = HttpRequest<()>;
 
 /// Client response type.
-pub type Response = HttpResponse<()>;
+pub type Response = HttpResponse<Option<Vec<u8>>>;
 
 /// Client handshake role.
 #[derive(Debug)]
@@ -83,7 +83,15 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
                 ProcessingResult::Continue(HandshakeMachine::start_read(stream))
             }
             StageResult::DoneReading { stream, result, tail } => {
-                let result = self.verify_data.verify_response(result)?;
+                let result = match self.verify_data.verify_response(result) {
+                    Ok(r) => r,
+                    Err(Error::Http(mut e)) => {
+                        *e.body_mut() = Some(tail);
+                        return Err(Error::Http(e))
+                    },
+                    Err(e) => return Err(e),
+                };
+
                 debug!("Client handshake done.");
                 let websocket =
                     WebSocket::from_partially_read(stream, tail, Role::Client, self.config);
@@ -182,7 +190,7 @@ impl VerifyData {
         // 1. If the status code received from the server is not 101, the
         // client handles the response per HTTP [RFC2616] procedures. (RFC 6455)
         if response.status() != StatusCode::SWITCHING_PROTOCOLS {
-            return Err(Error::Http(response.map(|_| None)));
+            return Err(Error::Http(response));
         }
 
         let headers = response.headers();
@@ -255,7 +263,7 @@ impl<'h, 'b: 'h> FromHttparse<httparse::Response<'h, 'b>> for Response {
 
         let headers = HeaderMap::from_httparse(raw.headers)?;
 
-        let mut response = Response::new(());
+        let mut response = Response::new(None);
         *response.status_mut() = StatusCode::from_u16(raw.code.expect("Bug: no HTTP status code"))?;
         *response.headers_mut() = headers;
         // TODO: httparse only supports HTTP 0.9/1.0/1.1 but not HTTP 2.0

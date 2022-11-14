@@ -65,7 +65,7 @@ pub enum Error {
     /// HTTP error.
     #[error("HTTP error: {}", .0.status())]
     #[cfg(feature = "handshake")]
-    Http(Response<Option<String>>),
+    Http(Response<Option<Vec<u8>>>),
     /// HTTP format error.
     #[error("HTTP format error: {0}")]
     #[cfg(feature = "handshake")]
