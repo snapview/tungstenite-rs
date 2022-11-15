@@ -1,4 +1,4 @@
-//! handshake machine.
+//! WebSocket handshake machine.
 
 use bytes::Buf;
 use log::*;
