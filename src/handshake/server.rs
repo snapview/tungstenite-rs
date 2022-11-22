@@ -208,7 +208,7 @@ pub struct ServerHandshake<S, C> {
 
 impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
     /// Start server handshake. `callback` specifies a custom callback which the user can pass to
-    /// the handshake, this callback will be called when the a websocket client connnects to the
+    /// the handshake, this callback will be called when the a websocket client connects to the
     /// server, you can specify the callback if you want to add additional header to the client
     /// upon join based on the incoming headers.
     pub fn start(stream: S, callback: C, config: Option<WebSocketConfig>) -> MidHandshake<Self> {
