@@ -204,7 +204,7 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// There is no need to call it again. Calling this function is
     /// the same as calling `write_message(Message::Close(..))`.
     ///
-    /// After queing the close frame you should continue calling `read_message` or
+    /// After queuing the close frame you should continue calling `read_message` or
     /// `write_pending` to drive the close handshake to completion.
     ///
     /// The websocket RFC defines that the underlying connection should be closed
