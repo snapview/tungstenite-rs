@@ -1,3 +1,8 @@
+# 0.18.0
+
+- Make handshake dependencies optional with a new `handshake` feature (now a default one!).
+- Return HTTP error responses (their HTTP body) upon non 101 status codes.
+
 # 0.17.3
 
 - Respect the case-sentitivity of the "Origin" header to keep compatibility with the older servers that use case-sensitive comparison.
