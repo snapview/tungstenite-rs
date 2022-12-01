@@ -93,7 +93,7 @@ pub fn create_response_with_body<T>(
     Ok(create_parts(request)?.body(generate_body())?)
 }
 
-/// Write response to the stream `w`.
+/// Write `response` to the stream `w`.
 pub fn write_response<T>(mut w: impl io::Write, response: &HttpResponse<T>) -> Result<()> {
     writeln!(
         w,
