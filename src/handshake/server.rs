@@ -93,8 +93,8 @@ pub fn create_response_with_body<T>(
     Ok(create_parts(request)?.body(generate_body())?)
 }
 
-// Assumes that this is a valid response
-fn write_response<T>(mut w: impl io::Write, response: &HttpResponse<T>) -> Result<()> {
+/// Write `response` to the stream `w`.
+pub fn write_response<T>(mut w: impl io::Write, response: &HttpResponse<T>) -> Result<()> {
     writeln!(
         w,
         "{version:?} {status}\r",

@@ -1,3 +1,5 @@
+//! WebSocket handshake machine.
+
 use bytes::Buf;
 use log::*;
 use std::io::{Cursor, Read, Write};
@@ -101,6 +103,7 @@ pub enum RoundResult<Obj, Stream> {
 #[derive(Debug)]
 pub enum StageResult<Obj, Stream> {
     /// Reading round finished.
+    #[allow(missing_docs)]
     DoneReading { result: Obj, stream: Stream, tail: Vec<u8> },
     /// Writing round finished.
     DoneWriting(Stream),

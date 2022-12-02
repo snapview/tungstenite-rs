@@ -2,9 +2,8 @@
 
 pub mod client;
 pub mod headers;
+pub mod machine;
 pub mod server;
-
-mod machine;
 
 use std::{
     error::Error as ErrorTrait,
