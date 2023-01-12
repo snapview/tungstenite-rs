@@ -120,7 +120,7 @@ pub fn derive_accept_key(request_key: &[u8]) -> String {
     let mut sha1 = Sha1::default();
     sha1.update(request_key);
     sha1.update(WS_GUID);
-    base64::encode(&sha1.finalize())
+    data_encoding::BASE64.encode(&sha1.finalize())
 }
 
 #[cfg(test)]
