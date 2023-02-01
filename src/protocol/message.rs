@@ -213,7 +213,7 @@ impl Message {
         matches!(*self, Message::Pong(_))
     }
 
-    /// Indicates whether a message ia s close message.
+    /// Indicates whether a message is a close message.
     pub fn is_close(&self) -> bool {
         matches!(*self, Message::Close(_))
     }
