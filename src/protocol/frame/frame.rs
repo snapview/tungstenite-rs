@@ -385,7 +385,7 @@ payload: 0x{}
             // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
             self.len(),
             self.payload.len(),
-            self.payload.iter().map(|byte| format!("{:x}", byte)).collect::<String>()
+            self.payload.iter().map(|byte| format!("{:02x}", byte)).collect::<String>()
         )
     }
 }
