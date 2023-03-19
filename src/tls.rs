@@ -70,6 +70,7 @@ mod encryption {
 
     #[cfg(feature = "__rustls-tls")]
     pub mod rustls {
+        use log::warn;
         use rustls::{ClientConfig, ClientConnection, RootCertStore, ServerName, StreamOwned};
 
         use std::{
@@ -105,9 +106,10 @@ mod encryption {
                             #[cfg(feature = "rustls-tls-native-roots")]
                             {
                                 for cert in rustls_native_certs::load_native_certs()? {
-                                    root_store
-                                        .add(&rustls::Certificate(cert.0))
-                                        .map_err(TlsError::Webpki)?;
+                                    match root_store.add(&rustls::Certificate(cert.0)) {
+                                        Ok(_) => {}
+                                        Err(x) => warn!("Failed to add certificate {}", x),
+                                    };
                                 }
                             }
                             #[cfg(feature = "rustls-tls-webpki-roots")]
