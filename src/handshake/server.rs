@@ -6,7 +6,6 @@ use std::{
     result::Result as StdResult,
 };
 
-use headers::{HeaderMapExt, SecWebsocketExtensions};
 use http::{
     response::Builder, HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode,
 };
@@ -21,7 +20,6 @@ use super::{
 };
 use crate::{
     error::{Error, ProtocolError, Result},
-    extensions::Extensions,
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -204,8 +202,6 @@ pub struct ServerHandshake<S, C> {
     config: Option<WebSocketConfig>,
     /// Error code/flag. If set, an error will be returned after sending response to the client.
     error_response: Option<ErrorResponse>,
-    // Negotiated extension context for server.
-    extensions: Option<Extensions>,
     /// Internal stream type.
     _marker: PhantomData<S>,
 }
@@ -223,7 +219,6 @@ impl<S: Read + Write, C: Callback> ServerHandshake<S, C> {
                 callback: Some(callback),
                 config,
                 error_response: None,
-                extensions: None,
                 _marker: PhantomData,
             },
         }
@@ -245,19 +240,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                     return Err(Error::Protocol(ProtocolError::JunkAfterRequest));
                 }
 
-                let mut response = create_response(&result)?;
-                if let Some(config) = &self.config {
-                    if let Some((agreed, extensions)) = result
-                        .headers()
-                        .typed_try_get::<SecWebsocketExtensions>()
-                        .map_err(|_| Error::Protocol(ProtocolError::InvalidExtensionsHeader))?
-                        .and_then(|values| config.accept_offers(&values))
-                    {
-                        response.headers_mut().typed_insert(agreed);
-                        self.extensions = Some(extensions);
-                    }
-                }
-
+                let response = create_response(&result)?;
                 let callback_result = if let Some(callback) = self.callback.take() {
                     callback.on_request(&result, response)
                 } else {
@@ -300,12 +283,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                     return Err(Error::Http(http::Response::from_parts(parts, body)));
                 } else {
                     debug!("Server handshake done.");
-                    let websocket = WebSocket::from_raw_socket_with_extensions(
-                        stream,
-                        Role::Server,
-                        self.config,
-                        self.extensions.take(),
-                    );
+                    let websocket = WebSocket::from_raw_socket(stream, Role::Server, self.config);
                     ProcessingResult::Done(websocket)
                 }
             }

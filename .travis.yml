@@ -10,6 +10,5 @@ before_script:
 
 script:
   - cargo test --release
-  - cargo test --release --features=deflate
   - echo "Running Autobahn TestSuite for client" && ./scripts/autobahn-client.sh
   - echo "Running Autobahn TestSuite for server" && ./scripts/autobahn-server.sh

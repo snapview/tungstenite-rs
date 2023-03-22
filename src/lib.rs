@@ -19,7 +19,6 @@ pub mod buffer;
 #[cfg(feature = "handshake")]
 pub mod client;
 pub mod error;
-pub mod extensions;
 #[cfg(feature = "handshake")]
 pub mod handshake;
 pub mod protocol;
