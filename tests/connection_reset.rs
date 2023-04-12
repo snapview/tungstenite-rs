@@ -1,6 +1,7 @@
 //! Verifies that the server returns a `ConnectionClosed` error when the connection
 //! is closed from the server's point of view and drop the underlying tcp socket.
-#![cfg(any(feature = "native-tls", feature = "__rustls-tls"))]
+
+#![cfg(all(any(feature = "native-tls", feature = "__rustls-tls"), feature = "handshake"))]
 
 use std::{
     net::{TcpListener, TcpStream},

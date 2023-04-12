@@ -1,6 +1,8 @@
 //! Verifies that we can read data messages even if we have initiated a close handshake,
 //! but before we got confirmation.
 
+#![cfg(feature = "handshake")]
+
 use std::{
     net::TcpListener,
     process::exit,
@@ -8,7 +10,6 @@ use std::{
     time::Duration,
 };
 
-#[cfg(feature = "handshake")]
 use tungstenite::{accept, connect, error::ProtocolError, Error, Message};
 use url::Url;
 

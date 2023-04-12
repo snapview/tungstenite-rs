@@ -87,8 +87,8 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
                     Ok(r) => r,
                     Err(Error::Http(mut e)) => {
                         *e.body_mut() = Some(tail);
-                        return Err(Error::Http(e))
-                    },
+                        return Err(Error::Http(e));
+                    }
                     Err(e) => return Err(e),
                 };
 
