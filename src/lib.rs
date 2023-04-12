@@ -25,7 +25,7 @@ pub mod protocol;
 #[cfg(feature = "handshake")]
 mod server;
 pub mod stream;
-#[cfg(any(feature = "native-tls", feature = "__rustls-tls"))]
+#[cfg(all(any(feature = "native-tls", feature = "__rustls-tls"), feature = "handshake"))]
 mod tls;
 pub mod util;
 
@@ -44,5 +44,5 @@ pub use crate::{
     server::{accept, accept_hdr, accept_hdr_with_config, accept_with_config},
 };
 
-#[cfg(any(feature = "native-tls", feature = "__rustls-tls"))]
+#[cfg(all(any(feature = "native-tls", feature = "__rustls-tls"), feature = "handshake"))]
 pub use tls::{client_tls, client_tls_with_config, Connector};
