@@ -1,5 +1,4 @@
-use std::io::Result as IoResult;
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Result as IoResult};
 
 use bytes::Buf;
 use criterion::*;
