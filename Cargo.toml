@@ -71,3 +71,27 @@ rand = "0.8.4"
 [[bench]]
 name = "buffer"
 harness = false
+
+[[example]]
+name = "client"
+required-features = ["handshake"]
+
+[[example]]
+name = "server"
+required-features = ["handshake"]
+
+[[example]]
+name = "autobahn-client"
+required-features = ["handshake"]
+
+[[example]]
+name = "autobahn-server"
+required-features = ["handshake"]
+
+[[example]]
+name = "callback-error"
+required-features = ["handshake"]
+
+[[example]]
+name = "srv_accept_unmasked_frames"
+required-features = ["handshake"]
