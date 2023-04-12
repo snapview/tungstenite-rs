@@ -1,3 +1,8 @@
+# 0.19.0
+
+- Update TLS dependencies.
+- Exchanging `base64` for `data-encoding`.
+
 # 0.18.0
 
 - Make handshake dependencies optional with a new `handshake` feature (now a default one!).
