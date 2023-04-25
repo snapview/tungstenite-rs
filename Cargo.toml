@@ -24,7 +24,7 @@ native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
 rustls-tls-native-roots = ["__rustls-tls", "rustls-native-certs"]
 rustls-tls-webpki-roots = ["__rustls-tls", "webpki-roots"]
-__rustls-tls = ["rustls", "webpki"]
+__rustls-tls = ["rustls"]
 
 [dependencies]
 data-encoding = { version = "2", optional = true }
@@ -51,11 +51,6 @@ version = "0.21.0"
 [dependencies.rustls-native-certs]
 optional = true
 version = "0.6.0"
-
-[dependencies.webpki]
-optional = true
-version = "0.22"
-features = ["std"]
 
 [dependencies.webpki-roots]
 optional = true
