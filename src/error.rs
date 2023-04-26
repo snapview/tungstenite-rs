@@ -271,10 +271,6 @@ pub enum TlsError {
     #[cfg(feature = "__rustls-tls")]
     #[error("rustls error: {0}")]
     Rustls(#[from] rustls::Error),
-    /// Webpki error.
-    #[cfg(feature = "__rustls-tls")]
-    #[error("webpki error: {0}")]
-    Webpki(#[from] webpki::Error),
     /// DNS name resolution error.
     #[cfg(feature = "__rustls-tls")]
     #[error("Invalid DNS name")]
