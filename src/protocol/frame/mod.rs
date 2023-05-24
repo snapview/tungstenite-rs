@@ -6,15 +6,14 @@ pub mod coding;
 mod frame;
 mod mask;
 
-use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Write};
-
-use log::*;
-
-pub use self::frame::{CloseFrame, Frame, FrameHeader};
 use crate::{
     error::{CapacityError, Error, Result},
-    ReadBuffer,
+    Message, ReadBuffer,
 };
+use log::*;
+use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Write};
+
+pub use self::frame::{CloseFrame, Frame, FrameHeader};
 
 /// A reader and writer for WebSocket frames.
 #[derive(Debug)]
@@ -89,6 +88,8 @@ pub(super) struct FrameCodec {
     in_buffer: ReadBuffer,
     /// Buffer to send packets to the network.
     out_buffer: Vec<u8>,
+    /// Capacity limit for `out_buffer`.
+    max_out_buffer_len: usize,
     /// Header and remaining size of the incoming packet being processed.
     header: Option<(FrameHeader, u64)>,
 }
@@ -96,7 +97,12 @@ pub(super) struct FrameCodec {
 impl FrameCodec {
     /// Create a new frame codec.
     pub(super) fn new() -> Self {
-        Self { in_buffer: ReadBuffer::new(), out_buffer: Vec::new(), header: None }
+        Self {
+            in_buffer: ReadBuffer::new(),
+            out_buffer: Vec::new(),
+            max_out_buffer_len: usize::MAX,
+            header: None,
+        }
     }
 
     /// Create a new frame codec from partially read data.
@@ -104,8 +110,20 @@ impl FrameCodec {
         Self {
             in_buffer: ReadBuffer::from_partially_read(part),
             out_buffer: Vec::new(),
+            max_out_buffer_len: usize::MAX,
             header: None,
         }
+    }
+
+    /// Sets a maximum size for the out buffer.
+    pub(super) fn with_max_out_buffer_len(mut self, max: usize) -> Self {
+        self.max_out_buffer_len = max;
+        self
+    }
+
+    /// Sets a maximum size for the out buffer.
+    pub(super) fn set_max_out_buffer_len(&mut self, max: usize) {
+        self.max_out_buffer_len = max;
     }
 
     /// Read a frame from the provided stream.
@@ -173,10 +191,25 @@ impl FrameCodec {
     where
         Stream: Write,
     {
+        if frame.len() + self.out_buffer.len() > self.max_out_buffer_len {
+            return Err(Error::WriteBufferFull(Message::Frame(frame)));
+        }
+
         trace!("writing frame {}", frame);
+
         self.out_buffer.reserve(frame.len());
         frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
 
+        self.write_out_buffer(stream)
+    }
+
+    /// Write any buffered frames to the provided stream.
+    ///
+    /// Does **not** flush.
+    pub(super) fn write_out_buffer<Stream>(&mut self, stream: &mut Stream) -> Result<()>
+    where
+        Stream: Write,
+    {
         while !self.out_buffer.is_empty() {
             let len = stream.write(&self.out_buffer)?;
             if len == 0 {
@@ -191,14 +224,6 @@ impl FrameCodec {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-impl FrameCodec {
-    /// Returns the size of the output buffer.
-    pub(super) fn output_buffer_len(&self) -> usize {
-        self.out_buffer.len()
     }
 }
 

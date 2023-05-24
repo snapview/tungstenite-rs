@@ -27,14 +27,12 @@ fn main() {
             };
 
             let config = Some(WebSocketConfig {
-                max_send_queue: None,
-                max_message_size: None,
-                max_frame_size: None,
                 // This setting allows to accept client frames which are not masked
                 // This is not in compliance with RFC 6455 but might be handy in some
                 // rare cases where it is necessary to integrate with existing/legacy
                 // clients which are sending unmasked frames
                 accept_unmasked_frames: true,
+                ..<_>::default()
             });
 
             let mut websocket = accept_hdr_with_config(stream.unwrap(), callback, config).unwrap();
