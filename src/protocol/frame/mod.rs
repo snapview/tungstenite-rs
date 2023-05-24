@@ -72,12 +72,13 @@ where
     /// There is no need to resend the frame. In order to handle WouldBlock or Incomplete,
     /// call write_pending() afterwards.
     pub fn write_frame(&mut self, frame: Frame) -> Result<()> {
-        self.codec.write_frame(&mut self.stream, frame)
+        self.codec.write_frame(&mut self.stream, frame)?;
+        Ok(self.stream.flush()?)
     }
 
     /// Complete pending write, if any.
     pub fn write_pending(&mut self) -> Result<()> {
-        self.codec.write_pending(&mut self.stream)
+        Ok(self.stream.flush()?)
     }
 }
 
@@ -166,6 +167,8 @@ impl FrameCodec {
     }
 
     /// Write a frame to the provided stream.
+    ///
+    /// Does **not** flush.
     pub(super) fn write_frame<Stream>(&mut self, stream: &mut Stream, frame: Frame) -> Result<()>
     where
         Stream: Write,
@@ -173,14 +176,7 @@ impl FrameCodec {
         trace!("writing frame {}", frame);
         self.out_buffer.reserve(frame.len());
         frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
-        self.write_pending(stream)
-    }
 
-    /// Complete pending write, if any.
-    pub(super) fn write_pending<Stream>(&mut self, stream: &mut Stream) -> Result<()>
-    where
-        Stream: Write,
-    {
         while !self.out_buffer.is_empty() {
             let len = stream.write(&self.out_buffer)?;
             if len == 0 {
@@ -193,7 +189,7 @@ impl FrameCodec {
             }
             self.out_buffer.drain(0..len);
         }
-        stream.flush()?;
+
         Ok(())
     }
 }

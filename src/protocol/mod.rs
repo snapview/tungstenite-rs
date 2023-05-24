@@ -353,24 +353,33 @@ impl WebSocketContext {
             Message::Ping(data) => Frame::ping(data),
             Message::Pong(data) => {
                 self.pong = Some(Frame::pong(data));
-                return self.write_pending(stream);
+                return self.write_queue(stream);
             }
             Message::Close(code) => return self.close(stream, code),
             Message::Frame(f) => f,
         };
 
         self.send_queue.push_back(frame);
-        self.write_pending(stream)
+        self.write_queue(stream)
     }
 
     /// Flush the pending send queue.
+    #[inline]
     pub fn write_pending<Stream>(&mut self, stream: &mut Stream) -> Result<()>
     where
         Stream: Read + Write,
     {
-        // First, make sure we have no pending frame sending.
-        self.frame.write_pending(stream)?;
+        self.write_queue(stream)?;
+        Ok(stream.flush()?)
+    }
 
+    /// Write send queue & pongs.
+    ///
+    /// Does **not** flush.
+    fn write_queue<Stream>(&mut self, stream: &mut Stream) -> Result<()>
+    where
+        Stream: Read + Write,
+    {
         // Upon receipt of a Ping frame, an endpoint MUST send a Pong frame in
         // response, unless it already received a Close frame. It SHOULD
         // respond with Pong frame as soon as is practical. (RFC 6455)
