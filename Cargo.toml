@@ -67,6 +67,10 @@ rand = "0.8.4"
 name = "buffer"
 harness = false
 
+[[bench]]
+name = "write"
+harness = false
+
 [[example]]
 name = "client"
 required-features = ["handshake"]
