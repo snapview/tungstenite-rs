@@ -434,16 +434,17 @@ impl WebSocketContext {
         // respond with Pong frame as soon as is practical. (RFC 6455)
         let should_flush = if let Some(msg) = self.additional_send.take() {
             trace!("Sending pong/close");
-            if let Err(err) = self.write_one_frame(stream, msg) {
-                match err {
+            match self.write_one_frame(stream, msg) {
+                Err(Error::WriteBufferFull(Message::Frame(msg))) => {
                     // if an system message would exceed the buffer put it back in
                     // `additional_send` for retry. Otherwise returning this error
                     // may not make sense to the user, e.g. calling `flush`.
-                    Error::WriteBufferFull(Message::Frame(msg)) => self.set_additional(msg),
-                    err => return Err(err),
+                    self.set_additional(msg);
+                    false
                 }
+                Err(err) => return Err(err),
+                Ok(_) => true,
             }
-            true
         } else {
             false
         };
