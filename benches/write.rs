@@ -42,7 +42,7 @@ impl Write for MockSlowFlushWrite {
 }
 
 fn benchmark(c: &mut Criterion) {
-    // Writes 100k small json text messages then calls `write_pending`
+    // Writes 100k small json text messages then flushes
     c.bench_function("write 100k small texts then flush", |b| {
         let mut ws = WebSocket::from_raw_socket(
             MockSlowFlushWrite(Vec::with_capacity(MOCK_WRITE_LEN)),
@@ -54,9 +54,9 @@ fn benchmark(c: &mut Criterion) {
             || (0..100_000).map(|i| Message::Text(format!("{{\"id\":{i}}}"))),
             |batch| {
                 for msg in batch {
-                    ws.write_message(msg).unwrap();
+                    ws.write(msg).unwrap();
                 }
-                ws.write_pending().unwrap();
+                ws.flush().unwrap();
             },
             BatchSize::SmallInput,
         )

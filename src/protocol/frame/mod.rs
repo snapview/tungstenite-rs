@@ -56,7 +56,7 @@ where
     Stream: Read,
 {
     /// Read a frame from stream.
-    pub fn read_frame(&mut self, max_size: Option<usize>) -> Result<Option<Frame>> {
+    pub fn read(&mut self, max_size: Option<usize>) -> Result<Option<Frame>> {
         self.codec.read_frame(&mut self.stream, max_size)
     }
 }
@@ -65,18 +65,27 @@ impl<Stream> FrameSocket<Stream>
 where
     Stream: Write,
 {
-    /// Write a frame to stream.
-    ///
-    /// This function guarantees that the frame is queued regardless of any errors.
-    /// There is no need to resend the frame. In order to handle WouldBlock or Incomplete,
-    /// call write_pending() afterwards.
-    pub fn write_frame(&mut self, frame: Frame) -> Result<()> {
-        self.codec.write_frame(&mut self.stream, frame)?;
-        Ok(self.stream.flush()?)
+    /// Writes and immediately flushes a frame.
+    /// Equivalent to calling [`write`](Self::write) then [`flush`](Self::flush).
+    pub fn send(&mut self, frame: Frame) -> Result<()> {
+        self.write(frame)?;
+        self.flush()
     }
 
-    /// Complete pending write, if any.
-    pub fn write_pending(&mut self) -> Result<()> {
+    /// Write a frame to stream.
+    ///
+    /// A subsequent call should be made to [`flush`](Self::flush) to flush writes.
+    ///
+    /// This function guarantees that the frame is queued unless [`Error::WriteBufferFull`]
+    /// is returned.
+    /// In order to handle WouldBlock or Incomplete, call [`flush`](Self::flush) afterwards.
+    pub fn write(&mut self, frame: Frame) -> Result<()> {
+        self.codec.write_frame(&mut self.stream, frame)
+    }
+
+    /// Flush writes.
+    pub fn flush(&mut self) -> Result<()> {
+        self.codec.write_out_buffer(&mut self.stream)?;
         Ok(self.stream.flush()?)
     }
 }
@@ -245,11 +254,11 @@ mod tests {
         let mut sock = FrameSocket::new(raw);
 
         assert_eq!(
-            sock.read_frame(None).unwrap().unwrap().into_data(),
+            sock.read(None).unwrap().unwrap().into_data(),
             vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
-        assert_eq!(sock.read_frame(None).unwrap().unwrap().into_data(), vec![0x03, 0x02, 0x01]);
-        assert!(sock.read_frame(None).unwrap().is_none());
+        assert_eq!(sock.read(None).unwrap().unwrap().into_data(), vec![0x03, 0x02, 0x01]);
+        assert!(sock.read(None).unwrap().is_none());
 
         let (_, rest) = sock.into_inner();
         assert_eq!(rest, vec![0x99]);
@@ -260,7 +269,7 @@ mod tests {
         let raw = Cursor::new(vec![0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let mut sock = FrameSocket::from_partially_read(raw, vec![0x82, 0x07, 0x01]);
         assert_eq!(
-            sock.read_frame(None).unwrap().unwrap().into_data(),
+            sock.read(None).unwrap().unwrap().into_data(),
             vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
     }
@@ -270,10 +279,10 @@ mod tests {
         let mut sock = FrameSocket::new(Vec::new());
 
         let frame = Frame::ping(vec![0x04, 0x05]);
-        sock.write_frame(frame).unwrap();
+        sock.send(frame).unwrap();
 
         let frame = Frame::pong(vec![0x01]);
-        sock.write_frame(frame).unwrap();
+        sock.send(frame).unwrap();
 
         let (buf, _) = sock.into_inner();
         assert_eq!(buf, vec![0x89, 0x02, 0x04, 0x05, 0x8a, 0x01, 0x01]);
@@ -285,7 +294,7 @@ mod tests {
             0x83, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
         ]);
         let mut sock = FrameSocket::new(raw);
-        let _ = sock.read_frame(None); // should not crash
+        let _ = sock.read(None); // should not crash
     }
 
     #[test]
@@ -293,7 +302,7 @@ mod tests {
         let raw = Cursor::new(vec![0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let mut sock = FrameSocket::new(raw);
         assert!(matches!(
-            sock.read_frame(Some(5)),
+            sock.read(Some(5)),
             Err(Error::Capacity(CapacityError::MessageTooLong { size: 7, max_size: 5 }))
         ));
     }

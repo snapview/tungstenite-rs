@@ -38,7 +38,7 @@ fn main() {
             let mut websocket = accept_hdr_with_config(stream.unwrap(), callback, config).unwrap();
 
             loop {
-                let msg = websocket.read_message().unwrap();
+                let msg = websocket.read().unwrap();
                 if msg.is_binary() || msg.is_text() {
                     println!("received message {}", msg);
                 }

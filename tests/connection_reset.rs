@@ -52,27 +52,27 @@ fn test_server_close() {
     do_test(
         3012,
         |mut cli_sock| {
-            cli_sock.write_message(Message::Text("Hello WebSocket".into())).unwrap();
+            cli_sock.send(Message::Text("Hello WebSocket".into())).unwrap();
 
-            let message = cli_sock.read_message().unwrap(); // receive close from server
+            let message = cli_sock.read().unwrap(); // receive close from server
             assert!(message.is_close());
 
-            let err = cli_sock.read_message().unwrap_err(); // now we should get ConnectionClosed
+            let err = cli_sock.read().unwrap_err(); // now we should get ConnectionClosed
             match err {
                 Error::ConnectionClosed => {}
                 _ => panic!("unexpected error: {:?}", err),
             }
         },
         |mut srv_sock| {
-            let message = srv_sock.read_message().unwrap();
+            let message = srv_sock.read().unwrap();
             assert_eq!(message.into_data(), b"Hello WebSocket");
 
             srv_sock.close(None).unwrap(); // send close to client
 
-            let message = srv_sock.read_message().unwrap(); // receive acknowledgement
+            let message = srv_sock.read().unwrap(); // receive acknowledgement
             assert!(message.is_close());
 
-            let err = srv_sock.read_message().unwrap_err(); // now we should get ConnectionClosed
+            let err = srv_sock.read().unwrap_err(); // now we should get ConnectionClosed
             match err {
                 Error::ConnectionClosed => {}
                 _ => panic!("unexpected error: {:?}", err),
@@ -86,26 +86,26 @@ fn test_evil_server_close() {
     do_test(
         3013,
         |mut cli_sock| {
-            cli_sock.write_message(Message::Text("Hello WebSocket".into())).unwrap();
+            cli_sock.send(Message::Text("Hello WebSocket".into())).unwrap();
 
             sleep(Duration::from_secs(1));
 
-            let message = cli_sock.read_message().unwrap(); // receive close from server
+            let message = cli_sock.read().unwrap(); // receive close from server
             assert!(message.is_close());
 
-            let err = cli_sock.read_message().unwrap_err(); // now we should get ConnectionClosed
+            let err = cli_sock.read().unwrap_err(); // now we should get ConnectionClosed
             match err {
                 Error::ConnectionClosed => {}
                 _ => panic!("unexpected error: {:?}", err),
             }
         },
         |mut srv_sock| {
-            let message = srv_sock.read_message().unwrap();
+            let message = srv_sock.read().unwrap();
             assert_eq!(message.into_data(), b"Hello WebSocket");
 
             srv_sock.close(None).unwrap(); // send close to client
 
-            let message = srv_sock.read_message().unwrap(); // receive acknowledgement
+            let message = srv_sock.read().unwrap(); // receive acknowledgement
             assert!(message.is_close());
             // and now just drop the connection without waiting for `ConnectionClosed`
             srv_sock.get_mut().set_linger(Some(Duration::from_secs(0))).unwrap();
@@ -119,32 +119,32 @@ fn test_client_close() {
     do_test(
         3014,
         |mut cli_sock| {
-            cli_sock.write_message(Message::Text("Hello WebSocket".into())).unwrap();
+            cli_sock.send(Message::Text("Hello WebSocket".into())).unwrap();
 
-            let message = cli_sock.read_message().unwrap(); // receive answer from server
+            let message = cli_sock.read().unwrap(); // receive answer from server
             assert_eq!(message.into_data(), b"From Server");
 
             cli_sock.close(None).unwrap(); // send close to server
 
-            let message = cli_sock.read_message().unwrap(); // receive acknowledgement from server
+            let message = cli_sock.read().unwrap(); // receive acknowledgement from server
             assert!(message.is_close());
 
-            let err = cli_sock.read_message().unwrap_err(); // now we should get ConnectionClosed
+            let err = cli_sock.read().unwrap_err(); // now we should get ConnectionClosed
             match err {
                 Error::ConnectionClosed => {}
                 _ => panic!("unexpected error: {:?}", err),
             }
         },
         |mut srv_sock| {
-            let message = srv_sock.read_message().unwrap();
+            let message = srv_sock.read().unwrap();
             assert_eq!(message.into_data(), b"Hello WebSocket");
 
-            srv_sock.write_message(Message::Text("From Server".into())).unwrap();
+            srv_sock.send(Message::Text("From Server".into())).unwrap();
 
-            let message = srv_sock.read_message().unwrap(); // receive close from client
+            let message = srv_sock.read().unwrap(); // receive close from client
             assert!(message.is_close());
 
-            let err = srv_sock.read_message().unwrap_err(); // now we should get ConnectionClosed
+            let err = srv_sock.read().unwrap_err(); // now we should get ConnectionClosed
             match err {
                 Error::ConnectionClosed => {}
                 _ => panic!("unexpected error: {:?}", err),

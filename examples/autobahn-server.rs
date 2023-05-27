@@ -17,9 +17,9 @@ fn handle_client(stream: TcpStream) -> Result<()> {
     let mut socket = accept(stream).map_err(must_not_block)?;
     info!("Running test");
     loop {
-        match socket.read_message()? {
+        match socket.read()? {
             msg @ Message::Text(_) | msg @ Message::Binary(_) => {
-                socket.write_message(msg)?;
+                socket.send(msg)?;
             }
             Message::Ping(_) | Message::Pong(_) | Message::Close(_) | Message::Frame(_) => {}
         }
