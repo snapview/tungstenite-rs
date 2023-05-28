@@ -29,10 +29,10 @@ fn test_no_send_after_close() {
     let client_thread = spawn(move || {
         let (mut client, _) = connect(Url::parse("ws://localhost:3013/socket").unwrap()).unwrap();
 
-        let message = client.read_message().unwrap(); // receive close from server
+        let message = client.read().unwrap(); // receive close from server
         assert!(message.is_close());
 
-        let err = client.read_message().unwrap_err(); // now we should get ConnectionClosed
+        let err = client.read().unwrap_err(); // now we should get ConnectionClosed
         match err {
             Error::ConnectionClosed => {}
             _ => panic!("unexpected error: {:?}", err),
@@ -44,7 +44,7 @@ fn test_no_send_after_close() {
 
     client_handler.close(None).unwrap(); // send close to client
 
-    let err = client_handler.write_message(Message::Text("Hello WebSocket".into()));
+    let err = client_handler.send(Message::Text("Hello WebSocket".into()));
 
     assert!(err.is_err());
 

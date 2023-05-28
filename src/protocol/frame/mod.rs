@@ -6,15 +6,14 @@ pub mod coding;
 mod frame;
 mod mask;
 
-use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Write};
-
-use log::*;
-
-pub use self::frame::{CloseFrame, Frame, FrameHeader};
 use crate::{
     error::{CapacityError, Error, Result},
-    ReadBuffer,
+    Message, ReadBuffer,
 };
+use log::*;
+use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Write};
+
+pub use self::frame::{CloseFrame, Frame, FrameHeader};
 
 /// A reader and writer for WebSocket frames.
 #[derive(Debug)]
@@ -57,7 +56,7 @@ where
     Stream: Read,
 {
     /// Read a frame from stream.
-    pub fn read_frame(&mut self, max_size: Option<usize>) -> Result<Option<Frame>> {
+    pub fn read(&mut self, max_size: Option<usize>) -> Result<Option<Frame>> {
         self.codec.read_frame(&mut self.stream, max_size)
     }
 }
@@ -66,18 +65,28 @@ impl<Stream> FrameSocket<Stream>
 where
     Stream: Write,
 {
+    /// Writes and immediately flushes a frame.
+    /// Equivalent to calling [`write`](Self::write) then [`flush`](Self::flush).
+    pub fn send(&mut self, frame: Frame) -> Result<()> {
+        self.write(frame)?;
+        self.flush()
+    }
+
     /// Write a frame to stream.
     ///
-    /// This function guarantees that the frame is queued regardless of any errors.
-    /// There is no need to resend the frame. In order to handle WouldBlock or Incomplete,
-    /// call write_pending() afterwards.
-    pub fn write_frame(&mut self, frame: Frame) -> Result<()> {
+    /// A subsequent call should be made to [`flush`](Self::flush) to flush writes.
+    ///
+    /// This function guarantees that the frame is queued unless [`Error::WriteBufferFull`]
+    /// is returned.
+    /// In order to handle WouldBlock or Incomplete, call [`flush`](Self::flush) afterwards.
+    pub fn write(&mut self, frame: Frame) -> Result<()> {
         self.codec.write_frame(&mut self.stream, frame)
     }
 
-    /// Complete pending write, if any.
-    pub fn write_pending(&mut self) -> Result<()> {
-        self.codec.write_pending(&mut self.stream)
+    /// Flush writes.
+    pub fn flush(&mut self) -> Result<()> {
+        self.codec.write_out_buffer(&mut self.stream)?;
+        Ok(self.stream.flush()?)
     }
 }
 
@@ -88,6 +97,8 @@ pub(super) struct FrameCodec {
     in_buffer: ReadBuffer,
     /// Buffer to send packets to the network.
     out_buffer: Vec<u8>,
+    /// Capacity limit for `out_buffer`.
+    max_out_buffer_len: usize,
     /// Header and remaining size of the incoming packet being processed.
     header: Option<(FrameHeader, u64)>,
 }
@@ -95,7 +106,12 @@ pub(super) struct FrameCodec {
 impl FrameCodec {
     /// Create a new frame codec.
     pub(super) fn new() -> Self {
-        Self { in_buffer: ReadBuffer::new(), out_buffer: Vec::new(), header: None }
+        Self {
+            in_buffer: ReadBuffer::new(),
+            out_buffer: Vec::new(),
+            max_out_buffer_len: usize::MAX,
+            header: None,
+        }
     }
 
     /// Create a new frame codec from partially read data.
@@ -103,8 +119,20 @@ impl FrameCodec {
         Self {
             in_buffer: ReadBuffer::from_partially_read(part),
             out_buffer: Vec::new(),
+            max_out_buffer_len: usize::MAX,
             header: None,
         }
+    }
+
+    /// Sets a maximum size for the out buffer.
+    pub(super) fn with_max_out_buffer_len(mut self, max: usize) -> Self {
+        self.max_out_buffer_len = max;
+        self
+    }
+
+    /// Sets a maximum size for the out buffer.
+    pub(super) fn set_max_out_buffer_len(&mut self, max: usize) {
+        self.max_out_buffer_len = max;
     }
 
     /// Read a frame from the provided stream.
@@ -166,18 +194,28 @@ impl FrameCodec {
     }
 
     /// Write a frame to the provided stream.
+    ///
+    /// Does **not** flush.
     pub(super) fn write_frame<Stream>(&mut self, stream: &mut Stream, frame: Frame) -> Result<()>
     where
         Stream: Write,
     {
+        if frame.len() + self.out_buffer.len() > self.max_out_buffer_len {
+            return Err(Error::WriteBufferFull(Message::Frame(frame)));
+        }
+
         trace!("writing frame {}", frame);
+
         self.out_buffer.reserve(frame.len());
         frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
-        self.write_pending(stream)
+
+        self.write_out_buffer(stream)
     }
 
-    /// Complete pending write, if any.
-    pub(super) fn write_pending<Stream>(&mut self, stream: &mut Stream) -> Result<()>
+    /// Write any buffered frames to the provided stream.
+    ///
+    /// Does **not** flush.
+    pub(super) fn write_out_buffer<Stream>(&mut self, stream: &mut Stream) -> Result<()>
     where
         Stream: Write,
     {
@@ -193,16 +231,8 @@ impl FrameCodec {
             }
             self.out_buffer.drain(0..len);
         }
-        stream.flush()?;
-        Ok(())
-    }
-}
 
-#[cfg(test)]
-impl FrameCodec {
-    /// Returns the size of the output buffer.
-    pub(super) fn output_buffer_len(&self) -> usize {
-        self.out_buffer.len()
+        Ok(())
     }
 }
 
@@ -224,11 +254,11 @@ mod tests {
         let mut sock = FrameSocket::new(raw);
 
         assert_eq!(
-            sock.read_frame(None).unwrap().unwrap().into_data(),
+            sock.read(None).unwrap().unwrap().into_data(),
             vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
-        assert_eq!(sock.read_frame(None).unwrap().unwrap().into_data(), vec![0x03, 0x02, 0x01]);
-        assert!(sock.read_frame(None).unwrap().is_none());
+        assert_eq!(sock.read(None).unwrap().unwrap().into_data(), vec![0x03, 0x02, 0x01]);
+        assert!(sock.read(None).unwrap().is_none());
 
         let (_, rest) = sock.into_inner();
         assert_eq!(rest, vec![0x99]);
@@ -239,7 +269,7 @@ mod tests {
         let raw = Cursor::new(vec![0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let mut sock = FrameSocket::from_partially_read(raw, vec![0x82, 0x07, 0x01]);
         assert_eq!(
-            sock.read_frame(None).unwrap().unwrap().into_data(),
+            sock.read(None).unwrap().unwrap().into_data(),
             vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
     }
@@ -249,10 +279,10 @@ mod tests {
         let mut sock = FrameSocket::new(Vec::new());
 
         let frame = Frame::ping(vec![0x04, 0x05]);
-        sock.write_frame(frame).unwrap();
+        sock.send(frame).unwrap();
 
         let frame = Frame::pong(vec![0x01]);
-        sock.write_frame(frame).unwrap();
+        sock.send(frame).unwrap();
 
         let (buf, _) = sock.into_inner();
         assert_eq!(buf, vec![0x89, 0x02, 0x04, 0x05, 0x8a, 0x01, 0x01]);
@@ -264,7 +294,7 @@ mod tests {
             0x83, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
         ]);
         let mut sock = FrameSocket::new(raw);
-        let _ = sock.read_frame(None); // should not crash
+        let _ = sock.read(None); // should not crash
     }
 
     #[test]
@@ -272,7 +302,7 @@ mod tests {
         let raw = Cursor::new(vec![0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let mut sock = FrameSocket::new(raw);
         assert!(matches!(
-            sock.read_frame(Some(5)),
+            sock.read(Some(5)),
             Err(Error::Capacity(CapacityError::MessageTooLong { size: 7, max_size: 5 }))
         ));
     }

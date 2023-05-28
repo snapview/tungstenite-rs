@@ -53,9 +53,9 @@ pub enum Error {
     /// Protocol violation.
     #[error("WebSocket protocol error: {0}")]
     Protocol(#[from] ProtocolError),
-    /// Message send queue full.
-    #[error("Send queue is full")]
-    SendQueueFull(Message),
+    /// Message write buffer is full.
+    #[error("Write buffer is full")]
+    WriteBufferFull(Message),
     /// UTF coding error.
     #[error("UTF-8 encoding error")]
     Utf8,
