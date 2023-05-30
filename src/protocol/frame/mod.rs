@@ -80,7 +80,7 @@ where
     /// is returned.
     /// In order to handle WouldBlock or Incomplete, call [`flush`](Self::flush) afterwards.
     pub fn write(&mut self, frame: Frame) -> Result<()> {
-        self.codec.write_frame(&mut self.stream, frame)
+        self.codec.buffer_frame(&mut self.stream, frame)
     }
 
     /// Flush writes.
@@ -99,6 +99,12 @@ pub(super) struct FrameCodec {
     out_buffer: Vec<u8>,
     /// Capacity limit for `out_buffer`.
     max_out_buffer_len: usize,
+    /// Buffer target length to reach before writing to the stream
+    /// on calls to `buffer_frame`.
+    ///
+    /// Setting this to non-zero will buffer small writes from hitting
+    /// the stream.
+    out_buffer_write_len: usize,
     /// Header and remaining size of the incoming packet being processed.
     header: Option<(FrameHeader, u64)>,
 }
@@ -110,6 +116,7 @@ impl FrameCodec {
             in_buffer: ReadBuffer::new(),
             out_buffer: Vec::new(),
             max_out_buffer_len: usize::MAX,
+            out_buffer_write_len: 0,
             header: None,
         }
     }
@@ -120,19 +127,20 @@ impl FrameCodec {
             in_buffer: ReadBuffer::from_partially_read(part),
             out_buffer: Vec::new(),
             max_out_buffer_len: usize::MAX,
+            out_buffer_write_len: 0,
             header: None,
         }
     }
 
     /// Sets a maximum size for the out buffer.
-    pub(super) fn with_max_out_buffer_len(mut self, max: usize) -> Self {
-        self.max_out_buffer_len = max;
-        self
-    }
-
-    /// Sets a maximum size for the out buffer.
     pub(super) fn set_max_out_buffer_len(&mut self, max: usize) {
         self.max_out_buffer_len = max;
+    }
+
+    /// Sets [`Self::buffer_frame`] buffer target length to reach before
+    /// writing to the stream.
+    pub(super) fn set_target_buffer_write_len(&mut self, len: usize) {
+        self.out_buffer_write_len = len;
     }
 
     /// Read a frame from the provided stream.
@@ -193,10 +201,12 @@ impl FrameCodec {
         Ok(Some(frame))
     }
 
-    /// Write a frame to the provided stream.
+    /// Writes a frame into the `out_buffer`.
+    /// If the out buffer size is over the `out_buffer_write_len` will also write
+    /// the out buffer into the provided `stream`.
     ///
     /// Does **not** flush.
-    pub(super) fn write_frame<Stream>(&mut self, stream: &mut Stream, frame: Frame) -> Result<()>
+    pub(super) fn buffer_frame<Stream>(&mut self, stream: &mut Stream, frame: Frame) -> Result<()>
     where
         Stream: Write,
     {
@@ -209,10 +219,14 @@ impl FrameCodec {
         self.out_buffer.reserve(frame.len());
         frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
 
-        self.write_out_buffer(stream)
+        if self.out_buffer.len() > self.out_buffer_write_len {
+            self.write_out_buffer(stream)
+        } else {
+            Ok(())
+        }
     }
 
-    /// Write any buffered frames to the provided stream.
+    /// Writes the out_buffer to the provided stream.
     ///
     /// Does **not** flush.
     pub(super) fn write_out_buffer<Stream>(&mut self, stream: &mut Stream) -> Result<()>

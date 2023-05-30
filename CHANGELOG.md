@@ -2,7 +2,7 @@
 - Remove many implicit flushing behaviours. In general reading and writing messages will no 
   longer flush until calling `flush`. An exception is automatic responses (e.g. pongs) 
   which will continue to be written and flushed when reading and writing.
-  This allows writing a batch of messages and flushing once.
+  This allows writing a batch of messages and flushing once, improving performance.
 - Add `WebSocket::read`, `write`, `send`, `flush`. Deprecate `read_message`, `write_message`, `write_pending`.
 - Add `FrameSocket::read`, `write`, `send`, `flush`. Remove `read_frame`, `write_frame`, `write_pending`. 
   Note: Previous use of `write_frame` may be replaced with `send`.
@@ -12,6 +12,8 @@
   * Add `WebSocketConfig::max_write_buffer_size`. Deprecate `max_send_queue`.
   * Add `Error::WriteBufferFull`. Remove `Error::SendQueueFull`.
     Note: `WriteBufferFull` returns the message that could not be written as a `Message::Frame`.
+- Add ability to buffer multiple writes before writing to the underlying stream, controlled by
+  `WebSocketConfig::write_buffer_size` (default 128 KiB). Improves batch message write performance.
 
 # 0.19.0
 
