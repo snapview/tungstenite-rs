@@ -139,7 +139,7 @@ impl FrameCodec {
 
     /// Sets [`Self::buffer_frame`] buffer target length to reach before
     /// writing to the stream.
-    pub(super) fn set_target_buffer_write_len(&mut self, len: usize) {
+    pub(super) fn set_out_buffer_write_len(&mut self, len: usize) {
         self.out_buffer_write_len = len;
     }
 

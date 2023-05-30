@@ -295,7 +295,7 @@ impl WebSocketContext {
         let config = config.unwrap_or_default();
         let mut frame = FrameCodec::new();
         frame.set_max_out_buffer_len(config.max_write_buffer_size);
-        frame.set_target_buffer_write_len(config.write_buffer_size);
+        frame.set_out_buffer_write_len(config.write_buffer_size);
         Self::_new(role, frame, config)
     }
 
@@ -304,7 +304,7 @@ impl WebSocketContext {
         let config = config.unwrap_or_default();
         let mut frame = FrameCodec::from_partially_read(part);
         frame.set_max_out_buffer_len(config.max_write_buffer_size);
-        frame.set_target_buffer_write_len(config.write_buffer_size);
+        frame.set_out_buffer_write_len(config.write_buffer_size);
         Self::_new(role, frame, config)
     }
 
@@ -323,7 +323,7 @@ impl WebSocketContext {
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
         set_func(&mut self.config);
         self.frame.set_max_out_buffer_len(self.config.max_write_buffer_size);
-        self.frame.set_target_buffer_write_len(self.config.write_buffer_size);
+        self.frame.set_out_buffer_write_len(self.config.write_buffer_size);
     }
 
     /// Read the configuration.
@@ -428,6 +428,7 @@ impl WebSocketContext {
         Stream: Read + Write,
     {
         self._write(stream, None)?;
+        self.frame.write_out_buffer(stream)?;
         Ok(stream.flush()?)
     }
 
@@ -440,9 +441,8 @@ impl WebSocketContext {
     where
         Stream: Read + Write,
     {
-        match data {
-            Some(data) => self.write_one_frame(stream, data)?,
-            None => self.frame.write_out_buffer(stream)?,
+        if let Some(data) = data {
+            self.write_one_frame(stream, data)?;
         }
 
         // Upon receipt of a Ping frame, an endpoint MUST send a Pong frame in
@@ -493,6 +493,7 @@ impl WebSocketContext {
             self.state = WebSocketState::ClosedByUs;
             let frame = Frame::close(code);
             self._write(stream, Some(frame))?;
+            self.frame.write_out_buffer(stream)?;
         } else {
             // Already closed, nothing to do.
         }
