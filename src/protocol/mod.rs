@@ -42,7 +42,7 @@ pub struct WebSocketConfig {
     /// to the underlying stream.
     /// The default value is 128 KiB.
     ///
-    /// Note: [`flush`](WebSocket::flush) will always be fully write the buffer regardless.
+    /// Note: [`flush`](WebSocket::flush) will always fully write the buffer regardless.
     pub write_buffer_size: usize,
     /// The max size of the write buffer in bytes. Setting this can provide backpressure
     /// in the case the write buffer is filling up due to write errors.
