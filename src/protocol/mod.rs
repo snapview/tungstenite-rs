@@ -473,6 +473,7 @@ impl WebSocketContext {
             // maximum segment lifetimes (2MSL), while there is no corresponding
             // server impact as a TIME_WAIT connection is immediately reopened upon
             // a new SYN with a higher seq number). (RFC 6455)
+            self.frame.write_out_buffer(stream)?;
             self.state = WebSocketState::Terminated;
             Err(Error::ConnectionClosed)
         } else {
@@ -484,7 +485,7 @@ impl WebSocketContext {
     ///
     /// This function guarantees that the close frame will be queued.
     /// There is no need to call it again. Calling this function is
-    /// the same as calling `write(Message::Close(..))`.
+    /// the same as calling `send(Message::Close(..))`.
     pub fn close<Stream>(&mut self, stream: &mut Stream, code: Option<CloseFrame>) -> Result<()>
     where
         Stream: Read + Write,
@@ -493,11 +494,8 @@ impl WebSocketContext {
             self.state = WebSocketState::ClosedByUs;
             let frame = Frame::close(code);
             self._write(stream, Some(frame))?;
-            self.frame.write_out_buffer(stream)?;
-        } else {
-            // Already closed, nothing to do.
         }
-        Ok(stream.flush()?)
+        self.flush(stream)
     }
 
     /// Try to decode one message frame. May return None.
