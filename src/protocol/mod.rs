@@ -292,23 +292,17 @@ pub struct WebSocketContext {
 impl WebSocketContext {
     /// Create a WebSocket context that manages a post-handshake stream.
     pub fn new(role: Role, config: Option<WebSocketConfig>) -> Self {
-        let config = config.unwrap_or_default();
-        let mut frame = FrameCodec::new();
-        frame.set_max_out_buffer_len(config.max_write_buffer_size);
-        frame.set_out_buffer_write_len(config.write_buffer_size);
-        Self::_new(role, frame, config)
+        Self::_new(role, FrameCodec::new(), config.unwrap_or_default())
     }
 
     /// Create a WebSocket context that manages an post-handshake stream.
     pub fn from_partially_read(part: Vec<u8>, role: Role, config: Option<WebSocketConfig>) -> Self {
-        let config = config.unwrap_or_default();
-        let mut frame = FrameCodec::from_partially_read(part);
-        frame.set_max_out_buffer_len(config.max_write_buffer_size);
-        frame.set_out_buffer_write_len(config.write_buffer_size);
-        Self::_new(role, frame, config)
+        Self::_new(role, FrameCodec::from_partially_read(part), config.unwrap_or_default())
     }
 
-    fn _new(role: Role, frame: FrameCodec, config: WebSocketConfig) -> Self {
+    fn _new(role: Role, mut frame: FrameCodec, config: WebSocketConfig) -> Self {
+        frame.set_max_out_buffer_len(config.max_write_buffer_size);
+        frame.set_out_buffer_write_len(config.write_buffer_size);
         Self {
             role,
             frame,
