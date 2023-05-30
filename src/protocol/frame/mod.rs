@@ -205,7 +205,9 @@ impl FrameCodec {
     /// If the out buffer size is over the `out_buffer_write_len` will also write
     /// the out buffer into the provided `stream`.
     ///
-    /// Does **not** flush.
+    /// To ensure buffered frames are written call [`Self::write_out_buffer`].
+    ///
+    /// May write to the stream, will **not** flush.
     pub(super) fn buffer_frame<Stream>(&mut self, stream: &mut Stream, frame: Frame) -> Result<()>
     where
         Stream: Write,

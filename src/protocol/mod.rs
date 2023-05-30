@@ -442,7 +442,7 @@ impl WebSocketContext {
         Stream: Read + Write,
     {
         if let Some(data) = data {
-            self.write_one_frame(stream, data)?;
+            self.buffer_frame(stream, data)?;
         }
 
         // Upon receipt of a Ping frame, an endpoint MUST send a Pong frame in
@@ -450,7 +450,7 @@ impl WebSocketContext {
         // respond with Pong frame as soon as is practical. (RFC 6455)
         let should_flush = if let Some(msg) = self.additional_send.take() {
             trace!("Sending pong/close");
-            match self.write_one_frame(stream, msg) {
+            match self.buffer_frame(stream, msg) {
                 Err(Error::WriteBufferFull(Message::Frame(msg))) => {
                     // if an system message would exceed the buffer put it back in
                     // `additional_send` for retry. Otherwise returning this error
@@ -665,8 +665,8 @@ impl WebSocketContext {
         }
     }
 
-    /// Write a single frame into the stream via the write-buffer.
-    fn write_one_frame<Stream>(&mut self, stream: &mut Stream, mut frame: Frame) -> Result<()>
+    /// Write a single frame into the write-buffer.
+    fn buffer_frame<Stream>(&mut self, stream: &mut Stream, mut frame: Frame) -> Result<()>
     where
         Stream: Read + Write,
     {
