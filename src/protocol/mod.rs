@@ -38,8 +38,17 @@ pub struct WebSocketConfig {
     /// Does nothing, instead use `max_write_buffer_size`.
     #[deprecated]
     pub max_send_queue: Option<usize>,
-    /// The max size of the write buffer in bytes. Setting this can provide backpressure.
+    /// The target minimum size of the write buffer to reach before writing the data
+    /// to the underlying stream.
+    /// The default value is 128 KiB.
+    ///
+    /// Note: [`flush`](WebSocket::flush) will always fully write the buffer regardless.
+    pub write_buffer_size: usize,
+    /// The max size of the write buffer in bytes. Setting this can provide backpressure
+    /// in the case the write buffer is filling up due to write errors.
     /// The default value is unlimited.
+    ///
+    /// Note: Should always be set higher than [`write_buffer_size`](Self::write_buffer_size).
     pub max_write_buffer_size: usize,
     /// The maximum size of a message. `None` means no size limit. The default value is 64 MiB
     /// which should be reasonably big for all normal use-cases but small enough to prevent
@@ -63,6 +72,7 @@ impl Default for WebSocketConfig {
         #[allow(deprecated)]
         WebSocketConfig {
             max_send_queue: None,
+            write_buffer_size: 128 * 1024,
             max_write_buffer_size: usize::MAX,
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
@@ -282,11 +292,20 @@ pub struct WebSocketContext {
 impl WebSocketContext {
     /// Create a WebSocket context that manages a post-handshake stream.
     pub fn new(role: Role, config: Option<WebSocketConfig>) -> Self {
-        let config = config.unwrap_or_default();
+        Self::_new(role, FrameCodec::new(), config.unwrap_or_default())
+    }
 
-        WebSocketContext {
+    /// Create a WebSocket context that manages an post-handshake stream.
+    pub fn from_partially_read(part: Vec<u8>, role: Role, config: Option<WebSocketConfig>) -> Self {
+        Self::_new(role, FrameCodec::from_partially_read(part), config.unwrap_or_default())
+    }
+
+    fn _new(role: Role, mut frame: FrameCodec, config: WebSocketConfig) -> Self {
+        frame.set_max_out_buffer_len(config.max_write_buffer_size);
+        frame.set_out_buffer_write_len(config.write_buffer_size);
+        Self {
             role,
-            frame: FrameCodec::new().with_max_out_buffer_len(config.max_write_buffer_size),
+            frame,
             state: WebSocketState::Active,
             incomplete: None,
             additional_send: None,
@@ -294,20 +313,11 @@ impl WebSocketContext {
         }
     }
 
-    /// Create a WebSocket context that manages an post-handshake stream.
-    pub fn from_partially_read(part: Vec<u8>, role: Role, config: Option<WebSocketConfig>) -> Self {
-        let config = config.unwrap_or_default();
-        WebSocketContext {
-            frame: FrameCodec::from_partially_read(part)
-                .with_max_out_buffer_len(config.max_write_buffer_size),
-            ..WebSocketContext::new(role, Some(config))
-        }
-    }
-
     /// Change the configuration.
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
         set_func(&mut self.config);
         self.frame.set_max_out_buffer_len(self.config.max_write_buffer_size);
+        self.frame.set_out_buffer_write_len(self.config.write_buffer_size);
     }
 
     /// Read the configuration.
@@ -412,6 +422,7 @@ impl WebSocketContext {
         Stream: Read + Write,
     {
         self._write(stream, None)?;
+        self.frame.write_out_buffer(stream)?;
         Ok(stream.flush()?)
     }
 
@@ -424,9 +435,8 @@ impl WebSocketContext {
     where
         Stream: Read + Write,
     {
-        match data {
-            Some(data) => self.write_one_frame(stream, data)?,
-            None => self.frame.write_out_buffer(stream)?,
+        if let Some(data) = data {
+            self.buffer_frame(stream, data)?;
         }
 
         // Upon receipt of a Ping frame, an endpoint MUST send a Pong frame in
@@ -434,7 +444,7 @@ impl WebSocketContext {
         // respond with Pong frame as soon as is practical. (RFC 6455)
         let should_flush = if let Some(msg) = self.additional_send.take() {
             trace!("Sending pong/close");
-            match self.write_one_frame(stream, msg) {
+            match self.buffer_frame(stream, msg) {
                 Err(Error::WriteBufferFull(Message::Frame(msg))) => {
                     // if an system message would exceed the buffer put it back in
                     // `additional_send` for retry. Otherwise returning this error
@@ -457,6 +467,7 @@ impl WebSocketContext {
             // maximum segment lifetimes (2MSL), while there is no corresponding
             // server impact as a TIME_WAIT connection is immediately reopened upon
             // a new SYN with a higher seq number). (RFC 6455)
+            self.frame.write_out_buffer(stream)?;
             self.state = WebSocketState::Terminated;
             Err(Error::ConnectionClosed)
         } else {
@@ -468,7 +479,7 @@ impl WebSocketContext {
     ///
     /// This function guarantees that the close frame will be queued.
     /// There is no need to call it again. Calling this function is
-    /// the same as calling `write(Message::Close(..))`.
+    /// the same as calling `send(Message::Close(..))`.
     pub fn close<Stream>(&mut self, stream: &mut Stream, code: Option<CloseFrame>) -> Result<()>
     where
         Stream: Read + Write,
@@ -477,10 +488,8 @@ impl WebSocketContext {
             self.state = WebSocketState::ClosedByUs;
             let frame = Frame::close(code);
             self._write(stream, Some(frame))?;
-        } else {
-            // Already closed, nothing to do.
         }
-        Ok(stream.flush()?)
+        self.flush(stream)
     }
 
     /// Try to decode one message frame. May return None.
@@ -650,8 +659,8 @@ impl WebSocketContext {
         }
     }
 
-    /// Write a single frame into the stream via the write-buffer.
-    fn write_one_frame<Stream>(&mut self, stream: &mut Stream, mut frame: Frame) -> Result<()>
+    /// Write a single frame into the write-buffer.
+    fn buffer_frame<Stream>(&mut self, stream: &mut Stream, mut frame: Frame) -> Result<()>
     where
         Stream: Read + Write,
     {
@@ -665,7 +674,7 @@ impl WebSocketContext {
         }
 
         trace!("Sending frame: {:?}", frame);
-        self.frame.write_frame(stream, frame).check_connection_reset(self.state)
+        self.frame.buffer_frame(stream, frame).check_connection_reset(self.state)
     }
 
     /// Replace `additional_send` if it is currently a `Pong` message.
