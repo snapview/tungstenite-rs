@@ -54,6 +54,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
         let uri = request.uri();
         let mode = uri_mode(uri)?;
         let host = request.uri().host().ok_or(Error::Url(UrlError::NoHostName))?;
+        let host = if host.starts_with('[') { &host[1..host.len() - 1] } else { host };
         let port = uri.port_u16().unwrap_or(match mode {
             Mode::Plain => 80,
             Mode::Tls => 443,
