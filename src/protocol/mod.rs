@@ -112,6 +112,9 @@ impl<Stream> WebSocket<Stream> {
     /// Call this function if you're using Tungstenite as a part of a web framework
     /// or together with an existing one. If you need an initial handshake, use
     /// `connect()` or `accept()` functions of the crate to construct a websocket.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn from_raw_socket(stream: Stream, role: Role, config: Option<WebSocketConfig>) -> Self {
         WebSocket { socket: stream, context: WebSocketContext::new(role, config) }
     }
@@ -121,6 +124,9 @@ impl<Stream> WebSocket<Stream> {
     /// Call this function if you're using Tungstenite as a part of a web framework
     /// or together with an existing one. If you need an initial handshake, use
     /// `connect()` or `accept()` functions of the crate to construct a websocket.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn from_partially_read(
         stream: Stream,
         part: Vec<u8>,
@@ -143,6 +149,9 @@ impl<Stream> WebSocket<Stream> {
     }
 
     /// Change the configuration.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
         self.context.set_config(set_func)
     }
@@ -302,11 +311,17 @@ pub struct WebSocketContext {
 
 impl WebSocketContext {
     /// Create a WebSocket context that manages a post-handshake stream.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn new(role: Role, config: Option<WebSocketConfig>) -> Self {
         Self::_new(role, FrameCodec::new(), config.unwrap_or_default())
     }
 
     /// Create a WebSocket context that manages an post-handshake stream.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn from_partially_read(part: Vec<u8>, role: Role, config: Option<WebSocketConfig>) -> Self {
         Self::_new(role, FrameCodec::from_partially_read(part), config.unwrap_or_default())
     }
@@ -326,6 +341,9 @@ impl WebSocketContext {
     }
 
     /// Change the configuration.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
         set_func(&mut self.config);
         self.config.assert_valid();
