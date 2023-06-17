@@ -81,6 +81,17 @@ impl Default for WebSocketConfig {
     }
 }
 
+impl WebSocketConfig {
+    /// Panic if values are invalid.
+    pub(crate) fn assert_valid(&self) {
+        assert!(
+            self.max_write_buffer_size > self.write_buffer_size,
+            "WebSocketConfig::max_write_buffer_size must be greater than write_buffer_size, \
+            see WebSocketConfig docs`"
+        );
+    }
+}
+
 /// WebSocket input-output stream.
 ///
 /// This is THE structure you want to create to be able to speak the WebSocket protocol.
@@ -301,6 +312,7 @@ impl WebSocketContext {
     }
 
     fn _new(role: Role, mut frame: FrameCodec, config: WebSocketConfig) -> Self {
+        config.assert_valid();
         frame.set_max_out_buffer_len(config.max_write_buffer_size);
         frame.set_out_buffer_write_len(config.write_buffer_size);
         Self {
@@ -316,6 +328,7 @@ impl WebSocketContext {
     /// Change the configuration.
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
         set_func(&mut self.config);
+        self.config.assert_valid();
         self.frame.set_max_out_buffer_len(self.config.max_write_buffer_size);
         self.frame.set_out_buffer_write_len(self.config.write_buffer_size);
     }
