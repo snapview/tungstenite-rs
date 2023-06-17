@@ -258,7 +258,7 @@ impl TryParse for Response {
 impl<'h, 'b: 'h> FromHttparse<httparse::Response<'h, 'b>> for Response {
     fn from_httparse(raw: httparse::Response<'h, 'b>) -> Result<Self> {
         if raw.version.expect("Bug: no HTTP version") < /*1.*/1 {
-            return Err(Error::Protocol(ProtocolError::WrongHttpMethod));
+            return Err(Error::Protocol(ProtocolError::WrongHttpVersion));
         }
 
         let headers = HeaderMap::from_httparse(raw.headers)?;
