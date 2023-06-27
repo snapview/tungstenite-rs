@@ -18,7 +18,7 @@ use super::{
     HandshakeRole, MidHandshake, ProcessingResult,
 };
 use crate::{
-    error::{Error, ProtocolError, Result, UrlError},
+    error::{Error, ProtocolError, Result, SubProtocolError, UrlError},
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -54,6 +54,8 @@ impl<S: Read + Write> ClientHandshake<S> {
         // Check the URI scheme: only ws or wss are supported
         let _ = crate::client::uri_mode(request.uri())?;
 
+        let subprotocols = extract_subprotocols_from_request(&request)?;
+
         // Convert and verify the `http::Request` and turn it into the request as per RFC.
         // Also extract the key from it (it must be present in a correct request).
         let (request, key) = generate_request(request)?;
@@ -62,7 +64,11 @@ impl<S: Read + Write> ClientHandshake<S> {
 
         let client = {
             let accept_key = derive_accept_key(key.as_ref());
-            ClientHandshake { verify_data: VerifyData { accept_key }, config, _marker: PhantomData }
+            ClientHandshake {
+                verify_data: VerifyData { accept_key, subprotocols },
+                config,
+                _marker: PhantomData,
+            }
         };
 
         trace!("Client handshake initiated.");
@@ -178,11 +184,22 @@ pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
     Ok((req, key))
 }
 
+fn extract_subprotocols_from_request(request: &Request) -> Result<Option<Vec<String>>> {
+    if let Some(subprotocols) = request.headers().get("Sec-WebSocket-Protocol") {
+        Ok(Some(subprotocols.to_str()?.split(",").map(|s| s.to_string()).collect()))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Information for handshake verification.
 #[derive(Debug)]
 struct VerifyData {
     /// Accepted server key.
     accept_key: String,
+
+    /// Accepted subprotocols
+    subprotocols: Option<Vec<String>>,
 }
 
 impl VerifyData {
@@ -238,7 +255,27 @@ impl VerifyData {
         // not present in the client's handshake (the server has indicated a
         // subprotocol not requested by the client), the client MUST _Fail
         // the WebSocket Connection_. (RFC 6455)
-        // TODO
+        if headers.get("Sec-WebSocket-Protocol").is_none() && self.subprotocols.is_some() {
+            return Err(Error::Protocol(ProtocolError::SecWebSocketSubProtocolError(
+                SubProtocolError::NoSubProtocol,
+            )));
+        }
+
+        if headers.get("Sec-WebSocket-Protocol").is_some() && self.subprotocols.is_none() {
+            return Err(Error::Protocol(ProtocolError::SecWebSocketSubProtocolError(
+                SubProtocolError::ServerSentSubProtocolNoneRequested,
+            )));
+        }
+
+        if let Some(returned_subprotocol) = headers.get("Sec-WebSocket-Protocol") {
+            if let Some(accepted_subprotocols) = &self.subprotocols {
+                if !accepted_subprotocols.contains(&returned_subprotocol.to_str()?.to_string()) {
+                    return Err(Error::Protocol(ProtocolError::SecWebSocketSubProtocolError(
+                        SubProtocolError::InvalidSubProtocol,
+                    )));
+                }
+            }
+        }
 
         Ok(response)
     }
