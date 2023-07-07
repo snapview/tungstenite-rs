@@ -54,7 +54,7 @@ version = "0.6.0"
 
 [dependencies.webpki-roots]
 optional = true
-version = "0.23"
+version = "0.24"
 
 [dev-dependencies]
 criterion = "0.5.0"
