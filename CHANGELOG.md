@@ -1,4 +1,4 @@
-# Unreleased (0.20.0)
+# 0.20.0
 - Remove many implicit flushing behaviours. In general reading and writing messages will no 
   longer flush until calling `flush`. An exception is automatic responses (e.g. pongs) 
   which will continue to be written and flushed when reading and writing.
