@@ -14,6 +14,7 @@
     Note: `WriteBufferFull` returns the message that could not be written as a `Message::Frame`.
 - Add ability to buffer multiple writes before writing to the underlying stream, controlled by
   `WebSocketConfig::write_buffer_size` (default 128 KiB). Improves batch message write performance.
+- Panic on receiving invalid `WebSocketConfig`.
 
 # 0.19.0
 
