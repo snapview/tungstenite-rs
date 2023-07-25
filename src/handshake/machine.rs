@@ -65,18 +65,24 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
                 }
             }
             HandshakeState::Writing(mut buf) => {
-                assert!(buf.has_remaining());
-                if let Some(size) = self.stream.write(Buf::chunk(&buf)).no_block()? {
-                    assert!(size > 0);
-                    buf.advance(size);
-                    Ok(if buf.has_remaining() {
-                        RoundResult::Incomplete(HandshakeMachine {
-                            state: HandshakeState::Writing(buf),
-                            ..self
-                        })
+                if self.stream.flush().is_ok() {
+                    if buf.has_remaining() {
+                        if let Some(size) = self.stream.write(Buf::chunk(&buf)).no_block()? {
+                            assert!(size > 0);
+                            buf.advance(size);
+                            Ok(RoundResult::Incomplete(HandshakeMachine {
+                                state: HandshakeState::Writing(buf),
+                                ..self
+                            }))
+                        } else {
+                            Ok(RoundResult::WouldBlock(HandshakeMachine {
+                                state: HandshakeState::Writing(buf),
+                                ..self
+                           }))
+                        }
                     } else {
-                        RoundResult::StageFinished(StageResult::DoneWriting(self.stream))
-                    })
+                        Ok(RoundResult::StageFinished(StageResult::DoneWriting(self.stream)))
+                    }
                 } else {
                     Ok(RoundResult::WouldBlock(HandshakeMachine {
                         state: HandshakeState::Writing(buf),
