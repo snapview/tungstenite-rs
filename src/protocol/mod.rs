@@ -74,9 +74,10 @@ pub struct WebSocketConfig {
     /// some popular libraries that are sending unmasked frames, ignoring the RFC.
     /// By default this option is set to `false`, i.e. according to RFC 6455.
     pub accept_unmasked_frames: bool,
-    /// When set to `true`, the socket will read non-compliant frames that are well-formed,
-    /// but may be extended, i.e., some of the reserved bits are set. When such a frame
-    /// is encountered, it will be read and returned from the socket instead of dropped.
+    /// When set to `true`, all well-formed frames read by the socket will be returned as-is
+    /// with minimal processing. Close frames and masked frames will still be handled,
+    /// as they affect control flow, but fragmented or incomplete frames will be returned without
+    /// reassembly.
     /// Set to `false` by default
     pub read_as_frames: bool
 }
