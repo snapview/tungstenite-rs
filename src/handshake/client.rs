@@ -5,6 +5,7 @@ use std::{
     marker::PhantomData,
 };
 
+use base64::engine::Engine;
 use http::{
     header::HeaderName, HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode,
 };
@@ -279,7 +280,7 @@ pub fn generate_key() -> String {
     // a base64-encoded (see Section 4 of [RFC4648]) value that,
     // when decoded, is 16 bytes in length (RFC 6455)
     let r: [u8; 16] = rand::random();
-    data_encoding::BASE64.encode(&r)
+    base64::engine::general_purpose::STANDARD.encode(&r)
 }
 
 #[cfg(test)]
