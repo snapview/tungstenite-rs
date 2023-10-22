@@ -77,7 +77,7 @@ There is no support for permessage-deflate at the moment, but the PRs are welcom
 Testing
 -------
 
-Tungstenite is thoroughly tested and passes the [Autobahn Test Suite](https://crossbar.io/autobahn/) for
+Tungstenite is thoroughly tested and passes the [Autobahn Test Suite](https://github.com/crossbario/autobahn-testsuite) for
 WebSockets. It is also covered by internal unit tests as well as possible.
 
 Contributing
