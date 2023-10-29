@@ -58,11 +58,11 @@ pub struct WebSocketConfig {
     /// Note: Should always be at least [`write_buffer_size + 1 message`](Self::write_buffer_size)
     /// and probably a little more depending on error handling strategy.
     pub max_write_buffer_size: usize,
-    /// The maximum size of a message. `None` means no size limit. The default value is 64 MiB
+    /// The maximum size of an incoming message. `None` means no size limit. The default value is 64 MiB
     /// which should be reasonably big for all normal use-cases but small enough to prevent
     /// memory eating by a malicious user.
     pub max_message_size: Option<usize>,
-    /// The maximum size of a single message frame. `None` means no size limit. The limit is for
+    /// The maximum size of a single incoming message frame. `None` means no size limit. The limit is for
     /// frame payload NOT including the frame header. The default value is 16 MiB which should
     /// be reasonably big for all normal use-cases but small enough to prevent memory eating
     /// by a malicious user.
