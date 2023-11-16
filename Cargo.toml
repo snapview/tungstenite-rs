@@ -60,8 +60,8 @@ version = "0.25"
 criterion = "0.5.0"
 env_logger = "0.10.0"
 input_buffer = "0.5.0"
-net2 = "0.2.37"
 rand = "0.8.4"
+socket2 = "0.5.5"
 
 [[bench]]
 name = "buffer"
