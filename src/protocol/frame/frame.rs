@@ -109,10 +109,10 @@ impl FrameHeader {
         match lenfmt {
             LengthFormat::U8(_) => (),
             LengthFormat::U16 => {
-                output.write(&(length as u16).to_be_bytes())?;
+                output.write_all(&(length as u16).to_be_bytes())?;
             }
             LengthFormat::U64 => {
-                output.write(&length.to_be_bytes())?;
+                output.write_all(&length.to_be_bytes())?;
             }
         }
 
@@ -370,6 +370,8 @@ impl Frame {
 
 impl fmt::Display for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use std::fmt::Write;
+
         write!(
             f,
             "
@@ -389,7 +391,10 @@ payload: 0x{}
             // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
             self.len(),
             self.payload.len(),
-            self.payload.iter().map(|byte| format!("{:02x}", byte)).collect::<String>()
+            self.payload.iter().fold(String::new(), |mut output, byte| {
+                _ = write!(output, "{byte:02x}");
+                output
+            })
         )
     }
 }

@@ -167,10 +167,10 @@ impl AttackCheck {
             return Err(Error::AttackAttempt);
         }
 
-        if self.number_of_packets > MIN_PACKET_CHECK_THRESHOLD {
-            if self.number_of_packets * MIN_PACKET_SIZE > self.number_of_bytes {
-                return Err(Error::AttackAttempt);
-            }
+        if self.number_of_packets > MIN_PACKET_CHECK_THRESHOLD
+            && self.number_of_packets * MIN_PACKET_SIZE > self.number_of_bytes
+        {
+            return Err(Error::AttackAttempt);
         }
 
         Ok(())
