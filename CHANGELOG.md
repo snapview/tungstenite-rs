@@ -1,6 +1,7 @@
 # Unreleased (0.20.2)
 - Improve `FrameHeader::format` write correctness.
 - Up minimum _rustls_ to `0.21.6`.
+- Update _webpki-roots_ to `0.26`.
 
 # 0.20.1
 - Fixes [CVE-2023-43669](https://github.com/snapview/tungstenite-rs/pull/379).
