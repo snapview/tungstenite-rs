@@ -1,4 +1,4 @@
-# Unreleased (0.20.2)
+# Unreleased
 - Improve `FrameHeader::format` write correctness.
 - Up minimum _rustls_ to `0.21.6`.
 - Update _webpki-roots_ to `0.26`.
