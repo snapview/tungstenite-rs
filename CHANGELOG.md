@@ -1,4 +1,5 @@
 # Unreleased
+- Fix read-predominant auto pong responses not flushing when hitting WouldBlock errors.
 - Improve `FrameHeader::format` write correctness.
 - Up minimum _rustls_ to `0.21.6`.
 - Update _webpki-roots_ to `0.26`.
