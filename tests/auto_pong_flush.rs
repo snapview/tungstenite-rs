@@ -121,4 +121,10 @@ fn read_usage_auto_pong_flush() {
     assert_eq!(ws.get_ref().write_calls, 1);
     assert_eq!(ws.get_ref().flush_calls, 3);
     assert!(ws.get_ref().flushed_data == written_data, "Unexpected {:?}", ws.get_ref());
+
+    // On following read calls no additional writes or flushes are necessary
+    ws.read().unwrap_err();
+    assert_eq!(ws.get_ref().read_calls, 5);
+    assert_eq!(ws.get_ref().write_calls, 1);
+    assert_eq!(ws.get_ref().flush_calls, 3);
 }
