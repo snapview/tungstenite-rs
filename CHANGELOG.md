@@ -1,8 +1,9 @@
-# Unreleased
+# 0.21.0
 - Fix read-predominant auto pong responses not flushing when hitting WouldBlock errors.
 - Improve `FrameHeader::format` write correctness.
 - Up minimum _rustls_ to `0.21.6`.
 - Update _webpki-roots_ to `0.26`.
+- Update `http` to `1.0.0`.
 
 # 0.20.1
 - Fixes [CVE-2023-43669](https://github.com/snapview/tungstenite-rs/pull/379).
