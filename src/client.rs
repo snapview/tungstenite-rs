@@ -279,7 +279,7 @@ impl<'h, 'b> IntoClientRequest for httparse::Request<'h, 'b> {
 /// let token = "my_jwt_token";
 /// let builder = ClientRequestBuilder::new(uri)
 ///     .with_header("Authorization", format!("Bearer {token}"))
-///     .with_sub_protocol("my_sub_protocol"");
+///     .with_sub_protocol("my_sub_protocol");
 /// let socket = connect(builder).unwrap();
 /// ```
 #[derive(Debug, Clone)]
