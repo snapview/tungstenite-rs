@@ -274,6 +274,9 @@ impl<'h, 'b> IntoClientRequest for httparse::Request<'h, 'b> {
 ///
 /// ```rust no_run
 /// # use crate::*;
+/// use http::Uri;
+/// use tungstenite::ClientRequestBuilder;
+/// use tungstenite::connect;
 ///
 /// let uri: Uri = "ws://localhost:3012/socket".parse().unwrap();
 /// let token = "my_jwt_token";
