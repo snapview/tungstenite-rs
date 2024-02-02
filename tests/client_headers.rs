@@ -50,7 +50,7 @@ fn test_headers() {
         println!("The request's path is: {}", req.uri().path());
         println!("The request's headers are:");
         let authorization_header: String = "authorization".to_ascii_lowercase();
-        let web_scoket_proto: String = "sec-websocket-protocol".to_ascii_lowercase();
+        let web_socket_proto: String = "sec-websocket-protocol".to_ascii_lowercase();
 
         for (ref header, value) in req.headers() {
             println!("* {}: {}", header, value.to_str().unwrap());
@@ -58,9 +58,9 @@ fn test_headers() {
                 println!("Matching authorization header");
                 assert_eq!(header.to_string(), authorization_header);
                 assert_eq!(value.to_str().unwrap(), full_token);
-            } else if header.to_string() == web_scoket_proto {
+            } else if header.to_string() == web_socket_proto {
                 println!("Matching sec-websocket-protocol header");
-                assert_eq!(header.to_string(), web_scoket_proto);
+                assert_eq!(header.to_string(), web_socket_proto);
                 assert_eq!(value.to_str().unwrap(), sub_protocol);
             }
         }
