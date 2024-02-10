@@ -1,3 +1,5 @@
+#![cfg(feature = "handshake")]
+
 use http::Uri;
 use std::{
     net::TcpListener,
