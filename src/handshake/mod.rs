@@ -11,6 +11,7 @@ use std::{
     io::{Read, Write},
 };
 
+use base64::engine::Engine;
 use sha1::{Digest, Sha1};
 
 use self::machine::{HandshakeMachine, RoundResult, StageResult, TryParse};
@@ -120,7 +121,7 @@ pub fn derive_accept_key(request_key: &[u8]) -> String {
     let mut sha1 = Sha1::default();
     sha1.update(request_key);
     sha1.update(WS_GUID);
-    data_encoding::BASE64.encode(&sha1.finalize())
+    base64::engine::general_purpose::STANDARD.encode(&sha1.finalize())
 }
 
 #[cfg(test)]
