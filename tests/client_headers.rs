@@ -47,7 +47,7 @@ fn test_headers() {
         }
     });
 
-    let callback = |req: &Request, response: Response| {
+    let callback = |req: &Request, mut response: Response| {
         println!("Received a new ws handshake");
         println!("The request's path is: {}", req.uri().path());
         println!("The request's headers are:");
@@ -64,6 +64,10 @@ fn test_headers() {
                 println!("Matching sec-websocket-protocol header");
                 assert_eq!(header.to_string(), web_socket_proto);
                 assert_eq!(value.to_str().unwrap(), sub_protocol);
+                // the server needs to respond with the same sub-protocol
+                response
+                    .headers_mut()
+                    .append("sec-websocket-protocol", sub_protocol.parse().unwrap());
             }
         }
         Ok(response)
