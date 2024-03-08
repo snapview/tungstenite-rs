@@ -43,6 +43,30 @@ jobs:
       - name: Test
         run: cargo test --release
 
+  test-msvr:
+    name: Test MSRV
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        rust:
+          - 1.60.0
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - name: Install dependencies
+        run: sudo apt-get install libssl-dev
+
+      - name: Check
+        run: cargo check
+
   autobahn:
     name: Autobahn tests
     runs-on: ubuntu-latest

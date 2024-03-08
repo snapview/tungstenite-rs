@@ -59,6 +59,9 @@ pub enum Error {
     /// UTF coding error.
     #[error("UTF-8 encoding error")]
     Utf8,
+    /// Attack attempt detected.
+    #[error("Attack attempt detected")]
+    AttackAttempt,
     /// Invalid URL.
     #[error("URL error: {0}")]
     Url(#[from] UrlError),

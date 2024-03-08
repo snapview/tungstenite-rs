@@ -70,7 +70,8 @@ mod encryption {
 
     #[cfg(feature = "__rustls-tls")]
     pub mod rustls {
-        use rustls::{ClientConfig, ClientConnection, RootCertStore, ServerName, StreamOwned};
+        use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+        use rustls_pki_types::ServerName;
 
         use std::{
             convert::TryFrom,
@@ -105,36 +106,26 @@ mod encryption {
                             #[cfg(feature = "rustls-tls-native-roots")]
                             {
                                 let native_certs = rustls_native_certs::load_native_certs()?;
-                                let der_certs: Vec<Vec<u8>> =
-                                    native_certs.into_iter().map(|cert| cert.0).collect();
-                                let total_number = der_certs.len();
+                                let total_number = native_certs.len();
                                 let (number_added, number_ignored) =
-                                    root_store.add_parsable_certificates(&der_certs);
+                                    root_store.add_parsable_certificates(native_certs);
                                 log::debug!("Added {number_added}/{total_number} native root certificates (ignored {number_ignored})");
                             }
                             #[cfg(feature = "rustls-tls-webpki-roots")]
                             {
-                                root_store.add_server_trust_anchors(
-                                    webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-                                        rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
-                                            ta.subject,
-                                            ta.spki,
-                                            ta.name_constraints,
-                                        )
-                                    })
-                                );
+                                root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
                             }
 
                             Arc::new(
                                 ClientConfig::builder()
-                                    .with_safe_defaults()
                                     .with_root_certificates(root_store)
                                     .with_no_client_auth(),
                             )
                         }
                     };
-                    let domain =
-                        ServerName::try_from(domain).map_err(|_| TlsError::InvalidDnsName)?;
+                    let domain = ServerName::try_from(domain)
+                        .map_err(|_| TlsError::InvalidDnsName)?
+                        .to_owned();
                     let client = ClientConnection::new(config, domain).map_err(TlsError::Rustls)?;
                     let stream = StreamOwned::new(client, socket);
 
