@@ -1,7 +1,5 @@
-//! Verifies that we can read data messages even if we have initiated a close handshake,
-//! but before we got confirmation.
-
 #![cfg(feature = "handshake")]
+#![cfg(feature = "url")]
 
 use std::{
     net::TcpListener,
@@ -9,12 +7,17 @@ use std::{
     thread::{sleep, spawn},
     time::Duration,
 };
+use tungstenite::{
+    accept_hdr, connect,
+    handshake::server::{Request, Response},
+    Error, Message,
+};
 
-use tungstenite::{accept, connect, Error, Message};
+/// Test for write buffering and flushing behaviour.
 #[test]
-#[cfg(feature = "handshake")]
-fn test_receive_after_init_close() {
+fn test_with_url() {
     env_logger::init();
+    let url = url::Url::parse("ws://127.0.0.1:3013/socket").unwrap();
 
     spawn(|| {
         sleep(Duration::from_secs(5));
@@ -25,8 +28,7 @@ fn test_receive_after_init_close() {
     let server = TcpListener::bind("127.0.0.1:3013").unwrap();
 
     let client_thread = spawn(move || {
-        let (mut client, _) = connect("ws://localhost:3013/socket").unwrap();
-
+        let (mut client, _) = connect(url).unwrap();
         client.send(Message::Text("Hello WebSocket".into())).unwrap();
 
         let message = client.read().unwrap(); // receive close from server
@@ -39,8 +41,14 @@ fn test_receive_after_init_close() {
         }
     });
 
+    let callback = |req: &Request, response: Response| {
+        println!("Received a new ws handshake");
+        println!("The request's path is: {}", req.uri().path());
+        Ok(response)
+    };
+
     let client_handler = server.incoming().next().unwrap();
-    let mut client_handler = accept(client_handler.unwrap()).unwrap();
+    let mut client_handler = accept_hdr(client_handler.unwrap(), callback).unwrap();
 
     client_handler.close(None).unwrap(); // send close to client
 

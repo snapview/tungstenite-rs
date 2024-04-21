@@ -19,7 +19,8 @@ all-features = true
 
 [features]
 default = ["handshake"]
-handshake = ["data-encoding", "http", "httparse", "sha1", "url"]
+handshake = ["data-encoding", "http", "httparse", "sha1"]
+url = ["dep:url"]
 native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
 rustls-tls-native-roots = ["__rustls-tls", "rustls-native-certs"]

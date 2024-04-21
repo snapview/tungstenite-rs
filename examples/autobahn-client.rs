@@ -1,29 +1,25 @@
 use log::*;
-use url::Url;
 
 use tungstenite::{connect, Error, Message, Result};
 
 const AGENT: &str = "Tungstenite";
 
 fn get_case_count() -> Result<u32> {
-    let (mut socket, _) = connect(Url::parse("ws://localhost:9001/getCaseCount").unwrap())?;
+    let (mut socket, _) = connect("ws://localhost:9001/getCaseCount")?;
     let msg = socket.read()?;
     socket.close(None)?;
     Ok(msg.into_text()?.parse::<u32>().unwrap())
 }
 
 fn update_reports() -> Result<()> {
-    let (mut socket, _) = connect(
-        Url::parse(&format!("ws://localhost:9001/updateReports?agent={}", AGENT)).unwrap(),
-    )?;
+    let (mut socket, _) = connect(&format!("ws://localhost:9001/updateReports?agent={}", AGENT))?;
     socket.close(None)?;
     Ok(())
 }
 
 fn run_test(case: u32) -> Result<()> {
     info!("Running test case {}", case);
-    let case_url =
-        Url::parse(&format!("ws://localhost:9001/runCase?case={}&agent={}", case, AGENT)).unwrap();
+    let case_url = &format!("ws://localhost:9001/runCase?case={}&agent={}", case, AGENT);
     let (mut socket, _) = connect(case_url)?;
     loop {
         match socket.read()? {
