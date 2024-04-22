@@ -86,10 +86,10 @@ pub fn create_response(request: &Request) -> Result<Response> {
 }
 
 /// Create a response for the request with a custom body.
-pub fn create_response_with_body<T>(
-    request: &HttpRequest<T>,
-    generate_body: impl FnOnce() -> T,
-) -> Result<HttpResponse<T>> {
+pub fn create_response_with_body<T1, T2>(
+    request: &HttpRequest<T1>,
+    generate_body: impl FnOnce() -> T2,
+) -> Result<HttpResponse<T2>> {
     Ok(create_parts(request)?.body(generate_body())?)
 }
 
