@@ -1,9 +1,6 @@
 //! Various codes defined in RFC 6455.
 
-use std::{
-    convert::{From, Into},
-    fmt,
-};
+use std::fmt;
 
 /// WebSocket message opcode as in RFC 6455.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

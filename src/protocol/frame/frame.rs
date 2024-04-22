@@ -2,12 +2,11 @@ use byteorder::{NetworkEndian, ReadBytesExt};
 use log::*;
 use std::{
     borrow::Cow,
-    default::Default,
     fmt,
     io::{Cursor, ErrorKind, Read, Write},
     result::Result as StdResult,
     str::Utf8Error,
-    string::{FromUtf8Error, String},
+    string::FromUtf8Error,
 };
 
 use super::{
