@@ -1,4 +1,15 @@
-# Unreleased (0.20.0)
+# 0.21.0
+- Fix read-predominant auto pong responses not flushing when hitting WouldBlock errors.
+- Improve `FrameHeader::format` write correctness.
+- Update `rustls` to `0.22`.
+- Update `webpki-roots` to `0.26`.
+- Update `rustls-native-certs` to `0.7`.
+- Update `http` to `1.0.0`.
+
+# 0.20.1
+- Fixes [CVE-2023-43669](https://github.com/snapview/tungstenite-rs/pull/379).
+
+# 0.20.0
 - Remove many implicit flushing behaviours. In general reading and writing messages will no 
   longer flush until calling `flush`. An exception is automatic responses (e.g. pongs) 
   which will continue to be written and flushed when reading and writing.
@@ -14,6 +25,7 @@
     Note: `WriteBufferFull` returns the message that could not be written as a `Message::Frame`.
 - Add ability to buffer multiple writes before writing to the underlying stream, controlled by
   `WebSocketConfig::write_buffer_size` (default 128 KiB). Improves batch message write performance.
+- Panic on receiving invalid `WebSocketConfig`.
 
 # 0.19.0
 

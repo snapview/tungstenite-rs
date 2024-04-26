@@ -1,4 +1,4 @@
-use byteorder::{ByteOrder, NetworkEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{NetworkEndian, ReadBytesExt};
 use log::*;
 use std::{
     borrow::Cow,
@@ -108,8 +108,12 @@ impl FrameHeader {
         output.write_all(&[one, two])?;
         match lenfmt {
             LengthFormat::U8(_) => (),
-            LengthFormat::U16 => output.write_u16::<NetworkEndian>(length as u16)?,
-            LengthFormat::U64 => output.write_u64::<NetworkEndian>(length)?,
+            LengthFormat::U16 => {
+                output.write_all(&(length as u16).to_be_bytes())?;
+            }
+            LengthFormat::U64 => {
+                output.write_all(&length.to_be_bytes())?;
+            }
         }
 
         if let Some(ref mask) = self.mask {
@@ -295,7 +299,7 @@ impl Frame {
             1 => Err(Error::Protocol(ProtocolError::InvalidCloseSequence)),
             _ => {
                 let mut data = self.payload;
-                let code = NetworkEndian::read_u16(&data[0..2]).into();
+                let code = u16::from_be_bytes([data[0], data[1]]).into();
                 data.drain(0..2);
                 let text = String::from_utf8(data)?;
                 Ok(Some(CloseFrame { code, reason: text.into() }))
@@ -340,7 +344,7 @@ impl Frame {
     pub fn close(msg: Option<CloseFrame>) -> Frame {
         let payload = if let Some(CloseFrame { code, reason }) = msg {
             let mut p = Vec::with_capacity(reason.as_bytes().len() + 2);
-            p.write_u16::<NetworkEndian>(code.into()).unwrap(); // can't fail
+            p.extend(u16::from(code).to_be_bytes());
             p.extend_from_slice(reason.as_bytes());
             p
         } else {
@@ -366,6 +370,8 @@ impl Frame {
 
 impl fmt::Display for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use std::fmt::Write;
+
         write!(
             f,
             "
@@ -385,7 +391,10 @@ payload: 0x{}
             // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
             self.len(),
             self.payload.len(),
-            self.payload.iter().map(|byte| format!("{:02x}", byte)).collect::<String>()
+            self.payload.iter().fold(String::new(), |mut output, byte| {
+                _ = write!(output, "{byte:02x}");
+                output
+            })
         )
     }
 }

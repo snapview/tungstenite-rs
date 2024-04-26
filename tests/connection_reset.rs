@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use net2::TcpStreamExt;
+use socket2::Socket;
 use tungstenite::{accept, connect, stream::MaybeTlsStream, Error, Message, WebSocket};
 use url::Url;
 
@@ -19,7 +19,7 @@ type Sock = WebSocket<MaybeTlsStream<TcpStream>>;
 fn do_test<CT, ST>(port: u16, client_task: CT, server_task: ST)
 where
     CT: FnOnce(Sock) + Send + 'static,
-    ST: FnOnce(WebSocket<TcpStream>),
+    ST: FnOnce(WebSocket<Socket>),
 {
     env_logger::try_init().ok();
 
@@ -40,7 +40,7 @@ where
     });
 
     let client_handler = server.incoming().next().unwrap();
-    let client_handler = accept(client_handler.unwrap()).unwrap();
+    let client_handler = accept(Socket::from(client_handler.unwrap())).unwrap();
 
     server_task(client_handler);
 

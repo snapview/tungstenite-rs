@@ -13,13 +13,10 @@ use self::{
     },
     message::{IncompleteMessage, IncompleteMessageType},
 };
-use crate::{
-    error::{Error, ProtocolError, Result},
-    util::NonBlockingResult,
-};
+use crate::error::{Error, ProtocolError, Result};
 use log::*;
 use std::{
-    io::{ErrorKind as IoErrorKind, Read, Write},
+    io::{self, Read, Write},
     mem::replace,
 };
 
@@ -42,19 +39,27 @@ pub struct WebSocketConfig {
     /// to the underlying stream.
     /// The default value is 128 KiB.
     ///
+    /// If set to `0` each message will be eagerly written to the underlying stream.
+    /// It is often more optimal to allow them to buffer a little, hence the default value.
+    ///
     /// Note: [`flush`](WebSocket::flush) will always fully write the buffer regardless.
     pub write_buffer_size: usize,
     /// The max size of the write buffer in bytes. Setting this can provide backpressure
     /// in the case the write buffer is filling up due to write errors.
     /// The default value is unlimited.
     ///
-    /// Note: Should always be set higher than [`write_buffer_size`](Self::write_buffer_size).
+    /// Note: The write buffer only builds up past [`write_buffer_size`](Self::write_buffer_size)
+    /// when writes to the underlying stream are failing. So the **write buffer can not
+    /// fill up if you are not observing write errors even if not flushing**.
+    ///
+    /// Note: Should always be at least [`write_buffer_size + 1 message`](Self::write_buffer_size)
+    /// and probably a little more depending on error handling strategy.
     pub max_write_buffer_size: usize,
-    /// The maximum size of a message. `None` means no size limit. The default value is 64 MiB
+    /// The maximum size of an incoming message. `None` means no size limit. The default value is 64 MiB
     /// which should be reasonably big for all normal use-cases but small enough to prevent
     /// memory eating by a malicious user.
     pub max_message_size: Option<usize>,
-    /// The maximum size of a single message frame. `None` means no size limit. The limit is for
+    /// The maximum size of a single incoming message frame. `None` means no size limit. The limit is for
     /// frame payload NOT including the frame header. The default value is 16 MiB which should
     /// be reasonably big for all normal use-cases but small enough to prevent memory eating
     /// by a malicious user.
@@ -81,6 +86,17 @@ impl Default for WebSocketConfig {
     }
 }
 
+impl WebSocketConfig {
+    /// Panic if values are invalid.
+    pub(crate) fn assert_valid(&self) {
+        assert!(
+            self.max_write_buffer_size > self.write_buffer_size,
+            "WebSocketConfig::max_write_buffer_size must be greater than write_buffer_size, \
+            see WebSocketConfig docs`"
+        );
+    }
+}
+
 /// WebSocket input-output stream.
 ///
 /// This is THE structure you want to create to be able to speak the WebSocket protocol.
@@ -101,6 +117,9 @@ impl<Stream> WebSocket<Stream> {
     /// Call this function if you're using Tungstenite as a part of a web framework
     /// or together with an existing one. If you need an initial handshake, use
     /// `connect()` or `accept()` functions of the crate to construct a websocket.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn from_raw_socket(stream: Stream, role: Role, config: Option<WebSocketConfig>) -> Self {
         WebSocket { socket: stream, context: WebSocketContext::new(role, config) }
     }
@@ -110,6 +129,9 @@ impl<Stream> WebSocket<Stream> {
     /// Call this function if you're using Tungstenite as a part of a web framework
     /// or together with an existing one. If you need an initial handshake, use
     /// `connect()` or `accept()` functions of the crate to construct a websocket.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn from_partially_read(
         stream: Stream,
         part: Vec<u8>,
@@ -132,6 +154,9 @@ impl<Stream> WebSocket<Stream> {
     }
 
     /// Change the configuration.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
         self.context.set_config(set_func)
     }
@@ -285,22 +310,32 @@ pub struct WebSocketContext {
     incomplete: Option<IncompleteMessage>,
     /// Send in addition to regular messages E.g. "pong" or "close".
     additional_send: Option<Frame>,
+    /// True indicates there is an additional message (like a pong)
+    /// that failed to flush previously and we should try again.
+    unflushed_additional: bool,
     /// The configuration for the websocket session.
     config: WebSocketConfig,
 }
 
 impl WebSocketContext {
     /// Create a WebSocket context that manages a post-handshake stream.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn new(role: Role, config: Option<WebSocketConfig>) -> Self {
         Self::_new(role, FrameCodec::new(), config.unwrap_or_default())
     }
 
     /// Create a WebSocket context that manages an post-handshake stream.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn from_partially_read(part: Vec<u8>, role: Role, config: Option<WebSocketConfig>) -> Self {
         Self::_new(role, FrameCodec::from_partially_read(part), config.unwrap_or_default())
     }
 
     fn _new(role: Role, mut frame: FrameCodec, config: WebSocketConfig) -> Self {
+        config.assert_valid();
         frame.set_max_out_buffer_len(config.max_write_buffer_size);
         frame.set_out_buffer_write_len(config.write_buffer_size);
         Self {
@@ -309,13 +344,18 @@ impl WebSocketContext {
             state: WebSocketState::Active,
             incomplete: None,
             additional_send: None,
+            unflushed_additional: false,
             config,
         }
     }
 
     /// Change the configuration.
+    ///
+    /// # Panics
+    /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
         set_func(&mut self.config);
+        self.config.assert_valid();
         self.frame.set_max_out_buffer_len(self.config.max_write_buffer_size);
         self.frame.set_out_buffer_write_len(self.config.write_buffer_size);
     }
@@ -352,10 +392,16 @@ impl WebSocketContext {
         self.state.check_not_terminated()?;
 
         loop {
-            if self.additional_send.is_some() {
+            if self.additional_send.is_some() || self.unflushed_additional {
                 // Since we may get ping or close, we need to reply to the messages even during read.
-                // Thus we flush but ignore its blocking.
-                self.flush(stream).no_block()?;
+                match self.flush(stream) {
+                    Ok(_) => {}
+                    Err(Error::Io(err)) if err.kind() == io::ErrorKind::WouldBlock => {
+                        // If blocked continue reading, but try again later
+                        self.unflushed_additional = true;
+                    }
+                    Err(err) => return Err(err),
+                }
             } else if self.role == Role::Server && !self.state.can_read() {
                 self.state = WebSocketState::Terminated;
                 return Err(Error::ConnectionClosed);
@@ -423,7 +469,9 @@ impl WebSocketContext {
     {
         self._write(stream, None)?;
         self.frame.write_out_buffer(stream)?;
-        Ok(stream.flush()?)
+        stream.flush()?;
+        self.unflushed_additional = false;
+        Ok(())
     }
 
     /// Writes any data in the out_buffer, `additional_send` and given `data`.
@@ -456,7 +504,7 @@ impl WebSocketContext {
                 Ok(_) => true,
             }
         } else {
-            false
+            self.unflushed_additional
         };
 
         // If we're closing and there is nothing to send anymore, we should close the connection.
@@ -735,7 +783,7 @@ impl<T> CheckConnectionReset for Result<T> {
     fn check_connection_reset(self, state: WebSocketState) -> Self {
         match self {
             Err(Error::Io(io_error)) => Err({
-                if !state.can_read() && io_error.kind() == IoErrorKind::ConnectionReset {
+                if !state.can_read() && io_error.kind() == io::ErrorKind::ConnectionReset {
                     Error::ConnectionClosed
                 } else {
                     Error::Io(io_error)

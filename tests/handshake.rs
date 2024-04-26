@@ -1,5 +1,7 @@
+#![cfg(feature = "handshake")]
 use std::net::TcpListener;
-use std::thread::spawn;
+use std::thread::{sleep, spawn};
+use std::time::Duration;
 use tungstenite::error::{Error, ProtocolError, SubProtocolError};
 use tungstenite::handshake::client::generate_key;
 use tungstenite::handshake::server::{Request, Response};
@@ -35,7 +37,6 @@ fn server_thread(port: u16, server_subprotocols: Option<Vec<String>>) {
     spawn(move || {
         let server = TcpListener::bind(("127.0.0.1", port))
             .expect("Can't listen, is this port already in use?");
-        let client_handler = server.incoming().next().unwrap();
 
         let callback = |_request: &Request, mut response: Response| {
             if let Some(subprotocols) = server_subprotocols {
@@ -45,13 +46,16 @@ fn server_thread(port: u16, server_subprotocols: Option<Vec<String>>) {
             Ok(response)
         };
 
-        let _client_handler = accept_hdr(client_handler.unwrap(), callback).unwrap();
+        let client_handler = server.incoming().next().unwrap();
+        let mut client_handler = accept_hdr(client_handler.unwrap(), callback).unwrap();
+        client_handler.close(None).unwrap();
     });
 }
 
 #[test]
 fn test_server_send_no_subprotocol() {
     server_thread(3012, None);
+    sleep(Duration::from_secs(1));
 
     let err =
         connect(create_http_request("ws://127.0.0.1:3012", Some(vec!["my-sub-protocol".into()])))
@@ -68,6 +72,7 @@ fn test_server_send_no_subprotocol() {
 #[test]
 fn test_server_sent_subprotocol_none_requested() {
     server_thread(3013, Some(vec!["my-sub-protocol".to_string()]));
+    sleep(Duration::from_secs(1));
 
     let err = connect(create_http_request("ws://127.0.0.1:3013", None)).unwrap_err();
 
@@ -82,6 +87,7 @@ fn test_server_sent_subprotocol_none_requested() {
 #[test]
 fn test_invalid_subprotocol() {
     server_thread(3014, Some(vec!["invalid-sub-protocol".to_string()]));
+    sleep(Duration::from_secs(1));
 
     let err = connect(create_http_request(
         "ws://127.0.0.1:3014",
@@ -100,7 +106,7 @@ fn test_invalid_subprotocol() {
 #[test]
 fn test_request_multiple_subprotocols() {
     server_thread(3015, Some(vec!["my-sub-protocol".to_string()]));
-
+    sleep(Duration::from_secs(1));
     let (_, response) = connect(create_http_request(
         "ws://127.0.0.1:3015",
         Some(vec![
@@ -120,6 +126,7 @@ fn test_request_multiple_subprotocols() {
 #[test]
 fn test_request_single_subprotocol() {
     server_thread(3016, Some(vec!["my-sub-protocol".to_string()]));
+    sleep(Duration::from_secs(1));
 
     let (_, response) = connect(create_http_request(
         "ws://127.0.0.1:3016",
