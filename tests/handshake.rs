@@ -1,11 +1,17 @@
 #![cfg(feature = "handshake")]
-use std::net::TcpListener;
-use std::thread::{sleep, spawn};
-use std::time::Duration;
-use tungstenite::error::{Error, ProtocolError, SubProtocolError};
-use tungstenite::handshake::client::generate_key;
-use tungstenite::handshake::server::{Request, Response};
-use tungstenite::{accept_hdr, connect};
+use std::{
+    net::TcpListener,
+    thread::{sleep, spawn},
+    time::Duration,
+};
+use tungstenite::{
+    accept_hdr, connect,
+    error::{Error, ProtocolError, SubProtocolError},
+    handshake::{
+        client::generate_key,
+        server::{Request, Response},
+    },
+};
 
 fn create_http_request(uri: &str, subprotocols: Option<Vec<String>>) -> http::Request<()> {
     let uri = uri.parse::<http::Uri>().unwrap();
