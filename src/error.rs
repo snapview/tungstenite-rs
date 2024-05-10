@@ -149,6 +149,23 @@ pub enum CapacityError {
     },
 }
 
+/// Indicates the specific type/cause of a subprotocol header error.
+#[derive(Error, Clone, PartialEq, Eq, Debug, Copy)]
+pub enum SubProtocolError {
+    /// The server sent a subprotocol to a client handshake request but none was requested
+    #[error("Server sent a subprotocol but none was requested")]
+    ServerSentSubProtocolNoneRequested,
+
+    /// The server sent an invalid subprotocol to a client handhshake request
+    #[error("Server sent an invalid subprotocol")]
+    InvalidSubProtocol,
+
+    /// The server sent no subprotocol to a client handshake request that requested one or more
+    /// subprotocols
+    #[error("Server sent no subprotocol")]
+    NoSubProtocol,
+}
+
 /// Indicates the specific type/cause of a protocol error.
 #[allow(missing_copy_implementations)]
 #[derive(Error, Debug, PartialEq, Eq, Clone)]
@@ -174,6 +191,9 @@ pub enum ProtocolError {
     /// The `Sec-WebSocket-Accept` header is either not present or does not specify the correct key value.
     #[error("Key mismatch in \"Sec-WebSocket-Accept\" header")]
     SecWebSocketAcceptKeyMismatch,
+    /// The `Sec-WebSocket-Protocol` header was invalid
+    #[error("SubProtocol error: {0}")]
+    SecWebSocketSubProtocolError(SubProtocolError),
     /// Garbage data encountered after client request.
     #[error("Junk after client request")]
     JunkAfterRequest,
