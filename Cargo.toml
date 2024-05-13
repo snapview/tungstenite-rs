@@ -7,9 +7,9 @@ authors = ["Alexey Galakhov", "Daniel Abramov"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 homepage = "https://github.com/snapview/tungstenite-rs"
-documentation = "https://docs.rs/tungstenite/0.21.0"
+documentation = "https://docs.rs/tungstenite/0.22.0"
 repository = "https://github.com/snapview/tungstenite-rs"
-version = "0.21.0"
+version = "0.22.0"
 edition = "2018"
 rust-version = "1.60"
 include = ["benches/**/*", "src/**/*", "examples/**/*", "LICENSE-*", "README.md", "CHANGELOG.md"]
@@ -19,7 +19,8 @@ all-features = true
 
 [features]
 default = ["handshake"]
-handshake = ["data-encoding", "http", "httparse", "sha1", "url"]
+handshake = ["data-encoding", "http", "httparse", "sha1"]
+url = ["dep:url"]
 native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
 rustls-tls-native-roots = ["__rustls-tls", "rustls-native-certs"]

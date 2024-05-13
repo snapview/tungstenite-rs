@@ -11,8 +11,6 @@ use std::{
 };
 
 use tungstenite::{accept, connect, Error, Message};
-use url::Url;
-
 #[test]
 #[cfg(feature = "handshake")]
 fn test_receive_after_init_close() {
@@ -27,7 +25,7 @@ fn test_receive_after_init_close() {
     let server = TcpListener::bind("127.0.0.1:3013").unwrap();
 
     let client_thread = spawn(move || {
-        let (mut client, _) = connect(Url::parse("ws://localhost:3013/socket").unwrap()).unwrap();
+        let (mut client, _) = connect("ws://localhost:3013/socket").unwrap();
 
         client.send(Message::Text("Hello WebSocket".into())).unwrap();
 

@@ -11,7 +11,6 @@ use std::{
 };
 
 use tungstenite::{accept, connect, error::ProtocolError, Error, Message};
-use url::Url;
 
 #[test]
 #[cfg(feature = "handshake")]
@@ -27,7 +26,7 @@ fn test_no_send_after_close() {
     let server = TcpListener::bind("127.0.0.1:3013").unwrap();
 
     let client_thread = spawn(move || {
-        let (mut client, _) = connect(Url::parse("ws://localhost:3013/socket").unwrap()).unwrap();
+        let (mut client, _) = connect("ws://localhost:3013/socket").unwrap();
 
         let message = client.read().unwrap(); // receive close from server
         assert!(message.is_close());

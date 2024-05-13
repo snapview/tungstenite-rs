@@ -10,8 +10,6 @@ use std::{
 use http::{request::Parts, HeaderName, Uri};
 use log::*;
 
-use url::Url;
-
 use crate::{
     handshake::client::{generate_key, Request, Response},
     protocol::WebSocketConfig,
@@ -182,7 +180,7 @@ where
 
 /// Trait for converting various types into HTTP requests used for a client connection.
 ///
-/// This trait is implemented by default for string slices, strings, `url::Url`, `http::Uri` and
+/// This trait is implemented by default for string slices, strings, `http::Uri` and
 /// `http::Request<()>`. Note that the implementation for `http::Request<()>` is trivial and will
 /// simply take your request and pass it as is further without altering any headers or URLs, so
 /// be aware of this. If you just want to connect to the endpoint with a certain URL, better pass
@@ -242,13 +240,15 @@ impl IntoClientRequest for Uri {
     }
 }
 
-impl<'a> IntoClientRequest for &'a Url {
+#[cfg(feature = "url")]
+impl<'a> IntoClientRequest for &'a url::Url {
     fn into_client_request(self) -> Result<Request> {
         self.as_str().into_client_request()
     }
 }
 
-impl IntoClientRequest for Url {
+#[cfg(feature = "url")]
+impl IntoClientRequest for url::Url {
     fn into_client_request(self) -> Result<Request> {
         self.as_str().into_client_request()
     }

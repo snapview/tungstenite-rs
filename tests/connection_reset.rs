@@ -12,7 +12,6 @@ use std::{
 
 use socket2::Socket;
 use tungstenite::{accept, connect, stream::MaybeTlsStream, Error, Message, WebSocket};
-use url::Url;
 
 type Sock = WebSocket<MaybeTlsStream<TcpStream>>;
 
@@ -33,8 +32,8 @@ where
         TcpListener::bind(("127.0.0.1", port)).expect("Can't listen, is port already in use?");
 
     let client_thread = spawn(move || {
-        let (client, _) = connect(Url::parse(&format!("ws://localhost:{}/socket", port)).unwrap())
-            .expect("Can't connect to port");
+        let (client, _) =
+            connect(&format!("ws://localhost:{}/socket", port)).expect("Can't connect to port");
 
         client_task(client);
     });
