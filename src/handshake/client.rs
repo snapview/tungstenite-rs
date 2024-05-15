@@ -5,7 +5,8 @@ use std::{
     marker::PhantomData,
 };
 
-use headers::{HeaderMapExt, SecWebsocketExtensions};
+use crate::handshake::headers::SecWebsocketExtensions;
+use headers::HeaderMapExt;
 use http::{
     header::HeaderName, HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode,
 };
@@ -307,7 +308,7 @@ impl VerifyData {
 }
 
 fn verify_extensions(
-    agreed_extensions: &headers::SecWebsocketExtensions,
+    agreed_extensions: &SecWebsocketExtensions,
     _config: &Option<WebSocketConfig>,
 ) -> Result<Option<Extensions>> {
     #[cfg(feature = "deflate")]

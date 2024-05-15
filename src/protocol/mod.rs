@@ -16,7 +16,7 @@ use self::{
 use crate::{
     error::{Error, ProtocolError, Result},
     extensions::Extensions,
-    util::NonBlockingResult,
+    handshake::headers::SecWebsocketExtensions
 };
 use log::*;
 use std::{
@@ -98,7 +98,7 @@ impl Default for WebSocketConfig {
 impl WebSocketConfig {
     // Generate extension negotiation offers for configured extensions.
     // Only `permessage-deflate` is supported at the moment.
-    pub(crate) fn generate_offers(&self) -> Option<headers::SecWebsocketExtensions> {
+    pub(crate) fn generate_offers(&self) -> Option<SecWebsocketExtensions> {
         #[cfg(feature = "deflate")]
         {
             let mut offers = Vec::new();
@@ -121,8 +121,8 @@ impl WebSocketConfig {
     /// Returns negotiation response based on offers and `Extensions` to manage extensions.
     pub fn accept_offers(
         &self,
-        _offers: &headers::SecWebsocketExtensions,
-    ) -> Option<(headers::SecWebsocketExtensions, Extensions)> {
+        _offers: &SecWebsocketExtensions,
+    ) -> Option<(SecWebsocketExtensions, Extensions)> {
         #[cfg(feature = "deflate")]
         {
             // To support more extensions, store extension context in `Extensions` and

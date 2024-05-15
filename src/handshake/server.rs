@@ -6,7 +6,8 @@ use std::{
     result::Result as StdResult,
 };
 
-use headers::{HeaderMapExt, SecWebsocketExtensions};
+use crate::handshake::headers::SecWebsocketExtensions;
+use headers::HeaderMapExt;
 use http::{
     response::Builder, HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode,
 };
