@@ -26,6 +26,7 @@ native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
 rustls-tls-native-roots = ["__rustls-tls", "rustls-native-certs"]
 rustls-tls-webpki-roots = ["__rustls-tls", "webpki-roots"]
 __rustls-tls = ["rustls", "rustls-pki-types"]
+deflate = ["flate2"]
 
 [dependencies]
 data-encoding = { version = "2", optional = true }
@@ -39,6 +40,11 @@ sha1 = { version = "0.10", optional = true }
 thiserror = "1.0.23"
 url = { version = "2.1.0", optional = true }
 utf-8 = "0.7.5"
+headers = { git = "https://github.com/kazk/headers", branch = "sec-websocket-extensions" }
+
+[dependencies.flate2]
+optional = true
+version = "1.0"
 
 [dependencies.native-tls-crate]
 optional = true
@@ -86,11 +92,11 @@ required-features = ["handshake"]
 
 [[example]]
 name = "autobahn-client"
-required-features = ["handshake"]
+required-features = ["handshake", "deflate"]
 
 [[example]]
 name = "autobahn-server"
-required-features = ["handshake"]
+required-features = ["handshake", "deflate"]
 
 [[example]]
 name = "callback-error"
