@@ -1,10 +1,10 @@
 use std::convert::TryFrom;
 
 use bytes::BytesMut;
-use http::header::SEC_WEBSOCKET_EXTENSIONS;
+use headers::{Error, Header, HeaderValue};
+use http::{header::SEC_WEBSOCKET_EXTENSIONS, HeaderName};
 
-use util::{Comma, FlatCsv, HeaderValueString, SemiColon};
-use {Error, Header, HeaderValue};
+use super::utils::FlatCsv;
 
 /// `Sec-WebSocket-Extensions` header, defined in [RFC6455][RFC6455_11.3.2]
 ///
@@ -36,10 +36,7 @@ use {Error, Header, HeaderValue};
 ///
 /// ## Example
 ///
-/// ```rust
-/// # extern crate headers;
-/// use headers::SecWebsocketExtensions;
-///
+/// ```ignore
 /// let extensions = SecWebsocketExtensions::from_static("permessage-deflate");
 /// ```
 ///
@@ -64,7 +61,7 @@ use {Error, Header, HeaderValue};
 pub struct SecWebsocketExtensions(Vec<WebsocketExtension>);
 
 impl Header for SecWebsocketExtensions {
-    fn name() -> &'static ::HeaderName {
+    fn name() -> &'static HeaderName {
         &SEC_WEBSOCKET_EXTENSIONS
     }
 
@@ -72,10 +69,7 @@ impl Header for SecWebsocketExtensions {
         let extensions = values
             .cloned()
             .flat_map(|v| {
-                FlatCsv::<Comma>::from(v)
-                    .iter()
-                    .map(WebsocketExtension::try_from)
-                    .collect::<Vec<_>>()
+                FlatCsv::<','>::from(v).iter().map(WebsocketExtension::try_from).collect::<Vec<_>>()
             })
             .collect::<Result<Vec<_>, _>>()?;
         if extensions.is_empty() {
@@ -111,7 +105,7 @@ impl SecWebsocketExtensions {
     /// Convert this `SecWebsocketExtensions` to a single `HeaderValue`.
     pub fn to_value(&self) -> HeaderValue {
         let values = self.0.iter().map(HeaderValue::from).collect::<FlatCsv>();
-        HeaderValue::from(&values)
+        HeaderValue::from(values)
     }
 
     /// An iterator over the `WebsocketExtension`s in `SecWebsocketExtensions` header(s).
@@ -151,8 +145,8 @@ impl TryFrom<&HeaderValue> for SecWebsocketExtensions {
 /// A WebSocket extension containing the name and parameters.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WebsocketExtension {
-    name: HeaderValueString,
-    params: Vec<(HeaderValueString, Option<HeaderValueString>)>,
+    name: String,
+    params: Vec<(String, Option<String>)>,
 }
 
 impl WebsocketExtension {
@@ -172,9 +166,7 @@ impl WebsocketExtension {
 
     /// An iterator over the parameters of this extension.
     pub fn params(&self) -> impl Iterator<Item = (&str, Option<&str>)> {
-        self.params
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_ref().map(|v| v.as_str())))
+        self.params.iter().map(|(k, v)| (k.as_str(), v.as_ref().map(|v| v.as_str())))
     }
 }
 
@@ -195,26 +187,20 @@ impl TryFrom<HeaderValue> for WebsocketExtension {
     type Error = Error;
 
     fn try_from(value: HeaderValue) -> Result<Self, Self::Error> {
-        let csv = FlatCsv::<Comma>::from(value);
+        let csv = FlatCsv::<','>::from(value);
         // More than one extension was found
         if csv.iter().count() > 1 {
             return Err(Error::invalid());
         }
 
-        let params = FlatCsv::<SemiColon>::from(csv.value);
+        let params = FlatCsv::<';'>::from(csv.value);
         let mut params_iter = params.iter();
-        let name = params_iter
-            .next()
-            .ok_or_else(Error::invalid)
-            .and_then(parse_token)?;
+        let name = params_iter.next().ok_or_else(Error::invalid).and_then(parse_token)?;
         let params = params_iter
             .map(|p| {
                 let mut kv = p.splitn(2, '=');
-                let key = kv
-                    .next()
-                    .ok_or_else(Error::invalid)
-                    .map(str::trim)
-                    .and_then(parse_token)?;
+                let key =
+                    kv.next().ok_or_else(Error::invalid).map(str::trim).and_then(parse_token)?;
                 let val = kv.next().map(str::trim).map(parse_value).transpose()?;
                 Ok((key, val))
             })
@@ -240,9 +226,9 @@ impl From<&WebsocketExtension> for HeaderValue {
     }
 }
 
-fn parse_token(s: &str) -> Result<HeaderValueString, Error> {
+fn parse_token(s: &str) -> Result<String, Error> {
     if !s.is_empty() && s.chars().all(is_tchar) {
-        HeaderValueString::from_str(s)
+        Ok(s.to_owned())
     } else {
         Err(Error::invalid())
     }
@@ -258,7 +244,7 @@ fn is_tchar(c: char) -> bool {
     )
 }
 
-fn parse_value(s: &str) -> Result<HeaderValueString, Error> {
+fn parse_value(s: &str) -> Result<String, Error> {
     if let Some(quoted) = s.strip_prefix('"') {
         if let Some(val) = quoted.strip_suffix('"') {
             parse_token(val)
@@ -274,45 +260,45 @@ fn parse_value(s: &str) -> Result<HeaderValueString, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{test_decode, test_encode};
+    use headers::HeaderMapExt;
+    use http::HeaderMap;
+
     use super::*;
+
+    fn test_encode(src: SecWebsocketExtensions) -> HeaderMap {
+        let mut map = HeaderMap::new();
+        map.typed_insert(src);
+        map
+    }
+
+    fn test_decode(src: &[&str]) -> Option<SecWebsocketExtensions> {
+        let mut map = HeaderMap::new();
+
+        for val in src {
+            map.append(SecWebsocketExtensions::name(), val.parse().unwrap());
+        }
+
+        map.typed_get()
+    }
 
     #[test]
     fn extensions_decode() {
-        let extensions =
-            test_decode::<SecWebsocketExtensions>(&["key1; val1", "key2; val2"]).unwrap();
+        let extensions = test_decode(&["key1; val1", "key2; val2"]).unwrap();
         assert_eq!(extensions.0.len(), 2);
-        assert_eq!(
-            extensions.0[0],
-            WebsocketExtension::try_from("key1; val1").unwrap()
-        );
-        assert_eq!(
-            extensions.0[1],
-            WebsocketExtension::try_from("key2; val2").unwrap()
-        );
+        assert_eq!(extensions.0[0], WebsocketExtension::try_from("key1; val1").unwrap());
+        assert_eq!(extensions.0[1], WebsocketExtension::try_from("key2; val2").unwrap());
 
-        assert_eq!(test_decode::<SecWebsocketExtensions>(&[""]), None);
+        assert_eq!(test_decode(&[""]), None);
     }
 
     #[test]
     fn extensions_decode_split() {
         // Split each extension into separate headers
-        let extensions =
-            test_decode::<SecWebsocketExtensions>(&["key1; val1, key2; val2", "key3; val3"])
-                .unwrap();
+        let extensions = test_decode(&["key1; val1, key2; val2", "key3; val3"]).unwrap();
         assert_eq!(extensions.0.len(), 3);
-        assert_eq!(
-            extensions.0[0],
-            WebsocketExtension::try_from("key1; val1").unwrap()
-        );
-        assert_eq!(
-            extensions.0[1],
-            WebsocketExtension::try_from("key2; val2").unwrap()
-        );
-        assert_eq!(
-            extensions.0[2],
-            WebsocketExtension::try_from("key3; val3").unwrap()
-        );
+        assert_eq!(extensions.0[0], WebsocketExtension::try_from("key1; val1").unwrap());
+        assert_eq!(extensions.0[1], WebsocketExtension::try_from("key2; val2").unwrap());
+        assert_eq!(extensions.0[2], WebsocketExtension::try_from("key3; val3").unwrap());
     }
 
     #[test]

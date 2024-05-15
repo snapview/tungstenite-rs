@@ -13,10 +13,11 @@ use self::{
     },
     message::{IncompleteMessage, IncompleteMessageType},
 };
+#[cfg(feature = "handshake")]
+use crate::handshake::headers::SecWebsocketExtensions;
 use crate::{
     error::{Error, ProtocolError, Result},
     extensions::Extensions,
-    handshake::headers::SecWebsocketExtensions
 };
 use log::*;
 use std::{
@@ -95,6 +96,7 @@ impl Default for WebSocketConfig {
     }
 }
 
+#[cfg(feature = "handshake")]
 impl WebSocketConfig {
     // Generate extension negotiation offers for configured extensions.
     // Only `permessage-deflate` is supported at the moment.
@@ -108,7 +110,7 @@ impl WebSocketConfig {
             if offers.is_empty() {
                 None
             } else {
-                Some(headers::SecWebsocketExtensions::new(offers))
+                Some(SecWebsocketExtensions::new(offers))
             }
         }
         #[cfg(not(feature = "deflate"))]
@@ -140,7 +142,7 @@ impl WebSocketConfig {
             if agreed_extensions.is_empty() {
                 None
             } else {
-                Some((headers::SecWebsocketExtensions::new(agreed_extensions), extensions))
+                Some((SecWebsocketExtensions::new(agreed_extensions), extensions))
             }
         }
 
@@ -221,6 +223,7 @@ impl<Stream> WebSocket<Stream> {
         }
     }
 
+    #[cfg(feature = "handshake")]
     pub(crate) fn from_partially_read_with_extensions(
         stream: Stream,
         part: Vec<u8>,
@@ -444,6 +447,7 @@ impl WebSocketContext {
         }
     }
 
+    #[cfg(feature = "handshake")]
     pub(crate) fn from_partially_read_with_extensions(
         part: Vec<u8>,
         role: Role,

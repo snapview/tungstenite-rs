@@ -2,11 +2,10 @@ use std::convert::TryFrom;
 
 use bytes::BytesMut;
 use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
-use headers::WebsocketExtension;
 use http::HeaderValue;
 use thiserror::Error;
 
-use crate::protocol::Role;
+use crate::{handshake::headers::{SecWebsocketExtensions, WebsocketExtension}, protocol::Role};
 
 const PER_MESSAGE_DEFLATE: &str = "permessage-deflate";
 const CLIENT_NO_CONTEXT_TAKEOVER: &str = "client_no_context_takeover";
@@ -96,7 +95,7 @@ impl DeflateConfig {
     /// Returns negotiation response based on offers and `DeflateContext` to manage per message compression.
     pub(crate) fn accept_offer(
         &self,
-        offers: &headers::SecWebsocketExtensions,
+        offers: &SecWebsocketExtensions,
     ) -> Option<(WebsocketExtension, DeflateContext)> {
         // Accept the first valid offer for `permessage-deflate`.
         // A server MUST decline an extension negotiation offer for this
