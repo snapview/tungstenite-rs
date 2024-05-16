@@ -33,7 +33,8 @@ fn main() {
             // clients which are sending unmasked frames
             config.accept_unmasked_frames = true;
 
-            let mut websocket = accept_hdr_with_config(stream.unwrap(), callback, Some(config)).unwrap();
+            let mut websocket =
+                accept_hdr_with_config(stream.unwrap(), callback, Some(config)).unwrap();
 
             loop {
                 let msg = websocket.read().unwrap();
