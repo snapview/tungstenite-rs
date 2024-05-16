@@ -11,6 +11,7 @@ use thiserror::Error;
 pub type Result<T, E = Error> = result::Result<T, E>;
 
 /// Possible WebSocket errors.
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum Error {
     /// WebSocket connection closed normally. This informs you of the close.
@@ -172,6 +173,7 @@ pub enum SubProtocolError {
 
 /// Indicates the specific type/cause of a protocol error.
 #[allow(missing_copy_implementations)]
+#[non_exhaustive]
 #[derive(Error, Debug, PartialEq, Eq, Clone)]
 pub enum ProtocolError {
     /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method be used).

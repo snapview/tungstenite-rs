@@ -36,6 +36,7 @@ pub enum Role {
 
 /// The configuration for WebSocket connection.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct WebSocketConfig {
     /// Does nothing, instead use `max_write_buffer_size`.
     #[deprecated]
@@ -120,7 +121,7 @@ impl WebSocketConfig {
     }
 
     /// Returns negotiation response based on offers and [Extensions] to manage extensions.
-    /// 
+    ///
     /// This can be used with [WebSocket::from_raw_socket_with_extensions] for integration.
     pub fn accept_offers(
         &self,

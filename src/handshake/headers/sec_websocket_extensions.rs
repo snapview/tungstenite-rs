@@ -212,13 +212,13 @@ impl TryFrom<HeaderValue> for WebsocketExtension {
 
 impl From<&WebsocketExtension> for HeaderValue {
     fn from(extension: &WebsocketExtension) -> Self {
-        let mut buf = BytesMut::from(extension.name.as_str().as_bytes());
+        let mut buf = BytesMut::from(extension.name.as_bytes());
         for (key, val) in &extension.params {
             buf.extend_from_slice(b"; ");
-            buf.extend_from_slice(key.as_str().as_bytes());
+            buf.extend_from_slice(key.as_bytes());
             if let Some(val) = val {
                 buf.extend_from_slice(b"=");
-                buf.extend_from_slice(val.as_str().as_bytes());
+                buf.extend_from_slice(val.as_bytes());
             }
         }
 
