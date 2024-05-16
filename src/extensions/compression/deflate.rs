@@ -1,16 +1,26 @@
+#[cfg(feature = "handshake")]
 use std::convert::TryFrom;
 
+#[cfg(feature = "handshake")]
 use bytes::BytesMut;
 use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
+#[cfg(feature = "handshake")]
 use http::HeaderValue;
 use thiserror::Error;
 
-use crate::{handshake::headers::{SecWebsocketExtensions, WebsocketExtension}, protocol::Role};
+#[cfg(feature = "handshake")]
+use crate::handshake::headers::{SecWebsocketExtensions, WebsocketExtension};
+use crate::protocol::Role;
 
+#[cfg(feature = "handshake")]
 const PER_MESSAGE_DEFLATE: &str = "permessage-deflate";
+#[cfg(feature = "handshake")]
 const CLIENT_NO_CONTEXT_TAKEOVER: &str = "client_no_context_takeover";
+#[cfg(feature = "handshake")]
 const SERVER_NO_CONTEXT_TAKEOVER: &str = "server_no_context_takeover";
+#[cfg(feature = "handshake")]
 const CLIENT_MAX_WINDOW_BITS: &str = "client_max_window_bits";
+#[cfg(feature = "handshake")]
 const SERVER_MAX_WINDOW_BITS: &str = "server_max_window_bits";
 
 const TRAILER: [u8; 4] = [0x00, 0x00, 0xff, 0xff];
@@ -69,6 +79,7 @@ pub struct DeflateConfig {
     pub client_no_context_takeover: bool,
 }
 
+#[cfg(feature = "handshake")]
 impl DeflateConfig {
     pub(crate) fn name(&self) -> &str {
         PER_MESSAGE_DEFLATE
@@ -182,6 +193,7 @@ impl DeflateConfig {
         })
     }
 
+    #[cfg(feature = "handshake")]
     pub(crate) fn accept_response<'a>(
         &'a self,
         agreed: impl Iterator<Item = (&'a str, Option<&'a str>)>,
@@ -294,12 +306,13 @@ impl DeflateConfig {
 
 // A valid `client_max_window_bits` is no value or an integer in range `[8, 15]` without leading zeros.
 // A valid `server_max_window_bits` is an integer in range `[8, 15]` without leading zeros.
+#[cfg(feature = "handshake")]
 fn is_valid_max_window_bits(bits: &str) -> bool {
     // Note that values from `headers::SecWebSocketExtensions` is unquoted.
     matches!(bits, "8" | "9" | "10" | "11" | "12" | "13" | "14" | "15")
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "handshake"))]
 mod tests {
     use super::is_valid_max_window_bits;
 
@@ -330,6 +343,7 @@ pub struct DeflateContext {
 }
 
 impl DeflateContext {
+    #[cfg(feature = "handshake")]
     fn new(role: Role, config: DeflateConfig) -> Self {
         DeflateContext {
             role,
@@ -429,6 +443,7 @@ impl DeflateContext {
     }
 }
 
+#[cfg(feature = "handshake")]
 fn to_header_value(params: &[HeaderValue]) -> WebsocketExtension {
     let mut buf = BytesMut::from(PER_MESSAGE_DEFLATE.as_bytes());
     for param in params {
