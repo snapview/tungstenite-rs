@@ -17,14 +17,10 @@ fn must_not_block<Role: HandshakeRole>(err: HandshakeError<Role>) -> Error {
 }
 
 fn handle_client(stream: TcpStream) -> Result<()> {
-    let mut socket = accept_with_config(
-        stream,
-        Some(WebSocketConfig {
-            compression: Some(DeflateConfig::default()),
-            ..WebSocketConfig::default()
-        }),
-    )
-    .map_err(must_not_block)?;
+    let mut config = WebSocketConfig::default();
+    config.compression = Some(DeflateConfig::default());
+
+    let mut socket = accept_with_config(stream, Some(config)).map_err(must_not_block)?;
     info!("Running test");
     loop {
         match socket.read()? {

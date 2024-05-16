@@ -23,14 +23,11 @@ fn update_reports() -> Result<()> {
 fn run_test(case: u32) -> Result<()> {
     info!("Running test case {}", case);
     let case_url = &format!("ws://localhost:9001/runCase?case={}&agent={}", case, AGENT);
-    let (mut socket, _) = connect_with_config(
-        case_url,
-        Some(WebSocketConfig {
-            compression: Some(DeflateConfig::default()),
-            ..WebSocketConfig::default()
-        }),
-        3,
-    )?;
+
+    let mut config = WebSocketConfig::default();
+    config.compression = Some(DeflateConfig::default());
+
+    let (mut socket, _) = connect_with_config(case_url, Some(config), 3)?;
     loop {
         match socket.read()? {
             msg @ Message::Text(_) | msg @ Message::Binary(_) => {
