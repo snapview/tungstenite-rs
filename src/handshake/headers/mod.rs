@@ -3,8 +3,7 @@
 mod sec_websocket_extensions;
 mod utils;
 
-#[allow(unused_imports)]
-pub(crate) use sec_websocket_extensions::{SecWebsocketExtensions, WebsocketExtension};
+pub use sec_websocket_extensions::{SecWebsocketExtensions, WebsocketExtension};
 
 use http::header::{HeaderMap, HeaderName, HeaderValue};
 use httparse::Status;

@@ -36,7 +36,8 @@ use super::utils::FlatCsv;
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```rust
+/// # use tungstenite::handshake::headers::SecWebsocketExtensions;
 /// let extensions = SecWebsocketExtensions::from_static("permessage-deflate");
 /// ```
 ///

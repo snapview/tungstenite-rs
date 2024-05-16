@@ -119,11 +119,12 @@ impl WebSocketConfig {
         }
     }
 
-    // This can be used with `WebSocket::from_raw_socket_with_extensions` for integration.
-    /// Returns negotiation response based on offers and `Extensions` to manage extensions.
+    /// Returns negotiation response based on offers and [Extensions] to manage extensions.
+    /// 
+    /// This can be used with [WebSocket::from_raw_socket_with_extensions] for integration.
     pub fn accept_offers(
         &self,
-        _offers: &SecWebsocketExtensions,
+        #[allow(unused)] offers: &SecWebsocketExtensions,
     ) -> Option<(SecWebsocketExtensions, Extensions)> {
         #[cfg(feature = "deflate")]
         {
@@ -133,7 +134,7 @@ impl WebSocketConfig {
             let mut extensions = Extensions::default();
 
             if let Some(compression) = &self.compression {
-                if let Some((agreed, compression)) = compression.accept_offer(_offers) {
+                if let Some((agreed, compression)) = compression.accept_offer(offers) {
                     agreed_extensions.push(agreed);
                     extensions.compression = Some(compression);
                 }
