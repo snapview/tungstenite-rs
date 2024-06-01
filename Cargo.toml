@@ -47,6 +47,8 @@ version = "0.2.3"
 
 [dependencies.rustls]
 optional = true
+default-features = false
+features = ["std"]
 version = "0.23.0"
 
 [dependencies.rustls-pki-types]
