@@ -1,3 +1,7 @@
+# Unreleased
+
+- Disable default features for `rustls` giving the user more flexibility.
+
 # 0.22.0
 - Make `url` optional.
 - Add a builder for convenient headers and subprotocols construction.
