@@ -1,6 +1,7 @@
 # 0.22.0
 - Make `url` optional.
 - Add a builder for convenient headers and subprotocols construction.
+- Update `rustls` dependency.
 
 # 0.21.0
 - Fix read-predominant auto pong responses not flushing when hitting WouldBlock errors.
