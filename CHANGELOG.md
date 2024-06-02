@@ -1,4 +1,4 @@
-# Unreleased
+# 0.23.0
 
 - Disable default features for `rustls` giving the user more flexibility.
 
