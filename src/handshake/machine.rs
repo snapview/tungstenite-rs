@@ -73,6 +73,7 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
             HandshakeState::Writing(mut buf) => {
                 assert!(buf.has_remaining());
                 if let Some(size) = self.stream.write(Buf::chunk(&buf)).no_block()? {
+                    self.stream.flush()?;
                     assert!(size > 0);
                     buf.advance(size);
                     Ok(if buf.has_remaining() {
