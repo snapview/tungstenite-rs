@@ -186,7 +186,7 @@ pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
 
 fn extract_subprotocols_from_request(request: &Request) -> Result<Option<Vec<String>>> {
     if let Some(subprotocols) = request.headers().get("Sec-WebSocket-Protocol") {
-        Ok(Some(subprotocols.to_str()?.split(",").map(|s| s.to_string()).collect()))
+        Ok(Some(subprotocols.to_str()?.split(',').map(|s| s.to_string()).collect()))
     } else {
         Ok(None)
     }

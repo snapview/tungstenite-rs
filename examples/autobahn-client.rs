@@ -12,7 +12,7 @@ fn get_case_count() -> Result<u32> {
 }
 
 fn update_reports() -> Result<()> {
-    let (mut socket, _) = connect(&format!("ws://localhost:9001/updateReports?agent={}", AGENT))?;
+    let (mut socket, _) = connect(format!("ws://localhost:9001/updateReports?agent={}", AGENT))?;
     socket.close(None)?;
     Ok(())
 }
