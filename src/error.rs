@@ -24,7 +24,7 @@ pub enum Error {
     ///
     /// Receiving this error means that the WebSocket object is not usable anymore and the
     /// only meaningful action with it is dropping it.
-    #[error("Connection closed normally")]
+    #[error("connection closed normally")]
     ConnectionClosed,
     /// Trying to work with already closed connection.
     ///
@@ -33,44 +33,44 @@ pub enum Error {
     /// As opposed to `ConnectionClosed`, this indicates your code tries to operate on the
     /// connection when it really shouldn't anymore, so this really indicates a programmer
     /// error on your part.
-    #[error("Trying to work with closed connection")]
+    #[error("trying to work with closed connection")]
     AlreadyClosed,
     /// Input-output error. Apart from WouldBlock, these are generally errors with the
     /// underlying connection and you should probably consider them fatal.
-    #[error("IO error: {0}")]
+    #[error(transparent)]
     Io(#[from] io::Error),
     /// TLS error.
     ///
     /// Note that this error variant is enabled unconditionally even if no TLS feature is enabled,
     /// to provide a feature-agnostic API surface.
-    #[error("TLS error: {0}")]
+    #[error("tls error")]
     Tls(#[from] TlsError),
     /// - When reading: buffer capacity exhausted.
     /// - When writing: your message is bigger than the configured max message size
     ///   (64MB by default).
-    #[error("Space limit exceeded: {0}")]
+    #[error("space limit exceeded")]
     Capacity(#[from] CapacityError),
     /// Protocol violation.
-    #[error("WebSocket protocol error: {0}")]
+    #[error("websocket protocol violated")]
     Protocol(#[from] ProtocolError),
     /// Message write buffer is full.
-    #[error("Write buffer is full")]
+    #[error("write buffer is full")]
     WriteBufferFull(Message),
     /// UTF coding error.
-    #[error("UTF-8 encoding error")]
+    #[error("utf-8 encoding error")]
     Utf8,
     /// Attack attempt detected.
-    #[error("Attack attempt detected")]
+    #[error("attack attempt detected")]
     AttackAttempt,
     /// Invalid URL.
-    #[error("URL error: {0}")]
+    #[error("invalid url")]
     Url(#[from] UrlError),
     /// HTTP error.
-    #[error("HTTP error: {}", .0.status())]
+    #[error("http error: {}", .0.status())]
     #[cfg(feature = "handshake")]
     Http(Response<Option<Vec<u8>>>),
     /// HTTP format error.
-    #[error("HTTP format error: {0}")]
+    #[error("http format error")]
     #[cfg(feature = "handshake")]
     HttpFormat(#[from] http::Error),
 }
@@ -136,11 +136,11 @@ impl From<httparse::Error> for Error {
 #[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CapacityError {
     /// Too many headers provided (see [`httparse::Error::TooManyHeaders`]).
-    #[error("Too many headers")]
+    #[error("too many headers")]
     TooManyHeaders,
     /// Received header is too long.
     /// Message is bigger than the maximum allowed size.
-    #[error("Message too long: {size} > {max_size}")]
+    #[error("message too long: {size} > {max_size}")]
     MessageTooLong {
         /// The size of the message.
         size: usize,
@@ -153,16 +153,16 @@ pub enum CapacityError {
 #[derive(Error, Clone, PartialEq, Eq, Debug, Copy)]
 pub enum SubProtocolError {
     /// The server sent a subprotocol to a client handshake request but none was requested
-    #[error("Server sent a subprotocol but none was requested")]
+    #[error("server sent a subprotocol but none was requested")]
     ServerSentSubProtocolNoneRequested,
 
     /// The server sent an invalid subprotocol to a client handhshake request
-    #[error("Server sent an invalid subprotocol")]
+    #[error("server sent an invalid subprotocol")]
     InvalidSubProtocol,
 
     /// The server sent no subprotocol to a client handshake request that requested one or more
     /// subprotocols
-    #[error("Server sent no subprotocol")]
+    #[error("server sent no subprotocol")]
     NoSubProtocol,
 }
 
@@ -171,87 +171,87 @@ pub enum SubProtocolError {
 #[derive(Error, Debug, PartialEq, Eq, Clone)]
 pub enum ProtocolError {
     /// Use of the wrong HTTP method (the WebSocket protocol requires the GET method be used).
-    #[error("Unsupported HTTP method used - only GET is allowed")]
+    #[error("unsupported http method used, only get is allowed")]
     WrongHttpMethod,
     /// Wrong HTTP version used (the WebSocket protocol requires version 1.1 or higher).
-    #[error("HTTP version must be 1.1 or higher")]
+    #[error("http version must be 1.1 or higher")]
     WrongHttpVersion,
     /// Missing `Connection: upgrade` HTTP header.
-    #[error("No \"Connection: upgrade\" header")]
+    #[error("missing \"Connection: upgrade\" header")]
     MissingConnectionUpgradeHeader,
     /// Missing `Upgrade: websocket` HTTP header.
-    #[error("No \"Upgrade: websocket\" header")]
+    #[error("missing \"Upgrade: websocket\" header")]
     MissingUpgradeWebSocketHeader,
     /// Missing `Sec-WebSocket-Version: 13` HTTP header.
-    #[error("No \"Sec-WebSocket-Version: 13\" header")]
+    #[error("missing \"Sec-WebSocket-Version: 13\" header")]
     MissingSecWebSocketVersionHeader,
     /// Missing `Sec-WebSocket-Key` HTTP header.
-    #[error("No \"Sec-WebSocket-Key\" header")]
+    #[error("missing \"Sec-WebSocket-Key\" header")]
     MissingSecWebSocketKey,
     /// The `Sec-WebSocket-Accept` header is either not present or does not specify the correct key value.
-    #[error("Key mismatch in \"Sec-WebSocket-Accept\" header")]
+    #[error("key mismatch in \"Sec-WebSocket-Accept\" header")]
     SecWebSocketAcceptKeyMismatch,
     /// The `Sec-WebSocket-Protocol` header was invalid
-    #[error("SubProtocol error: {0}")]
-    SecWebSocketSubProtocolError(SubProtocolError),
+    #[error("invalid \"Sec-WebSocket-Protocol\" header")]
+    SecWebSocketSubProtocolError(#[from] SubProtocolError),
     /// Garbage data encountered after client request.
-    #[error("Junk after client request")]
+    #[error("junk after client request")]
     JunkAfterRequest,
     /// Custom responses must be unsuccessful.
-    #[error("Custom response must not be successful")]
+    #[error("custom response must not be successful")]
     CustomResponseSuccessful,
     /// Invalid header is passed. Or the header is missing in the request. Or not present at all. Check the request that you pass.
-    #[error("Missing, duplicated or incorrect header {0}")]
+    #[error("missing, duplicated or incorrect header: {0}")]
     #[cfg(feature = "handshake")]
     InvalidHeader(HeaderName),
     /// No more data while still performing handshake.
-    #[error("Handshake not finished")]
+    #[error("handshake not finished")]
     HandshakeIncomplete,
     /// Wrapper around a [`httparse::Error`] value.
-    #[error("httparse error: {0}")]
+    #[error("httparse error")]
     #[cfg(feature = "handshake")]
     HttparseError(#[from] httparse::Error),
     /// Not allowed to send after having sent a closing frame.
-    #[error("Sending after closing is not allowed")]
+    #[error("sending after closing is not allowed")]
     SendAfterClosing,
     /// Remote sent data after sending a closing frame.
-    #[error("Remote sent after having closed")]
+    #[error("remote sent after having closed")]
     ReceivedAfterClosing,
     /// Reserved bits in frame header are non-zero.
-    #[error("Reserved bits are non-zero")]
+    #[error("reserved bits are non-zero")]
     NonZeroReservedBits,
     /// The server must close the connection when an unmasked frame is received.
-    #[error("Received an unmasked frame from client")]
+    #[error("received an unmasked frame from client")]
     UnmaskedFrameFromClient,
     /// The client must close the connection when a masked frame is received.
-    #[error("Received a masked frame from server")]
+    #[error("received a masked frame from server")]
     MaskedFrameFromServer,
     /// Control frames must not be fragmented.
-    #[error("Fragmented control frame")]
+    #[error("fragmented control frame")]
     FragmentedControlFrame,
     /// Control frames must have a payload of 125 bytes or less.
-    #[error("Control frame too big (payload must be 125 bytes or less)")]
+    #[error("control frame too big, payload must be 125 bytes or less")]
     ControlFrameTooBig,
     /// Type of control frame not recognised.
-    #[error("Unknown control frame type: {0}")]
+    #[error("unknown control frame type: {0}")]
     UnknownControlFrameType(u8),
     /// Type of data frame not recognised.
-    #[error("Unknown data frame type: {0}")]
+    #[error("unknown data frame type: {0}")]
     UnknownDataFrameType(u8),
     /// Received a continue frame despite there being nothing to continue.
-    #[error("Continue frame but nothing to continue")]
+    #[error("continue frame but nothing to continue")]
     UnexpectedContinueFrame,
     /// Received data while waiting for more fragments.
-    #[error("While waiting for more fragments received: {0}")]
+    #[error("while waiting for more fragments, received: {0}")]
     ExpectedFragment(Data),
     /// Connection closed without performing the closing handshake.
-    #[error("Connection reset without closing handshake")]
+    #[error("connection reset without closing handshake")]
     ResetWithoutClosingHandshake,
     /// Encountered an invalid opcode.
-    #[error("Encountered invalid opcode: {0}")]
+    #[error("encountered invalid opcode: {0}")]
     InvalidOpcode(u8),
     /// The payload for the closing frame is invalid.
-    #[error("Invalid close sequence")]
+    #[error("invalid close sequence")]
     InvalidCloseSequence,
 }
 
@@ -259,22 +259,22 @@ pub enum ProtocolError {
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum UrlError {
     /// TLS is used despite not being compiled with the TLS feature enabled.
-    #[error("TLS support not compiled in")]
+    #[error("tls support not compiled in")]
     TlsFeatureNotEnabled,
     /// The URL does not include a host name.
-    #[error("No host name in the URL")]
+    #[error("no host name in the url")]
     NoHostName,
     /// Failed to connect with this URL.
-    #[error("Unable to connect to {0}")]
+    #[error("unable to connect to {0}")]
     UnableToConnect(String),
     /// Unsupported URL scheme used (only `ws://` or `wss://` may be used).
-    #[error("URL scheme not supported")]
+    #[error("url scheme not supported")]
     UnsupportedUrlScheme,
     /// The URL host name, though included, is empty.
-    #[error("URL contains empty host name")]
+    #[error("url contains empty host name")]
     EmptyHostName,
     /// The URL does not include a path/query.
-    #[error("No path/query in URL")]
+    #[error("no path/query in url")]
     NoPathOrQuery,
 }
 
@@ -288,14 +288,14 @@ pub enum UrlError {
 pub enum TlsError {
     /// Native TLS error.
     #[cfg(feature = "native-tls")]
-    #[error("native-tls error: {0}")]
+    #[error(transparent)]
     Native(#[from] native_tls_crate::Error),
     /// Rustls error.
     #[cfg(feature = "__rustls-tls")]
-    #[error("rustls error: {0}")]
+    #[error(transparent)]
     Rustls(#[from] rustls::Error),
     /// DNS name resolution error.
     #[cfg(feature = "__rustls-tls")]
-    #[error("Invalid DNS name")]
+    #[error("invalid dns name")]
     InvalidDnsName,
 }
