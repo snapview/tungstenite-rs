@@ -480,7 +480,7 @@ mod tests {
     #[test]
     fn display() {
         let f = Frame::message("hi there".into(), OpCode::Data(Data::Text), true);
-        let view = format!("{}", f);
+        let view = format!("{f}");
         assert!(view.contains("payload:"));
     }
 }
