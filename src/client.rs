@@ -52,6 +52,12 @@ pub fn connect_with_config<Req: IntoClientRequest>(
     ) -> Result<(WebSocket<MaybeTlsStream<TcpStream>>, Response)> {
         let uri = request.uri();
         let mode = uri_mode(uri)?;
+
+        #[cfg(not(any(feature = "native-tls", feature = "__rustls-tls")))]
+        if let Mode::Tls = mode {
+            return Err(Error::Url(UrlError::TlsFeatureNotEnabled));
+        }
+
         let host = request.uri().host().ok_or(Error::Url(UrlError::NoHostName))?;
         let host = if host.starts_with('[') { &host[1..host.len() - 1] } else { host };
         let port = uri.port_u16().unwrap_or(match mode {
