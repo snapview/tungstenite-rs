@@ -1,4 +1,4 @@
-#![cfg(not(any(feature = "native-tls", feature = "__rustls-tls")))]
+#![cfg(all(feature = "handshake", not(any(feature = "native-tls", feature = "__rustls-tls"))))]
 
 use tungstenite::{connect, error::UrlError, Error};
 
