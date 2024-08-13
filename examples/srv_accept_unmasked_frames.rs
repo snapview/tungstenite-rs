@@ -15,7 +15,7 @@ fn main() {
                 println!("The request's path is: {}", req.uri().path());
                 println!("The request's headers are:");
                 for (ref header, _value) in req.headers() {
-                    println!("* {}", header);
+                    println!("* {header}");
                 }
 
                 // Let's add an additional header to our response to the client.
@@ -40,7 +40,7 @@ fn main() {
             loop {
                 let msg = websocket.read().unwrap();
                 if msg.is_binary() || msg.is_text() {
-                    println!("received message {}", msg);
+                    println!("received message {msg}");
                 }
             }
         });

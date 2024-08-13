@@ -1,3 +1,8 @@
+# Unreleased
+
+- Raised MSRV to 1.63 to match `tokio-tungstenite`.
+- Connecting to WSS URL without TLS features specified results in a better error.
+
 # 0.23.0
 
 - Disable default features for `rustls` giving the user more flexibility.
