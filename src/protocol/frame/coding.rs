@@ -46,7 +46,7 @@ impl fmt::Display for Data {
             Data::Continue => write!(f, "CONTINUE"),
             Data::Text => write!(f, "TEXT"),
             Data::Binary => write!(f, "BINARY"),
-            Data::Reserved(x) => write!(f, "RESERVED_DATA_{}", x),
+            Data::Reserved(x) => write!(f, "RESERVED_DATA_{x}"),
         }
     }
 }
@@ -57,7 +57,7 @@ impl fmt::Display for Control {
             Control::Close => write!(f, "CLOSE"),
             Control::Ping => write!(f, "PING"),
             Control::Pong => write!(f, "PONG"),
-            Control::Reserved(x) => write!(f, "RESERVED_CONTROL_{}", x),
+            Control::Reserved(x) => write!(f, "RESERVED_CONTROL_{x}"),
         }
     }
 }
@@ -197,7 +197,7 @@ impl CloseCode {
 impl fmt::Display for CloseCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let code: u16 = self.into();
-        write!(f, "{}", code)
+        write!(f, "{code}")
     }
 }
 
