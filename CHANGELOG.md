@@ -1,7 +1,8 @@
-# Unreleased
+# 0.24.0
 
 - Raised MSRV to 1.63 to match `tokio-tungstenite`.
 - Connecting to WSS URL without TLS features specified results in a better error.
+- Handshake will now flush after completion to be safe (works better with buffered streams).
 
 # 0.23.0
 
