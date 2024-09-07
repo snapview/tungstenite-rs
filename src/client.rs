@@ -89,14 +89,14 @@ pub fn connect_with_config<Req: IntoClientRequest>(
     let (parts, _) = request.into_client_request()?.into_parts();
     let mut uri = parts.uri.clone();
 
-    for attempt in 0..(max_redirects + 1) {
+    for attempt in 0..=max_redirects {
         let request = create_request(&parts, &uri);
 
         match try_client_handshake(request, config) {
             Err(Error::Http(res)) if res.status().is_redirection() && attempt < max_redirects => {
                 if let Some(location) = res.headers().get("Location") {
                     uri = location.to_str()?.parse::<Uri>()?;
-                    debug!("Redirecting to {:?}", uri);
+                    debug!("Redirecting to {uri:?}");
                     continue;
                 } else {
                     warn!("No `Location` found in redirect");
@@ -130,7 +130,7 @@ pub fn connect<Req: IntoClientRequest>(
 
 fn connect_to_some(addrs: &[SocketAddr], uri: &Uri) -> Result<TcpStream> {
     for addr in addrs {
-        debug!("Trying to contact {} at {}...", uri, addr);
+        debug!("Trying to contact {uri} at {addr}...");
         if let Ok(stream) = TcpStream::connect(addr) {
             return Ok(stream);
         }
@@ -156,6 +156,7 @@ pub fn uri_mode(uri: &Uri) -> Result<Mode> {
 /// Use this function if you need a nonblocking handshake support or if you
 /// want to use a custom stream like `mio::net::TcpStream` or `openssl::ssl::SslStream`.
 /// Any stream supporting `Read + Write` will do.
+#[allow(clippy::result_large_err)]
 pub fn client_with_config<Stream, Req>(
     request: Req,
     stream: Stream,
@@ -173,6 +174,7 @@ where
 /// Use this function if you need a nonblocking handshake support or if you
 /// want to use a custom stream like `mio::net::TcpStream` or `openssl::ssl::SslStream`.
 /// Any stream supporting `Read + Write` will do.
+#[allow(clippy::result_large_err)]
 pub fn client<Stream, Req>(
     request: Req,
     stream: Stream,

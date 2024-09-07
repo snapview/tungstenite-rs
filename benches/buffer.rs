@@ -77,7 +77,7 @@ impl<const CHUNK_SIZE: usize> Buf for StackReadBuffer<CHUNK_SIZE> {
     }
 
     fn advance(&mut self, cnt: usize) {
-        Buf::advance(self.as_cursor_mut(), cnt)
+        Buf::advance(self.as_cursor_mut(), cnt);
     }
 }
 
@@ -114,10 +114,10 @@ fn benchmark(c: &mut Criterion) {
     group.throughput(Throughput::Bytes(STREAM_SIZE as u64));
     group.bench_function("InputBuffer", |b| b.iter(|| input_buffer(black_box(stream.clone()))));
     group.bench_function("ReadBuffer (stack)", |b| {
-        b.iter(|| stack_read_buffer(black_box(stream.clone())))
+        b.iter(|| stack_read_buffer(black_box(stream.clone())));
     });
     group.bench_function("ReadBuffer (heap)", |b| {
-        b.iter(|| heap_read_buffer(black_box(stream.clone())))
+        b.iter(|| heap_read_buffer(black_box(stream.clone())));
     });
     group.finish();
 }

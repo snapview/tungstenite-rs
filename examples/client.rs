@@ -8,7 +8,7 @@ fn main() {
     println!("Connected to the server");
     println!("Response HTTP code: {}", response.status());
     println!("Response contains the following headers:");
-    for (ref header, _value) in response.headers() {
+    for (header, _value) in response.headers() {
         println!("* {header}");
     }
 

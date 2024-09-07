@@ -117,7 +117,7 @@ impl FrameHeader {
         }
 
         if let Some(ref mask) = self.mask {
-            output.write_all(mask)?
+            output.write_all(mask)?;
         }
 
         Ok(())
@@ -127,7 +127,7 @@ impl FrameHeader {
     ///
     /// Of course this does not change frame contents. It just generates a mask.
     pub(crate) fn set_random_mask(&mut self) {
-        self.mask = Some(generate_mask())
+        self.mask = Some(generate_mask());
     }
 }
 
@@ -261,7 +261,7 @@ impl Frame {
     /// either on `format()` or on `apply_mask()` call.
     #[inline]
     pub(crate) fn set_random_mask(&mut self) {
-        self.header.set_random_mask()
+        self.header.set_random_mask();
     }
 
     /// This method unmasks the payload and should only be called on frames that are actually
@@ -269,7 +269,7 @@ impl Frame {
     #[inline]
     pub(crate) fn apply_mask(&mut self) {
         if let Some(mask) = self.header.mask.take() {
-            apply_mask(&mut self.payload, mask)
+            apply_mask(&mut self.payload, mask);
         }
     }
 

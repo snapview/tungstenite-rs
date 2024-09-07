@@ -25,7 +25,7 @@ impl NonBlockingError for IoError {
 impl NonBlockingError for Error {
     fn into_non_blocking(self) -> Option<Self> {
         match self {
-            Error::Io(e) => e.into_non_blocking().map(|e| e.into()),
+            Error::Io(e) => e.into_non_blocking().map(Into::into),
             x => Some(x),
         }
     }

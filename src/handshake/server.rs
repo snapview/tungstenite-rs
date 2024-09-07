@@ -45,7 +45,7 @@ fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
         .headers()
         .get("Connection")
         .and_then(|h| h.to_str().ok())
-        .map(|h| h.split(|c| c == ' ' || c == ',').any(|p| p.eq_ignore_ascii_case("Upgrade")))
+        .map(|h| h.split([' ', ',']).any(|p| p.eq_ignore_ascii_case("Upgrade")))
         .unwrap_or(false)
     {
         return Err(Error::Protocol(ProtocolError::MissingConnectionUpgradeHeader));

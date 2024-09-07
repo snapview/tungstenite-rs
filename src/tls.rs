@@ -176,6 +176,7 @@ type TlsHandshakeError<S> = HandshakeError<ClientHandshake<MaybeTlsStream<S>>>;
 
 /// Creates a WebSocket handshake from a request and a stream,
 /// upgrading the stream to TLS if required.
+#[allow(clippy::result_large_err)]
 pub fn client_tls<R, S>(
     request: R,
     stream: S,
@@ -192,6 +193,7 @@ where
 /// be created.
 ///
 /// Please refer to [`client_tls()`] for more details.
+#[allow(clippy::result_large_err)]
 pub fn client_tls_with_config<R, S>(
     request: R,
     stream: S,
