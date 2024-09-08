@@ -197,7 +197,7 @@ impl FrameCodec {
         let (header, length) = self.header.take().expect("Bug: no frame header");
         debug_assert_eq!(payload.len() as u64, length);
         let frame = Frame::from_payload(header, payload);
-        trace!("received frame {}", frame);
+        trace!("received frame {frame}");
         Ok(Some(frame))
     }
 
@@ -216,7 +216,7 @@ impl FrameCodec {
             return Err(Error::WriteBufferFull(Message::Frame(frame)));
         }
 
-        trace!("writing frame {}", frame);
+        trace!("writing frame {frame}");
 
         self.out_buffer.reserve(frame.len());
         frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");

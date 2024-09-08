@@ -77,7 +77,7 @@ impl<const CHUNK_SIZE: usize> Buf for ReadBuffer<CHUNK_SIZE> {
     }
 
     fn advance(&mut self, cnt: usize) {
-        Buf::advance(self.as_cursor_mut(), cnt)
+        Buf::advance(self.as_cursor_mut(), cnt);
     }
 }
 

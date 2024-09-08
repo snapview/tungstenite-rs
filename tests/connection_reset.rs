@@ -33,7 +33,7 @@ where
 
     let client_thread = spawn(move || {
         let (client, _) =
-            connect(&format!("ws://localhost:{}/socket", port)).expect("Can't connect to port");
+            connect(format!("ws://localhost:{}/socket", port)).expect("Can't connect to port");
 
         client_task(client);
     });

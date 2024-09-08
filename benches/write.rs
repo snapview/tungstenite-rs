@@ -67,7 +67,7 @@ fn benchmark(c: &mut Criterion) {
                 ws.flush().unwrap();
             },
             BatchSize::SmallInput,
-        )
+        );
     });
 }
 

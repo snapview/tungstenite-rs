@@ -12,14 +12,14 @@ fn get_case_count() -> Result<u32> {
 }
 
 fn update_reports() -> Result<()> {
-    let (mut socket, _) = connect(&format!("ws://localhost:9001/updateReports?agent={AGENT}"))?;
+    let (mut socket, _) = connect(format!("ws://localhost:9001/updateReports?agent={AGENT}"))?;
     socket.close(None)?;
     Ok(())
 }
 
 fn run_test(case: u32) -> Result<()> {
     info!("Running test case {}", case);
-    let case_url = &format!("ws://localhost:9001/runCase?case={case}&agent={AGENT}");
+    let case_url = format!("ws://localhost:9001/runCase?case={case}&agent={AGENT}");
     let (mut socket, _) = connect(case_url)?;
     loop {
         match socket.read()? {

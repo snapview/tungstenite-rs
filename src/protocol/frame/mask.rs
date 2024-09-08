@@ -7,7 +7,7 @@ pub fn generate_mask() -> [u8; 4] {
 /// Mask/unmask a frame.
 #[inline]
 pub fn apply_mask(buf: &mut [u8], mask: [u8; 4]) {
-    apply_mask_fast32(buf, mask)
+    apply_mask_fast32(buf, mask);
 }
 
 /// A safe unoptimized mask application.
