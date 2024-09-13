@@ -74,7 +74,6 @@ mod encryption {
         use rustls_pki_types::ServerName;
 
         use std::{
-            convert::TryFrom,
             io::{Read, Write},
             sync::Arc,
         };

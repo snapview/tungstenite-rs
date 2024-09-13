@@ -1,7 +1,6 @@
 //! Methods to connect to a WebSocket as a client.
 
 use std::{
-    convert::TryFrom,
     io::{Read, Write},
     net::{SocketAddr, TcpStream, ToSocketAddrs},
     result::Result as StdResult,
