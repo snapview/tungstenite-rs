@@ -11,6 +11,9 @@
     unused_imports,
     unused_import_braces
 )]
+// This can be removed when `error::Error::Http`, `handshake::HandshakeError::Interrupted` and
+// `handshake::server::ErrorResponse` are boxed.
+#![allow(clippy::result_large_err)]
 
 #[cfg(feature = "handshake")]
 pub use http;
