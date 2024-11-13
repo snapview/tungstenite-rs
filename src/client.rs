@@ -155,7 +155,6 @@ pub fn uri_mode(uri: &Uri) -> Result<Mode> {
 /// Use this function if you need a nonblocking handshake support or if you
 /// want to use a custom stream like `mio::net::TcpStream` or `openssl::ssl::SslStream`.
 /// Any stream supporting `Read + Write` will do.
-#[allow(clippy::result_large_err)]
 pub fn client_with_config<Stream, Req>(
     request: Req,
     stream: Stream,
@@ -173,7 +172,6 @@ where
 /// Use this function if you need a nonblocking handshake support or if you
 /// want to use a custom stream like `mio::net::TcpStream` or `openssl::ssl::SslStream`.
 /// Any stream supporting `Read + Write` will do.
-#[allow(clippy::result_large_err)]
 pub fn client<Stream, Req>(
     request: Req,
     stream: Stream,
