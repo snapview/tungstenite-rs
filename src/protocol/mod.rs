@@ -255,7 +255,7 @@ impl<Stream> WebSocket<Stream> {
     /// # Panics
     /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn set_config(&mut self, set_func: impl FnOnce(&mut WebSocketConfig)) {
-        self.context.set_config(set_func)
+        self.context.set_config(set_func);
     }
 
     /// Read the configuration.
@@ -524,7 +524,7 @@ impl WebSocketContext {
             // If we get here, either write blocks or we have nothing to write.
             // Thus if read blocks, just let it return WouldBlock.
             if let Some(message) = self.read_message_frame(stream)? {
-                trace!("Received message {}", message);
+                trace!("Received message {message}");
                 return Ok(message);
             }
         }
@@ -697,7 +697,7 @@ impl WebSocketContext {
                     if frame.is_masked() {
                         // A server MUST remove masking for data frames received from a client
                         // as described in Section 5.3. (RFC 6455)
-                        frame.apply_mask()
+                        frame.apply_mask();
                     } else if !self.config.accept_unmasked_frames {
                         // The server MUST close the connection upon receiving a
                         // frame that is not masked. (RFC 6455)
@@ -824,7 +824,7 @@ impl WebSocketContext {
     /// Received a close frame. Tells if we need to return a close frame to the user.
     #[allow(clippy::option_option)]
     fn do_close<'t>(&mut self, close: Option<CloseFrame<'t>>) -> Option<Option<CloseFrame<'t>>> {
-        debug!("Received close frame: {:?}", close);
+        debug!("Received close frame: {close:?}");
         match self.state {
             WebSocketState::Active => {
                 self.state = WebSocketState::ClosedByPeer;
@@ -841,7 +841,7 @@ impl WebSocketContext {
                 });
 
                 let reply = Frame::close(close.clone());
-                debug!("Replying to close with {:?}", reply);
+                debug!("Replying to close with {reply:?}");
                 self.set_additional(reply);
 
                 Some(close)
@@ -873,7 +873,7 @@ impl WebSocketContext {
             }
         }
 
-        trace!("Sending frame: {:?}", frame);
+        trace!("Sending frame: {frame:?}");
         self.frame.buffer_frame(stream, frame).check_connection_reset(self.state)
     }
 

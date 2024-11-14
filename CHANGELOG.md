@@ -1,6 +1,17 @@
+# 0.24.0
+
+- Raised MSRV to 1.63 to match `tokio-tungstenite`.
+- Connecting to WSS URL without TLS features specified results in a better error.
+- Handshake will now flush after completion to be safe (works better with buffered streams).
+
+# 0.23.0
+
+- Disable default features for `rustls` giving the user more flexibility.
+
 # 0.22.0
 - Make `url` optional.
 - Add a builder for convenient headers and subprotocols construction.
+- Update `rustls` dependency.
 
 # 0.21.0
 - Fix read-predominant auto pong responses not flushing when hitting WouldBlock errors.

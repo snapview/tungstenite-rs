@@ -1,9 +1,4 @@
-use std::{
-    convert::{AsRef, From, Into, TryFrom},
-    fmt,
-    result::Result as StdResult,
-    str,
-};
+use std::{fmt, result::Result as StdResult, str};
 
 use super::frame::{CloseFrame, Frame};
 use crate::error::{CapacityError, Error, Result};
@@ -338,7 +333,7 @@ impl TryFrom<Message> for String {
 impl fmt::Display for Message {
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
         if let Ok(string) = self.to_text() {
-            write!(f, "{}", string)
+            write!(f, "{string}")
         } else {
             write!(f, "Binary Data<length={}>", self.len())
         }

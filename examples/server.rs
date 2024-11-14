@@ -14,8 +14,8 @@ fn main() {
                 println!("Received a new ws handshake");
                 println!("The request's path is: {}", req.uri().path());
                 println!("The request's headers are:");
-                for (ref header, _value) in req.headers() {
-                    println!("* {}", header);
+                for (header, _value) in req.headers() {
+                    println!("* {header}");
                 }
 
                 // Let's add an additional header to our response to the client.

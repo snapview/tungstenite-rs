@@ -81,7 +81,10 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
                             ..self
                         })
                     } else {
-                        RoundResult::StageFinished(StageResult::DoneWriting(self.stream))
+                        RoundResult::Incomplete(HandshakeMachine {
+                            state: HandshakeState::Flushing,
+                            ..self
+                        })
                     })
                 } else {
                     Ok(RoundResult::WouldBlock(HandshakeMachine {
@@ -90,6 +93,13 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
                     }))
                 }
             }
+            HandshakeState::Flushing => Ok(match self.stream.flush().no_block()? {
+                Some(()) => RoundResult::StageFinished(StageResult::DoneWriting(self.stream)),
+                None => RoundResult::WouldBlock(HandshakeMachine {
+                    state: HandshakeState::Flushing,
+                    ..self
+                }),
+            }),
         }
     }
 }
@@ -128,6 +138,8 @@ enum HandshakeState {
     Reading(ReadBuffer, AttackCheck),
     /// Sending data to the peer.
     Writing(Cursor<Vec<u8>>),
+    /// Flushing data to ensure that all intermediately buffered contents reach their destination.
+    Flushing,
 }
 
 /// Attack mitigation. Contains counters needed to prevent DoS attacks

@@ -74,7 +74,6 @@ mod encryption {
         use rustls_pki_types::ServerName;
 
         use std::{
-            convert::TryFrom,
             io::{Read, Write},
             sync::Arc,
         };
@@ -105,10 +104,26 @@ mod encryption {
 
                             #[cfg(feature = "rustls-tls-native-roots")]
                             {
-                                let native_certs = rustls_native_certs::load_native_certs()?;
-                                let total_number = native_certs.len();
+                                let rustls_native_certs::CertificateResult {
+                                    certs, errors, ..
+                                } = rustls_native_certs::load_native_certs();
+
+                                if !errors.is_empty() {
+                                    log::warn!(
+                                        "native root CA certificate loading errors: {errors:?}"
+                                    );
+                                }
+
+                                // Not finding any native root CA certificates is not fatal if the
+                                // "rustls-tls-webpki-roots" feature is enabled.
+                                #[cfg(not(feature = "rustls-tls-webpki-roots"))]
+                                if certs.is_empty() {
+                                    return Err(std::io::Error::new(std::io::ErrorKind::NotFound, format!("no native root CA certificates found (errors: {errors:?})")).into());
+                                }
+
+                                let total_number = certs.len();
                                 let (number_added, number_ignored) =
-                                    root_store.add_parsable_certificates(native_certs);
+                                    root_store.add_parsable_certificates(certs);
                                 log::debug!("Added {number_added}/{total_number} native root certificates (ignored {number_ignored})");
                             }
                             #[cfg(feature = "rustls-tls-webpki-roots")]
@@ -160,6 +175,7 @@ type TlsHandshakeError<S> = HandshakeError<ClientHandshake<MaybeTlsStream<S>>>;
 
 /// Creates a WebSocket handshake from a request and a stream,
 /// upgrading the stream to TLS if required.
+#[allow(clippy::result_large_err)]
 pub fn client_tls<R, S>(
     request: R,
     stream: S,
@@ -176,6 +192,7 @@ where
 /// be created.
 ///
 /// Please refer to [`client_tls()`] for more details.
+#[allow(clippy::result_large_err)]
 pub fn client_tls_with_config<R, S>(
     request: R,
     stream: S,

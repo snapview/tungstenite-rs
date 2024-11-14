@@ -201,7 +201,7 @@ pub fn generate_request(
 
 fn extract_subprotocols_from_request(request: &Request) -> Result<Option<Vec<String>>> {
     if let Some(subprotocols) = request.headers().get("Sec-WebSocket-Protocol") {
-        Ok(Some(subprotocols.to_str()?.split(",").map(|s| s.to_string()).collect()))
+        Ok(Some(subprotocols.to_str()?.split(',').map(ToString::to_string).collect()))
     } else {
         Ok(None)
     }
@@ -394,9 +394,9 @@ mod tests {
     #[test]
     fn random_keys() {
         let k1 = generate_key();
-        println!("Generated random key 1: {}", k1);
+        println!("Generated random key 1: {k1}");
         let k2 = generate_key();
-        println!("Generated random key 2: {}", k2);
+        println!("Generated random key 2: {k2}");
         assert_ne!(k1, k2);
         assert_eq!(k1.len(), k2.len());
         assert_eq!(k1.len(), 24);
@@ -416,9 +416,7 @@ mod tests {
             Upgrade: websocket\r\n\
             Sec-WebSocket-Version: 13\r\n\
             Sec-WebSocket-Key: {key}\r\n\
-            \r\n",
-            host = host,
-            key = key
+            \r\n"
         )
         .into_bytes()
     }
