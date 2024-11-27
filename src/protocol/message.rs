@@ -167,7 +167,8 @@ pub enum Message {
     Pong(Vec<u8>),
     /// A close message with the optional close frame.
     Close(Option<CloseFrame<'static>>),
-    /// Raw frame. Note, that you're not going to get this value while reading the message.
+    /// Raw frame. These will be returned from the socket only if the `read_as_frames` option
+    /// in [WebSocketConfig] is set to `true`.
     Frame(Frame),
 }
 

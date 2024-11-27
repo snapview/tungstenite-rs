@@ -19,6 +19,7 @@ use std::{
     io::{self, Read, Write},
     mem::replace,
 };
+use crate::protocol::frame::coding::Control;
 
 /// Indicates a Client or Server role of the websocket
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,6 +71,12 @@ pub struct WebSocketConfig {
     /// some popular libraries that are sending unmasked frames, ignoring the RFC.
     /// By default this option is set to `false`, i.e. according to RFC 6455.
     pub accept_unmasked_frames: bool,
+    /// When set to `true`, all well-formed frames read by the socket will be returned as-is
+    /// with minimal processing. Close frames and masked frames will still be handled,
+    /// as they affect control flow, but fragmented or incomplete frames will be returned without
+    /// reassembly.
+    /// Set to `false` by default
+    pub read_as_frames: bool
 }
 
 impl Default for WebSocketConfig {
@@ -82,6 +89,7 @@ impl Default for WebSocketConfig {
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
             accept_unmasked_frames: false,
+            read_as_frames: false,
         }
     }
 }
@@ -437,7 +445,6 @@ impl WebSocketContext {
         if !self.state.is_active() {
             return Err(Error::Protocol(ProtocolError::SendAfterClosing));
         }
-
         let frame = match message {
             Message::Text(data) => Frame::message(data.into(), OpCode::Data(OpData::Text), true),
             Message::Binary(data) => Frame::message(data, OpCode::Data(OpData::Binary), true),
@@ -552,6 +559,18 @@ impl WebSocketContext {
         {
             if !self.state.can_read() {
                 return Err(Error::Protocol(ProtocolError::ReceivedAfterClosing));
+            }
+            if self.config.read_as_frames {
+                if frame.header().opcode == OpCode::Control(Control::Close) &&
+                    self.state.is_active() {
+                    // Do close, but ignore the output
+                    self.do_close(frame.clone().into_close()?);
+                }
+                if frame.is_masked() {
+                    frame.apply_mask();
+                }
+                // Always return the original frame
+                return Ok(Some(Message::Frame(frame)));
             }
             // MUST be 0 unless an extension is negotiated that defines meanings
             // for non-zero values.  If a nonzero value is received and none of
@@ -800,6 +819,8 @@ mod tests {
     use crate::error::{CapacityError, Error};
 
     use std::{io, io::Cursor};
+    use crate::protocol::frame::{Frame, FrameHeader};
+    use crate::protocol::frame::coding::{Data, OpCode};
 
     struct WriteMoc<Stream>(Stream);
 
@@ -830,6 +851,23 @@ mod tests {
         assert_eq!(socket.read().unwrap(), Message::Pong(vec![3]));
         assert_eq!(socket.read().unwrap(), Message::Text("Hello, World!".into()));
         assert_eq!(socket.read().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03]));
+    }
+
+    #[test]
+    fn read_extended_frame() {
+        let raw = vec![
+            0xc1, 0x0b, 0x68, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64
+        ];
+        let mut config = WebSocketConfig::default();
+        config.read_as_frames = true;
+        let cursor = Cursor::new(raw.clone());
+        let mut frame_header = FrameHeader::default();
+        frame_header.is_final = true;
+        frame_header.rsv1 = true;
+        frame_header.opcode = OpCode::Data(Data::Text);
+        let expected_frame = Frame::from_payload(frame_header, raw[2..].to_vec());
+        let mut socket = WebSocket::from_raw_socket(WriteMoc(cursor), Role::Client, Some(config));
+        assert_eq!(socket.read().unwrap(), Message::Frame(expected_frame));
     }
 
     #[test]
