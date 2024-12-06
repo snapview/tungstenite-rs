@@ -343,7 +343,7 @@ impl Frame {
     #[inline]
     pub fn close(msg: Option<CloseFrame>) -> Frame {
         let payload = if let Some(CloseFrame { code, reason }) = msg {
-            let mut p = Vec::with_capacity(reason.as_bytes().len() + 2);
+            let mut p = Vec::with_capacity(reason.len() + 2);
             p.extend(u16::from(code).to_be_bytes());
             p.extend_from_slice(reason.as_bytes());
             p
