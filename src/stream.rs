@@ -84,7 +84,7 @@ impl<S: Read + Write + Debug> Debug for MaybeTlsStream<S> {
                     &'a rustls::StreamOwned<rustls::ClientConnection, S>,
                 );
 
-                impl<'a, S: Read + Write + Debug> Debug for RustlsStreamDebug<'a, S> {
+                impl<S: Read + Write + Debug> Debug for RustlsStreamDebug<'_, S> {
                     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                         f.debug_struct("StreamOwned")
                             .field("conn", &self.0.conn)

@@ -25,14 +25,14 @@ pub struct CloseFrame<'t> {
     pub reason: Cow<'t, str>,
 }
 
-impl<'t> CloseFrame<'t> {
+impl CloseFrame<'_> {
     /// Convert into a owned string.
     pub fn into_owned(self) -> CloseFrame<'static> {
         CloseFrame { code: self.code, reason: self.reason.into_owned().into() }
     }
 }
 
-impl<'t> fmt::Display for CloseFrame<'t> {
+impl fmt::Display for CloseFrame<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} ({})", self.reason, self.code)
     }

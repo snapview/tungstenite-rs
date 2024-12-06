@@ -196,13 +196,13 @@ pub trait IntoClientRequest {
     fn into_client_request(self) -> Result<Request>;
 }
 
-impl<'a> IntoClientRequest for &'a str {
+impl IntoClientRequest for &str {
     fn into_client_request(self) -> Result<Request> {
         self.parse::<Uri>()?.into_client_request()
     }
 }
 
-impl<'a> IntoClientRequest for &'a String {
+impl IntoClientRequest for &String {
     fn into_client_request(self) -> Result<Request> {
         <&str as IntoClientRequest>::into_client_request(self)
     }
@@ -214,7 +214,7 @@ impl IntoClientRequest for String {
     }
 }
 
-impl<'a> IntoClientRequest for &'a Uri {
+impl IntoClientRequest for &Uri {
     fn into_client_request(self) -> Result<Request> {
         self.clone().into_client_request()
     }
@@ -246,7 +246,7 @@ impl IntoClientRequest for Uri {
 }
 
 #[cfg(feature = "url")]
-impl<'a> IntoClientRequest for &'a url::Url {
+impl IntoClientRequest for &url::Url {
     fn into_client_request(self) -> Result<Request> {
         self.as_str().into_client_request()
     }
@@ -265,7 +265,7 @@ impl IntoClientRequest for Request {
     }
 }
 
-impl<'h, 'b> IntoClientRequest for httparse::Request<'h, 'b> {
+impl IntoClientRequest for httparse::Request<'_, '_> {
     fn into_client_request(self) -> Result<Request> {
         use crate::handshake::headers::FromHttparse;
         Request::from_httparse(self)
