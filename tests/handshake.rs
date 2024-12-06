@@ -33,7 +33,7 @@ fn create_http_request(uri: &str, subprotocols: Option<Vec<String>>) -> http::Re
         .header("Sec-WebSocket-Key", generate_key());
 
     if let Some(subprotocols) = subprotocols {
-        builder = builder.header("Sec-WebSocket-Protocol", subprotocols.join(","));
+        builder = builder.header("Sec-WebSocket-Protocol", subprotocols.join(", "));
     }
 
     builder.uri(uri).body(()).unwrap()
@@ -130,12 +130,28 @@ fn test_request_multiple_subprotocols() {
 }
 
 #[test]
-fn test_request_single_subprotocol() {
+fn test_request_multiple_subprotocols_with_initial_unknown() {
     server_thread(3016, Some(vec!["my-sub-protocol".to_string()]));
+    sleep(Duration::from_secs(1));
+    let (_, response) = connect(create_http_request(
+        "ws://127.0.0.1:3016",
+        Some(vec!["protocol-unknown-to-server".to_string(), "my-sub-protocol".to_string()]),
+    ))
+    .unwrap();
+
+    assert_eq!(
+        response.headers().get("Sec-WebSocket-Protocol").unwrap(),
+        "my-sub-protocol".parse::<http::HeaderValue>().unwrap()
+    );
+}
+
+#[test]
+fn test_request_single_subprotocol() {
+    server_thread(3017, Some(vec!["my-sub-protocol".to_string()]));
     sleep(Duration::from_secs(1));
 
     let (_, response) = connect(create_http_request(
-        "ws://127.0.0.1:3016",
+        "ws://127.0.0.1:3017",
         Some(vec!["my-sub-protocol".to_string()]),
     ))
     .unwrap();
