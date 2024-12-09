@@ -439,7 +439,7 @@ impl WebSocketContext {
         }
 
         let frame = match message {
-            Message::Text(data) => Frame::message(data.into(), OpCode::Data(OpData::Text), true),
+            Message::Text(data) => Frame::message(data, OpCode::Data(OpData::Text), true),
             Message::Binary(data) => Frame::message(data, OpCode::Data(OpData::Binary), true),
             Message::Ping(data) => Frame::ping(data),
             Message::Pong(data) => {
@@ -603,14 +603,14 @@ impl WebSocketContext {
                             Err(Error::Protocol(ProtocolError::UnknownControlFrameType(i)))
                         }
                         OpCtl::Ping => {
-                            let data = frame.into_data();
+                            let data = frame.into_payload();
                             // No ping processing after we sent a close frame.
                             if self.state.is_active() {
                                 self.set_additional(Frame::pong(data.clone()));
                             }
-                            Ok(Some(Message::Ping(data)))
+                            Ok(Some(Message::Ping(data.into_bytes())))
                         }
-                        OpCtl::Pong => Ok(Some(Message::Pong(frame.into_data()))),
+                        OpCtl::Pong => Ok(Some(Message::Pong(frame.into_payload().into_bytes()))),
                     }
                 }
 
@@ -619,7 +619,7 @@ impl WebSocketContext {
                     match data {
                         OpData::Continue => {
                             if let Some(ref mut msg) = self.incomplete {
-                                msg.extend(frame.into_data(), self.config.max_message_size)?;
+                                msg.extend(frame.into_payload(), self.config.max_message_size)?;
                             } else {
                                 return Err(Error::Protocol(
                                     ProtocolError::UnexpectedContinueFrame,
@@ -642,7 +642,7 @@ impl WebSocketContext {
                                     _ => panic!("Bug: message is not text nor binary"),
                                 };
                                 let mut m = IncompleteMessage::new(message_type);
-                                m.extend(frame.into_data(), self.config.max_message_size)?;
+                                m.extend(frame.into_payload(), self.config.max_message_size)?;
                                 m
                             };
                             if fin {
@@ -829,7 +829,7 @@ mod tests {
         assert_eq!(socket.read().unwrap(), Message::Ping(vec![1, 2]));
         assert_eq!(socket.read().unwrap(), Message::Pong(vec![3]));
         assert_eq!(socket.read().unwrap(), Message::Text("Hello, World!".into()));
-        assert_eq!(socket.read().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03]));
+        assert_eq!(socket.read().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03].into()));
     }
 
     #[test]

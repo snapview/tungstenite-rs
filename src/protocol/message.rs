@@ -1,5 +1,7 @@
 use std::{fmt, result::Result as StdResult, str};
 
+use bytes::{Bytes, BytesMut};
+
 use super::frame::{CloseFrame, Frame};
 use crate::error::{CapacityError, Error, Result};
 
@@ -84,7 +86,7 @@ pub struct IncompleteMessage {
 #[derive(Debug)]
 enum IncompleteMessageCollector {
     Text(StringCollector),
-    Binary(Vec<u8>),
+    Binary(BytesMut),
 }
 
 impl IncompleteMessage {
@@ -92,7 +94,7 @@ impl IncompleteMessage {
     pub fn new(message_type: IncompleteMessageType) -> Self {
         IncompleteMessage {
             collector: match message_type {
-                IncompleteMessageType::Binary => IncompleteMessageCollector::Binary(Vec::new()),
+                IncompleteMessageType::Binary => IncompleteMessageCollector::Binary(BytesMut::new()),
                 IncompleteMessageType::Text => {
                     IncompleteMessageCollector::Text(StringCollector::new())
                 }
@@ -135,7 +137,7 @@ impl IncompleteMessage {
     /// Convert an incomplete message into a complete one.
     pub fn complete(self) -> Result<Message> {
         match self.collector {
-            IncompleteMessageCollector::Binary(v) => Ok(Message::Binary(v)),
+            IncompleteMessageCollector::Binary(v) => Ok(Message::Binary(v.into())),
             IncompleteMessageCollector::Text(t) => {
                 let text = t.into_string()?;
                 Ok(Message::Text(text))
@@ -156,7 +158,7 @@ pub enum Message {
     /// A text WebSocket message
     Text(String),
     /// A binary WebSocket message
-    Binary(Vec<u8>),
+    Binary(Bytes),
     /// A ping message with the specified payload
     ///
     /// The payload here must have a length less than 125 bytes
@@ -183,7 +185,7 @@ impl Message {
     /// Create a new binary WebSocket message by converting to `Vec<u8>`.
     pub fn binary<B>(bin: B) -> Message
     where
-        B: Into<Vec<u8>>,
+        B: Into<Bytes>,
     {
         Message::Binary(bin.into())
     }
@@ -217,7 +219,8 @@ impl Message {
     pub fn len(&self) -> usize {
         match *self {
             Message::Text(ref string) => string.len(),
-            Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
+            Message::Binary(ref data)  => data.len(),
+            Message::Ping(ref data) | Message::Pong(ref data) => {
                 data.len()
             }
             Message::Close(ref data) => data.as_ref().map(|d| d.reason.len()).unwrap_or(0),
@@ -235,10 +238,11 @@ impl Message {
     pub fn into_data(self) -> Vec<u8> {
         match self {
             Message::Text(string) => string.into_bytes(),
-            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data,
+            Message::Binary(data)  => data.into(),
+            Message::Ping(data) | Message::Pong(data) => data,
             Message::Close(None) => Vec::new(),
             Message::Close(Some(frame)) => frame.reason.into_owned().into_bytes(),
-            Message::Frame(frame) => frame.into_data(),
+            Message::Frame(frame) => frame.into_payload().into_bytes(),
         }
     }
 
@@ -246,7 +250,8 @@ impl Message {
     pub fn into_text(self) -> Result<String> {
         match self {
             Message::Text(string) => Ok(string),
-            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => {
+            Message::Binary(data) => Ok(String::from_utf8(data.into())?),
+            Message::Ping(data) | Message::Pong(data) => {
                 Ok(String::from_utf8(data)?)
             }
             Message::Close(None) => Ok(String::new()),
@@ -260,7 +265,8 @@ impl Message {
     pub fn to_text(&self) -> Result<&str> {
         match *self {
             Message::Text(ref string) => Ok(string),
-            Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
+            Message::Binary(ref data) => Ok(str::from_utf8(data)?),
+            Message::Ping(ref data) | Message::Pong(ref data) => {
                 Ok(str::from_utf8(data)?)
             }
             Message::Close(None) => Ok(""),
@@ -284,7 +290,7 @@ impl<'s> From<&'s str> for Message {
 
 impl<'b> From<&'b [u8]> for Message {
     fn from(data: &'b [u8]) -> Self {
-        Message::binary(data)
+        Message::binary(Bytes::copy_from_slice(data))
     }
 }
 
