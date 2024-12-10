@@ -204,7 +204,6 @@ impl FrameHeader {
     }
 }
 
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Payload {
     Owned(Vec<u8>),
@@ -379,7 +378,10 @@ impl Frame {
     pub fn message(data: impl Into<Payload>, opcode: OpCode, is_final: bool) -> Frame {
         debug_assert!(matches!(opcode, OpCode::Data(_)), "Invalid opcode for data frame.");
 
-        Frame { header: FrameHeader { is_final, opcode, ..FrameHeader::default() }, payload: data.into() }
+        Frame {
+            header: FrameHeader { is_final, opcode, ..FrameHeader::default() },
+            payload: data.into(),
+        }
     }
 
     /// Create a new Pong control frame.

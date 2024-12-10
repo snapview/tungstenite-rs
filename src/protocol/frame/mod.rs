@@ -273,7 +273,10 @@ mod tests {
             sock.read(None).unwrap().unwrap().into_payload().as_bytes(),
             vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
-        assert_eq!(sock.read(None).unwrap().unwrap().into_payload().as_bytes(), vec![0x03, 0x02, 0x01]);
+        assert_eq!(
+            sock.read(None).unwrap().unwrap().into_payload().as_bytes(),
+            vec![0x03, 0x02, 0x01]
+        );
         assert!(sock.read(None).unwrap().is_none());
 
         let (_, rest) = sock.into_inner();

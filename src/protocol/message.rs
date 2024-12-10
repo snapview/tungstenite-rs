@@ -94,7 +94,9 @@ impl IncompleteMessage {
     pub fn new(message_type: IncompleteMessageType) -> Self {
         IncompleteMessage {
             collector: match message_type {
-                IncompleteMessageType::Binary => IncompleteMessageCollector::Binary(BytesMut::new()),
+                IncompleteMessageType::Binary => {
+                    IncompleteMessageCollector::Binary(BytesMut::new())
+                }
                 IncompleteMessageType::Text => {
                     IncompleteMessageCollector::Text(StringCollector::new())
                 }
@@ -219,10 +221,8 @@ impl Message {
     pub fn len(&self) -> usize {
         match *self {
             Message::Text(ref string) => string.len(),
-            Message::Binary(ref data)  => data.len(),
-            Message::Ping(ref data) | Message::Pong(ref data) => {
-                data.len()
-            }
+            Message::Binary(ref data) => data.len(),
+            Message::Ping(ref data) | Message::Pong(ref data) => data.len(),
             Message::Close(ref data) => data.as_ref().map(|d| d.reason.len()).unwrap_or(0),
             Message::Frame(ref frame) => frame.len(),
         }
@@ -238,7 +238,7 @@ impl Message {
     pub fn into_data(self) -> Vec<u8> {
         match self {
             Message::Text(string) => string.into_bytes(),
-            Message::Binary(data)  => data.into(),
+            Message::Binary(data) => data.into(),
             Message::Ping(data) | Message::Pong(data) => data,
             Message::Close(None) => Vec::new(),
             Message::Close(Some(frame)) => frame.reason.into_owned().into_bytes(),
@@ -251,9 +251,7 @@ impl Message {
         match self {
             Message::Text(string) => Ok(string),
             Message::Binary(data) => Ok(String::from_utf8(data.into())?),
-            Message::Ping(data) | Message::Pong(data) => {
-                Ok(String::from_utf8(data)?)
-            }
+            Message::Ping(data) | Message::Pong(data) => Ok(String::from_utf8(data)?),
             Message::Close(None) => Ok(String::new()),
             Message::Close(Some(frame)) => Ok(frame.reason.into_owned()),
             Message::Frame(frame) => Ok(frame.into_string()?),
@@ -266,9 +264,7 @@ impl Message {
         match *self {
             Message::Text(ref string) => Ok(string),
             Message::Binary(ref data) => Ok(str::from_utf8(data)?),
-            Message::Ping(ref data) | Message::Pong(ref data) => {
-                Ok(str::from_utf8(data)?)
-            }
+            Message::Ping(ref data) | Message::Pong(ref data) => Ok(str::from_utf8(data)?),
             Message::Close(None) => Ok(""),
             Message::Close(Some(ref frame)) => Ok(&frame.reason),
             Message::Frame(ref frame) => Ok(frame.to_text()?),
