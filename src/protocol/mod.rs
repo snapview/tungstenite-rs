@@ -439,7 +439,7 @@ impl WebSocketContext {
         }
 
         let frame = match message {
-            Message::Text(data) => Frame::message(data.into(), OpCode::Data(OpData::Text), true),
+            Message::Text(data) => Frame::message(data, OpCode::Data(OpData::Text), true),
             Message::Binary(data) => Frame::message(data, OpCode::Data(OpData::Binary), true),
             Message::Ping(data) => Frame::ping(data),
             Message::Pong(data) => {
@@ -608,9 +608,9 @@ impl WebSocketContext {
                             if self.state.is_active() {
                                 self.set_additional(Frame::pong(data.clone()));
                             }
-                            Ok(Some(Message::Ping(data)))
+                            Ok(Some(Message::Ping(data.into())))
                         }
-                        OpCtl::Pong => Ok(Some(Message::Pong(frame.into_data()))),
+                        OpCtl::Pong => Ok(Some(Message::Pong(frame.into_data().into()))),
                     }
                 }
 
@@ -826,10 +826,10 @@ mod tests {
             0x03,
         ]);
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, None);
-        assert_eq!(socket.read().unwrap(), Message::Ping(vec![1, 2]));
-        assert_eq!(socket.read().unwrap(), Message::Pong(vec![3]));
+        assert_eq!(socket.read().unwrap(), Message::Ping(vec![1, 2].into()));
+        assert_eq!(socket.read().unwrap(), Message::Pong(vec![3].into()));
         assert_eq!(socket.read().unwrap(), Message::Text("Hello, World!".into()));
-        assert_eq!(socket.read().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03]));
+        assert_eq!(socket.read().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03].into()));
     }
 
     #[test]
