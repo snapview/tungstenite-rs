@@ -1,14 +1,17 @@
-use byteorder::{NetworkEndian, ReadBytesExt};
-use log::*;
 use std::{
     borrow::Cow,
     default::Default,
     fmt,
     io::{Cursor, ErrorKind, Read, Write},
+    mem,
     result::Result as StdResult,
     str::Utf8Error,
     string::{FromUtf8Error, String},
 };
+
+use byteorder::{NetworkEndian, ReadBytesExt};
+use bytes::Bytes;
+use log::*;
 
 use super::{
     coding::{CloseCode, Control, Data, OpCode},
@@ -203,11 +206,47 @@ impl FrameHeader {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum Payload {
+    Owned(Vec<u8>),
+    Shared(Bytes),
+}
+
+impl Payload {
+    pub fn as_slice(&self) -> &[u8] {
+        match self {
+            Payload::Owned(v) => v,
+            Payload::Shared(v) => v,
+        }
+    }
+
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        match self {
+            Payload::Owned(v) => &mut *v,
+            Payload::Shared(v) => {
+                // Using `Bytes::to_vec()` or `Vec::from(bytes.as_ref())` would mean making a copy.
+                // `Bytes::into()` would not make a copy if our `Bytes` instance is the only one.
+                let data = mem::take(v).into();
+                *self = Payload::Owned(data);
+                let Payload::Owned(v) = self else { unreachable!() };
+                v
+            }
+        }
+    }
+
+    pub fn into_data(self) -> Vec<u8> {
+        match self {
+            Payload::Owned(v) => v,
+            Payload::Shared(v) => v.into(),
+        }
+    }
+}
+
 /// A struct representing a WebSocket frame.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Frame {
     header: FrameHeader,
-    payload: Vec<u8>,
+    payload: Payload,
 }
 
 impl Frame {
@@ -215,7 +254,7 @@ impl Frame {
     /// This is the length of the header + the length of the payload.
     #[inline]
     pub fn len(&self) -> usize {
-        let length = self.payload.len();
+        let length = self.payload.as_slice().len();
         self.header.len(length as u64) + length
     }
 
@@ -239,14 +278,14 @@ impl Frame {
 
     /// Get a reference to the frame's payload.
     #[inline]
-    pub fn payload(&self) -> &Vec<u8> {
-        &self.payload
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_slice()
     }
 
     /// Get a mutable reference to the frame's payload.
     #[inline]
-    pub fn payload_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload
+    pub fn payload_mut(&mut self) -> &mut [u8] {
+        self.payload.as_mut_slice()
     }
 
     /// Test whether the frame is masked.
@@ -269,36 +308,36 @@ impl Frame {
     #[inline]
     pub(crate) fn apply_mask(&mut self) {
         if let Some(mask) = self.header.mask.take() {
-            apply_mask(&mut self.payload, mask);
+            apply_mask(self.payload.as_mut_slice(), mask);
         }
     }
 
     /// Consume the frame into its payload as binary.
     #[inline]
     pub fn into_data(self) -> Vec<u8> {
-        self.payload
+        self.payload.into_data()
     }
 
     /// Consume the frame into its payload as string.
     #[inline]
     pub fn into_string(self) -> StdResult<String, FromUtf8Error> {
-        String::from_utf8(self.payload)
+        String::from_utf8(self.payload.into_data())
     }
 
     /// Get frame payload as `&str`.
     #[inline]
     pub fn to_text(&self) -> Result<&str, Utf8Error> {
-        std::str::from_utf8(&self.payload)
+        std::str::from_utf8(self.payload.as_slice())
     }
 
     /// Consume the frame into a closing frame.
     #[inline]
     pub(crate) fn into_close(self) -> Result<Option<CloseFrame<'static>>> {
-        match self.payload.len() {
+        match self.payload.as_slice().len() {
             0 => Ok(None),
             1 => Err(Error::Protocol(ProtocolError::InvalidCloseSequence)),
             _ => {
-                let mut data = self.payload;
+                let mut data = self.payload.into_data();
                 let code = u16::from_be_bytes([data[0], data[1]]).into();
                 data.drain(0..2);
                 let text = String::from_utf8(data)?;
@@ -309,33 +348,36 @@ impl Frame {
 
     /// Create a new data frame.
     #[inline]
-    pub fn message(data: Vec<u8>, opcode: OpCode, is_final: bool) -> Frame {
+    pub fn message(data: impl Into<Bytes>, opcode: OpCode, is_final: bool) -> Frame {
         debug_assert!(matches!(opcode, OpCode::Data(_)), "Invalid opcode for data frame.");
 
-        Frame { header: FrameHeader { is_final, opcode, ..FrameHeader::default() }, payload: data }
+        Frame {
+            header: FrameHeader { is_final, opcode, ..FrameHeader::default() },
+            payload: Payload::Shared(data.into()),
+        }
     }
 
     /// Create a new Pong control frame.
     #[inline]
-    pub fn pong(data: Vec<u8>) -> Frame {
+    pub fn pong(data: impl Into<Bytes>) -> Frame {
         Frame {
             header: FrameHeader {
                 opcode: OpCode::Control(Control::Pong),
                 ..FrameHeader::default()
             },
-            payload: data,
+            payload: Payload::Shared(data.into()),
         }
     }
 
     /// Create a new Ping control frame.
     #[inline]
-    pub fn ping(data: Vec<u8>) -> Frame {
+    pub fn ping(data: impl Into<Bytes>) -> Frame {
         Frame {
             header: FrameHeader {
                 opcode: OpCode::Control(Control::Ping),
                 ..FrameHeader::default()
             },
-            payload: data,
+            payload: Payload::Shared(data.into()),
         }
     }
 
@@ -351,17 +393,17 @@ impl Frame {
             Vec::new()
         };
 
-        Frame { header: FrameHeader::default(), payload }
+        Frame { header: FrameHeader::default(), payload: Payload::Owned(payload) }
     }
 
     /// Create a frame from given header and data.
-    pub fn from_payload(header: FrameHeader, payload: Vec<u8>) -> Self {
-        Frame { header, payload }
+    pub fn from_payload(header: FrameHeader, payload: impl Into<Bytes>) -> Self {
+        Frame { header, payload: Payload::Shared(payload.into()) }
     }
 
     /// Write a frame out to a buffer
     pub fn format(mut self, output: &mut impl Write) -> Result<()> {
-        self.header.format(self.payload.len() as u64, output)?;
+        self.header.format(self.payload.as_slice().len() as u64, output)?;
         self.apply_mask();
         output.write_all(self.payload())?;
         Ok(())
@@ -390,8 +432,8 @@ payload: 0x{}
             self.header.opcode,
             // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
             self.len(),
-            self.payload.len(),
-            self.payload.iter().fold(String::new(), |mut output, byte| {
+            self.payload.as_slice().len(),
+            self.payload.as_slice().iter().fold(String::new(), |mut output, byte| {
                 _ = write!(output, "{byte:02x}");
                 output
             })
@@ -479,7 +521,7 @@ mod tests {
 
     #[test]
     fn display() {
-        let f = Frame::message("hi there".into(), OpCode::Data(Data::Text), true);
+        let f = Frame::message("hi there", OpCode::Data(Data::Text), true);
         let view = format!("{f}");
         assert!(view.contains("payload:"));
     }

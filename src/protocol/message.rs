@@ -1,5 +1,7 @@
 use std::{fmt, result::Result as StdResult, str};
 
+use bytes::Bytes;
+
 use super::frame::{CloseFrame, Frame};
 use crate::error::{CapacityError, Error, Result};
 
@@ -135,7 +137,7 @@ impl IncompleteMessage {
     /// Convert an incomplete message into a complete one.
     pub fn complete(self) -> Result<Message> {
         match self.collector {
-            IncompleteMessageCollector::Binary(v) => Ok(Message::Binary(v)),
+            IncompleteMessageCollector::Binary(v) => Ok(Message::Binary(v.into())),
             IncompleteMessageCollector::Text(t) => {
                 let text = t.into_string()?;
                 Ok(Message::Text(text))
@@ -156,15 +158,15 @@ pub enum Message {
     /// A text WebSocket message
     Text(String),
     /// A binary WebSocket message
-    Binary(Vec<u8>),
+    Binary(Bytes),
     /// A ping message with the specified payload
     ///
     /// The payload here must have a length less than 125 bytes
-    Ping(Vec<u8>),
+    Ping(Bytes),
     /// A pong message with the specified payload
     ///
     /// The payload here must have a length less than 125 bytes
-    Pong(Vec<u8>),
+    Pong(Bytes),
     /// A close message with the optional close frame.
     Close(Option<CloseFrame<'static>>),
     /// Raw frame. Note, that you're not going to get this value while reading the message.
@@ -185,7 +187,7 @@ impl Message {
     where
         B: Into<Vec<u8>>,
     {
-        Message::Binary(bin.into())
+        Message::Binary(bin.into().into())
     }
 
     /// Indicates whether a message is a text message.
@@ -235,7 +237,7 @@ impl Message {
     pub fn into_data(self) -> Vec<u8> {
         match self {
             Message::Text(string) => string.into_bytes(),
-            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data,
+            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data.into(),
             Message::Close(None) => Vec::new(),
             Message::Close(Some(frame)) => frame.reason.into_owned().into_bytes(),
             Message::Frame(frame) => frame.into_data(),
@@ -247,7 +249,7 @@ impl Message {
         match self {
             Message::Text(string) => Ok(string),
             Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => {
-                Ok(String::from_utf8(data)?)
+                Ok(String::from_utf8(data.into())?)
             }
             Message::Close(None) => Ok(String::new()),
             Message::Close(Some(frame)) => Ok(frame.reason.into_owned()),
