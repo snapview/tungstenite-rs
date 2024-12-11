@@ -5,6 +5,7 @@ pub mod coding;
 #[allow(clippy::module_inception)]
 mod frame;
 mod mask;
+mod payload;
 
 use crate::{
     error::{CapacityError, Error, Result},
@@ -13,7 +14,10 @@ use crate::{
 use log::*;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Write};
 
-pub use self::frame::{CloseFrame, Frame, FrameHeader};
+pub use self::{
+    frame::{CloseFrame, Frame, FrameHeader},
+    payload::Payload,
+};
 
 /// A reader and writer for WebSocket frames.
 #[derive(Debug)]
@@ -196,7 +200,7 @@ impl FrameCodec {
 
         let (header, length) = self.header.take().expect("Bug: no frame header");
         debug_assert_eq!(payload.len() as u64, length);
-        let frame = Frame::from_payload(header, payload);
+        let frame = Frame::from_payload(header, payload.into());
         trace!("received frame {frame}");
         Ok(Some(frame))
     }
