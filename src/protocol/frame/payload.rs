@@ -34,8 +34,10 @@ impl Payload {
                 // `Bytes::into()` would not make a copy if our `Bytes` instance is the only one.
                 let data = mem::take(v).into();
                 *self = Payload::Owned(data);
-                let Payload::Owned(v) = self else { unreachable!() };
-                v
+                match self {
+                    Payload::Owned(v) => v,
+                    Payload::Shared(_) => unreachable!(),
+                }
             }
         }
     }
