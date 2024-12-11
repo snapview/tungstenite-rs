@@ -43,6 +43,7 @@ impl Payload {
     }
 
     /// Returns the length of the payload.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.as_slice().len()
     }
