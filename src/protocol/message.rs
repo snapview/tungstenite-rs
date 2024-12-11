@@ -1,8 +1,6 @@
 use std::{fmt, result::Result as StdResult, str};
 
-use bytes::Bytes;
-
-use super::frame::{CloseFrame, Frame};
+use super::frame::{CloseFrame, Frame, Payload};
 use crate::error::{CapacityError, Error, Result};
 
 mod string_collect {
@@ -158,15 +156,15 @@ pub enum Message {
     /// A text WebSocket message
     Text(String),
     /// A binary WebSocket message
-    Binary(Bytes),
+    Binary(Payload),
     /// A ping message with the specified payload
     ///
     /// The payload here must have a length less than 125 bytes
-    Ping(Bytes),
+    Ping(Payload),
     /// A pong message with the specified payload
     ///
     /// The payload here must have a length less than 125 bytes
-    Pong(Bytes),
+    Pong(Payload),
     /// A close message with the optional close frame.
     Close(Option<CloseFrame<'static>>),
     /// Raw frame. Note, that you're not going to get this value while reading the message.
@@ -185,9 +183,9 @@ impl Message {
     /// Create a new binary WebSocket message by converting to `Vec<u8>`.
     pub fn binary<B>(bin: B) -> Message
     where
-        B: Into<Vec<u8>>,
+        B: Into<Payload>,
     {
-        Message::Binary(bin.into().into())
+        Message::Binary(bin.into())
     }
 
     /// Indicates whether a message is a text message.
@@ -237,7 +235,7 @@ impl Message {
     pub fn into_data(self) -> Vec<u8> {
         match self {
             Message::Text(string) => string.into_bytes(),
-            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data.into(),
+            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data.into_data(),
             Message::Close(None) => Vec::new(),
             Message::Close(Some(frame)) => frame.reason.into_owned().into_bytes(),
             Message::Frame(frame) => frame.into_data(),
@@ -249,11 +247,11 @@ impl Message {
         match self {
             Message::Text(string) => Ok(string),
             Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => {
-                Ok(String::from_utf8(data.into())?)
+                Ok(data.into_text()?)
             }
             Message::Close(None) => Ok(String::new()),
             Message::Close(Some(frame)) => Ok(frame.reason.into_owned()),
-            Message::Frame(frame) => Ok(frame.into_string()?),
+            Message::Frame(frame) => Ok(frame.into_text()?),
         }
     }
 
@@ -263,7 +261,7 @@ impl Message {
         match *self {
             Message::Text(ref string) => Ok(string),
             Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
-                Ok(str::from_utf8(data)?)
+                Ok(str::from_utf8(data.as_slice())?)
             }
             Message::Close(None) => Ok(""),
             Message::Close(Some(ref frame)) => Ok(&frame.reason),
@@ -286,7 +284,7 @@ impl<'s> From<&'s str> for Message {
 
 impl<'b> From<&'b [u8]> for Message {
     fn from(data: &'b [u8]) -> Self {
-        Message::binary(data)
+        Message::binary(data.to_vec())
     }
 }
 
