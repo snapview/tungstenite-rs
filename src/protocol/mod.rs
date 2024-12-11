@@ -610,7 +610,7 @@ impl WebSocketContext {
                             }
                             Ok(Some(Message::Ping(data.into())))
                         }
-                        OpCtl::Pong => Ok(Some(Message::Pong(frame.into_data().into()))),
+                        OpCtl::Pong => Ok(Some(Message::Pong(frame.into_payload()))),
                     }
                 }
 
