@@ -284,7 +284,8 @@ impl<'s> From<&'s str> for Message {
 
 impl<'b> From<&'b [u8]> for Message {
     fn from(data: &'b [u8]) -> Self {
-        Message::binary(data.to_vec())
+        let data: Vec<u8> = data.into();
+        Message::binary(data)
     }
 }
 
