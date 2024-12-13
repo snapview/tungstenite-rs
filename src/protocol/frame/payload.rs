@@ -13,6 +13,7 @@ pub enum Payload {
 
 impl Payload {
     /// Returns a slice of the payload.
+    #[inline]
     pub fn as_slice(&self) -> &[u8] {
         match self {
             Payload::Owned(v) => v,
@@ -26,6 +27,7 @@ impl Payload {
     /// and there are other references to the same data. No allocation
     /// would happen if the payload is owned or if there is only one
     /// `Bytes` instance referencing the data.
+    #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
         match self {
             Payload::Owned(v) => &mut *v,
@@ -43,12 +45,14 @@ impl Payload {
     }
 
     /// Returns the length of the payload.
+    #[inline]
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.as_slice().len()
     }
 
     /// Consumes the payload and returns the underlying data as a vector.
+    #[inline]
     pub fn into_data(self) -> Vec<u8> {
         match self {
             Payload::Owned(v) => v,
@@ -57,6 +61,7 @@ impl Payload {
     }
 
     /// Consumes the payload and returns the underlying data as a string.
+    #[inline]
     pub fn into_text(self) -> Result<String, FromUtf8Error> {
         match self {
             Payload::Owned(v) => Ok(String::from_utf8(v)?),
@@ -73,7 +78,7 @@ impl From<Vec<u8>> for Payload {
 
 impl From<String> for Payload {
     fn from(v: String) -> Self {
-        Payload::Owned(v.into_bytes())
+        Payload::Owned(v.into())
     }
 }
 
