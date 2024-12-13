@@ -1,11 +1,11 @@
 //! Benchmarks for write performance.
-use criterion::{BatchSize, Criterion};
+use criterion::Criterion;
 use std::{
     hint,
     io::{self, Read, Write},
     time::{Duration, Instant},
 };
-use tungstenite::{Message, WebSocket};
+use tungstenite::{protocol::Role, Message, WebSocket};
 
 const MOCK_WRITE_LEN: usize = 8 * 1024 * 1024;
 
@@ -50,24 +50,28 @@ fn spin(duration: Duration) {
 }
 
 fn benchmark(c: &mut Criterion) {
-    // Writes 100k small json text messages then flushes
-    c.bench_function("write 100k small texts then flush", |b| {
-        let mut ws = WebSocket::from_raw_socket(
-            MockWrite(Vec::with_capacity(MOCK_WRITE_LEN)),
-            tungstenite::protocol::Role::Server,
-            None,
-        );
+    fn write_100k_then_flush(role: Role, b: &mut criterion::Bencher<'_>) {
+        let mut ws =
+            WebSocket::from_raw_socket(MockWrite(Vec::with_capacity(MOCK_WRITE_LEN)), role, None);
 
-        b.iter_batched(
-            || (0..100_000).map(|i| Message::Text(format!("{{\"id\":{i}}}"))),
-            |batch| {
-                for msg in batch {
-                    ws.write(msg).unwrap();
-                }
-                ws.flush().unwrap();
-            },
-            BatchSize::SmallInput,
-        );
+        b.iter(|| {
+            for i in 0_u64..100_000 {
+                let msg = match i {
+                    _ if i % 3 == 0 => Message::Binary(i.to_le_bytes().into()),
+                    _ => Message::Text(format!("{{\"id\":{i}}}")),
+                };
+                ws.write(msg).unwrap();
+            }
+            ws.flush().unwrap();
+        });
+    }
+
+    c.bench_function("write 100k small messages then flush (server)", |b| {
+        write_100k_then_flush(Role::Server, b);
+    });
+
+    c.bench_function("write+mask 100k small messages then flush (client)", |b| {
+        write_100k_then_flush(Role::Client, b);
     });
 }
 
