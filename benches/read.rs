@@ -51,7 +51,10 @@ fn benchmark(c: &mut Criterion) {
                 for i in 0_u64..100_000 {
                     writer
                         .send(match i {
-                            _ if i % 3 == 0 => Message::Binary(i.to_le_bytes().into()),
+                            _ if i % 3 == 0 => {
+                                let data: Vec<u8> = i.to_le_bytes().into();
+                                Message::Binary(data.into())
+                            }
                             _ => Message::Text(format!("{{\"id\":{i}}}")),
                         })
                         .unwrap();
