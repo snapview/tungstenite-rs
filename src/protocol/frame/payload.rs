@@ -141,7 +141,7 @@ impl Payload {
                 *self = Self::Shared(mem::take(data).freeze());
             }
             Self::Vec(data) => {
-                *self = Self::Shared(Bytes::from_owner(mem::take(data)));
+                *self = Self::Shared(Bytes::from(mem::take(data)));
             }
             Self::Shared(_) => {}
         }
