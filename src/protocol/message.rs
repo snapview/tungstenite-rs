@@ -277,43 +277,39 @@ impl Message {
 }
 
 impl From<String> for Message {
+    #[inline]
     fn from(string: String) -> Self {
         Message::text(string)
     }
 }
 
 impl<'s> From<&'s str> for Message {
+    #[inline]
     fn from(string: &'s str) -> Self {
         Message::text(string)
     }
 }
 
 impl<'b> From<&'b [u8]> for Message {
+    #[inline]
     fn from(data: &'b [u8]) -> Self {
-        let data: Vec<u8> = data.into();
         Message::binary(data)
     }
 }
 
 impl From<Vec<u8>> for Message {
+    #[inline]
     fn from(data: Vec<u8>) -> Self {
         Message::binary(data)
     }
 }
 
 impl From<Message> for Vec<u8> {
+    #[inline]
     fn from(message: Message) -> Self {
         message.into_data().as_slice().into()
     }
 }
-
-// impl TryFrom<Message> for String {
-//     type Error = Error;
-
-//     fn try_from(value: Message) -> StdResult<Self, Self::Error> {
-//         Ok(value.into_text()?.as_str().into())
-//     }
-// }
 
 impl fmt::Display for Message {
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {
