@@ -13,7 +13,7 @@ use self::{
     },
     message::{IncompleteMessage, IncompleteMessageType},
 };
-use crate::error::{Error, ProtocolError, Result};
+use crate::error::{CapacityError, Error, ProtocolError, Result};
 use log::*;
 use std::{
     io::{self, Read, Write},
@@ -637,8 +637,14 @@ impl WebSocketContext {
                         c if self.incomplete.is_some() => {
                             Err(Error::Protocol(ProtocolError::ExpectedFragment(c)))
                         }
-                        OpData::Text if fin => Ok(Some(Message::Text(frame.into_text()?))),
-                        OpData::Binary if fin => Ok(Some(Message::Binary(frame.into_payload()))),
+                        OpData::Text if fin => {
+                            check_max_size(frame.payload().len(), self.config.max_message_size)?;
+                            Ok(Some(Message::Text(frame.into_text()?)))
+                        }
+                        OpData::Binary if fin => {
+                            check_max_size(frame.payload().len(), self.config.max_message_size)?;
+                            Ok(Some(Message::Binary(frame.into_payload())))
+                        }
                         OpData::Text | OpData::Binary => {
                             let message_type = match data {
                                 OpData::Text => IncompleteMessageType::Text,
@@ -736,6 +742,15 @@ impl WebSocketContext {
             self.additional_send.replace(add);
         }
     }
+}
+
+fn check_max_size(size: usize, max_size: Option<usize>) -> crate::Result<()> {
+    if let Some(max_size) = max_size {
+        if size > max_size {
+            return Err(Error::Capacity(CapacityError::MessageTooLong { size, max_size }));
+        }
+    }
+    Ok(())
 }
 
 /// The current connection state.
