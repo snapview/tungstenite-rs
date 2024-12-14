@@ -33,6 +33,12 @@ impl Utf8Payload {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// If owned converts into [`Bytes`] internals & then clones (cheaply).
+    #[inline]
+    pub fn share(&mut self) -> Self {
+        Self(self.0.share())
+    }
 }
 
 impl TryFrom<Payload> for Utf8Payload {
@@ -131,11 +137,16 @@ impl Payload {
         Self::Shared(Bytes::from_owner(owner))
     }
 
-    /// If owned converts into shared & then clones (cheaply).
-    #[inline]
+    /// Converts into [`Bytes`] internals & then clones (cheaply).
     pub fn share(&mut self) -> Self {
-        if let Self::Owned(bytes) = self {
-            *self = Self::Shared(mem::take(bytes).freeze());
+        match self {
+            Self::Owned(data) => {
+                *self = Self::Shared(mem::take(data).freeze());
+            }
+            Self::Vec(data) => {
+                *self = Self::Shared(Bytes::from_owner(mem::take(data)));
+            }
+            Self::Shared(_) => {}
         }
         self.clone()
     }
