@@ -121,7 +121,7 @@ impl FrameCodec {
     pub(super) fn new() -> Self {
         Self {
             in_buffer: BytesMut::with_capacity(READ_BUFFER_CAP),
-            out_buffer: Vec::new(),
+            out_buffer: <_>::default(),
             max_out_buffer_len: usize::MAX,
             out_buffer_write_len: 0,
             header: None,
@@ -134,7 +134,7 @@ impl FrameCodec {
         in_buffer.reserve(READ_BUFFER_CAP.saturating_sub(in_buffer.len()));
         Self {
             in_buffer,
-            out_buffer: Vec::new(),
+            out_buffer: <_>::default(),
             max_out_buffer_len: usize::MAX,
             out_buffer_write_len: 0,
             header: None,

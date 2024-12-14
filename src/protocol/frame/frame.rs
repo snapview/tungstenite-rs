@@ -304,7 +304,7 @@ impl Frame {
             0 => Ok(None),
             1 => Err(Error::Protocol(ProtocolError::InvalidCloseSequence)),
             _ => {
-                let mut data = self.payload.into_data();
+                let mut data = self.payload.as_slice();
                 let code = u16::from_be_bytes([data[0], data[1]]).into();
                 data.advance(2);
                 let text = String::from_utf8(data.to_vec())?;

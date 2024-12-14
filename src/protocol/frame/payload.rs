@@ -63,6 +63,15 @@ impl TryFrom<BytesMut> for Utf8Payload {
     }
 }
 
+impl TryFrom<Vec<u8>> for Utf8Payload {
+    type Error = str::Utf8Error;
+
+    #[inline]
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Payload::from(bytes).try_into()
+    }
+}
+
 impl From<String> for Utf8Payload {
     #[inline]
     fn from(s: String) -> Self {
@@ -104,6 +113,8 @@ pub enum Payload {
     Owned(BytesMut),
     /// Shared data with shared ownership.
     Shared(Bytes),
+    /// Owned vec data.
+    Vec(Vec<u8>),
 }
 
 impl Payload {
@@ -135,6 +146,7 @@ impl Payload {
         match self {
             Payload::Owned(v) => v,
             Payload::Shared(v) => v,
+            Payload::Vec(v) => v,
         }
     }
 
@@ -148,6 +160,7 @@ impl Payload {
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
         match self {
             Payload::Owned(v) => &mut *v,
+            Payload::Vec(v) => &mut *v,
             Payload::Shared(v) => {
                 // Using `Bytes::to_vec()` or `Vec::from(bytes.as_ref())` would mean making a copy.
                 // `Bytes::into()` would not make a copy if our `Bytes` instance is the only one.
@@ -155,7 +168,7 @@ impl Payload {
                 *self = Payload::Owned(data);
                 match self {
                     Payload::Owned(v) => v,
-                    Payload::Shared(_) => unreachable!(),
+                    _ => unreachable!(),
                 }
             }
         }
@@ -163,18 +176,14 @@ impl Payload {
 
     /// Returns the length of the payload.
     #[inline]
-    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.as_slice().len()
     }
 
-    /// Consumes the payload and returns the underlying data as a vector.
+    /// Returns true if the payload has a length of 0.
     #[inline]
-    pub fn into_data(self) -> BytesMut {
-        match self {
-            Payload::Owned(v) => v,
-            Payload::Shared(v) => v.into(),
-        }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     /// Consumes the payload and returns the underlying data as a string.
@@ -194,14 +203,14 @@ impl Default for Payload {
 impl From<Vec<u8>> for Payload {
     #[inline]
     fn from(v: Vec<u8>) -> Self {
-        Payload::Owned(BytesMut::from_iter(v))
+        Payload::Vec(v)
     }
 }
 
 impl From<String> for Payload {
     #[inline]
     fn from(v: String) -> Self {
-        Vec::from(v).into()
+        v.into_bytes().into()
     }
 }
 
