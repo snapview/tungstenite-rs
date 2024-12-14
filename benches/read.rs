@@ -52,7 +52,7 @@ fn benchmark(c: &mut Criterion) {
                     writer
                         .send(match i {
                             _ if i % 3 == 0 => Message::binary(i.to_le_bytes().to_vec()),
-                            _ => Message::Text(format!("{{\"id\":{i}}}")),
+                            _ => Message::text(format!("{{\"id\":{i}}}")),
                         })
                         .unwrap();
                     sum += i;
@@ -68,7 +68,7 @@ fn benchmark(c: &mut Criterion) {
                             sum += u64::from_le_bytes(*a);
                         }
                         Message::Text(msg) => {
-                            let i: u64 = msg[6..msg.len() - 1].parse().unwrap();
+                            let i: u64 = msg.as_str()[6..msg.len() - 1].parse().unwrap();
                             sum += i;
                         }
                         m => panic!("Unexpected {m}"),

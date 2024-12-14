@@ -209,7 +209,7 @@ impl FrameHeader {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Frame {
     header: FrameHeader,
-    payload: Payload,
+    pub(crate) payload: Payload,
 }
 
 impl Frame {
