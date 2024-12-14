@@ -1,6 +1,6 @@
-use std::{fmt, result::Result as StdResult, str};
+use std::{borrow::Cow, fmt, result::Result as StdResult, str};
 
-use super::frame::{CloseFrame, Frame, Payload};
+use super::frame::{CloseFrame, Frame, Payload, Utf8Payload};
 use crate::error::{CapacityError, Error, Result};
 
 mod string_collect {
@@ -138,7 +138,7 @@ impl IncompleteMessage {
             IncompleteMessageCollector::Binary(v) => Ok(Message::Binary(v.into())),
             IncompleteMessageCollector::Text(t) => {
                 let text = t.into_string()?;
-                Ok(Message::Text(text))
+                Ok(Message::text(text))
             }
         }
     }
@@ -154,7 +154,7 @@ pub enum IncompleteMessageType {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Message {
     /// A text WebSocket message
-    Text(String),
+    Text(Utf8Payload),
     /// A binary WebSocket message
     Binary(Payload),
     /// A ping message with the specified payload
@@ -175,7 +175,7 @@ impl Message {
     /// Create a new text WebSocket message from a stringable.
     pub fn text<S>(string: S) -> Message
     where
-        S: Into<String>,
+        S: Into<Utf8Payload>,
     {
         Message::Text(string.into())
     }
@@ -232,26 +232,32 @@ impl Message {
     }
 
     /// Consume the WebSocket and return it as binary data.
-    pub fn into_data(self) -> Vec<u8> {
+    pub fn into_data(self) -> Payload {
         match self {
-            Message::Text(string) => string.into_bytes(),
-            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data.into_data(),
-            Message::Close(None) => Vec::new(),
-            Message::Close(Some(frame)) => frame.reason.into_owned().into_bytes(),
-            Message::Frame(frame) => frame.into_data(),
+            Message::Text(string) => string.into(),
+            Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data,
+            Message::Close(None) => <_>::default(),
+            Message::Close(Some(frame)) => match frame.reason {
+                Cow::Borrowed(s) => Payload::from_static(s.as_bytes()),
+                Cow::Owned(s) => s.into(),
+            },
+            Message::Frame(frame) => frame.payload,
         }
     }
 
     /// Attempt to consume the WebSocket message and convert it to a String.
-    pub fn into_text(self) -> Result<String> {
+    pub fn into_text(self) -> Result<Utf8Payload> {
         match self {
-            Message::Text(string) => Ok(string),
+            Message::Text(txt) => Ok(txt),
             Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => {
-                Ok(data.into_text()?)
+                Ok(data.try_into()?)
             }
-            Message::Close(None) => Ok(String::new()),
-            Message::Close(Some(frame)) => Ok(frame.reason.into_owned()),
-            Message::Frame(frame) => Ok(frame.into_text()?),
+            Message::Close(None) => Ok(<_>::default()),
+            Message::Close(Some(frame)) => Ok(match frame.reason {
+                Cow::Borrowed(s) => Utf8Payload::from_static(s),
+                Cow::Owned(s) => s.into(),
+            }),
+            Message::Frame(frame) => Ok(frame.payload.try_into()?),
         }
     }
 
@@ -259,7 +265,7 @@ impl Message {
     /// this will try to convert binary data to utf8.
     pub fn to_text(&self) -> Result<&str> {
         match *self {
-            Message::Text(ref string) => Ok(string),
+            Message::Text(ref string) => Ok(string.as_str()),
             Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
                 Ok(str::from_utf8(data.as_slice())?)
             }
@@ -297,17 +303,17 @@ impl From<Vec<u8>> for Message {
 
 impl From<Message> for Vec<u8> {
     fn from(message: Message) -> Self {
-        message.into_data()
+        message.into_data().as_slice().into()
     }
 }
 
-impl TryFrom<Message> for String {
-    type Error = Error;
+// impl TryFrom<Message> for String {
+//     type Error = Error;
 
-    fn try_from(value: Message) -> StdResult<Self, Self::Error> {
-        value.into_text()
-    }
-}
+//     fn try_from(value: Message) -> StdResult<Self, Self::Error> {
+//         Ok(value.into_text()?.as_str().into())
+//     }
+// }
 
 impl fmt::Display for Message {
     fn fmt(&self, f: &mut fmt::Formatter) -> StdResult<(), fmt::Error> {

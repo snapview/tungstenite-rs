@@ -7,17 +7,18 @@ mod frame;
 mod mask;
 mod payload;
 
-use crate::{
-    error::{CapacityError, Error, Result},
-    Message, ReadBuffer,
-};
-use log::*;
-use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Write};
-
 pub use self::{
     frame::{CloseFrame, Frame, FrameHeader},
-    payload::Payload,
+    payload::{Payload, Utf8Payload},
 };
+
+use crate::{
+    error::{CapacityError, Error, Result},
+    Message,
+};
+use bytes::BytesMut;
+use log::*;
+use std::io::{Cursor, Error as IoError, ErrorKind as IoErrorKind, Read, Write};
 
 /// A reader and writer for WebSocket frames.
 #[derive(Debug)]
@@ -40,8 +41,8 @@ impl<Stream> FrameSocket<Stream> {
     }
 
     /// Extract a stream from the socket.
-    pub fn into_inner(self) -> (Stream, Vec<u8>) {
-        (self.stream, self.codec.in_buffer.into_vec())
+    pub fn into_inner(self) -> (Stream, BytesMut) {
+        (self.stream, self.codec.in_buffer)
     }
 
     /// Returns a shared reference to the inner stream.
@@ -98,7 +99,7 @@ where
 #[derive(Debug)]
 pub(super) struct FrameCodec {
     /// Buffer to read data from the stream.
-    in_buffer: ReadBuffer,
+    in_buffer: BytesMut,
     /// Buffer to send packets to the network.
     out_buffer: Vec<u8>,
     /// Capacity limit for `out_buffer`.
@@ -113,11 +114,13 @@ pub(super) struct FrameCodec {
     header: Option<(FrameHeader, u64)>,
 }
 
+const READ_BUFFER_CAP: usize = 64 * 1024;
+
 impl FrameCodec {
     /// Create a new frame codec.
     pub(super) fn new() -> Self {
         Self {
-            in_buffer: ReadBuffer::new(),
+            in_buffer: BytesMut::with_capacity(READ_BUFFER_CAP),
             out_buffer: Vec::new(),
             max_out_buffer_len: usize::MAX,
             out_buffer_write_len: 0,
@@ -127,8 +130,10 @@ impl FrameCodec {
 
     /// Create a new frame codec from partially read data.
     pub(super) fn from_partially_read(part: Vec<u8>) -> Self {
+        let mut in_buffer = BytesMut::from_iter(part);
+        in_buffer.reserve(READ_BUFFER_CAP.saturating_sub(in_buffer.len()));
         Self {
-            in_buffer: ReadBuffer::from_partially_read(part),
+            in_buffer,
             out_buffer: Vec::new(),
             max_out_buffer_len: usize::MAX,
             out_buffer_write_len: 0,
@@ -160,38 +165,39 @@ impl FrameCodec {
 
         let payload = loop {
             {
-                let cursor = self.in_buffer.as_cursor_mut();
-
                 if self.header.is_none() {
-                    self.header = FrameHeader::parse(cursor)?;
+                    let mut cursor = Cursor::new(&mut self.in_buffer);
+                    self.header = FrameHeader::parse(&mut cursor)?;
+                    let advanced = cursor.position();
+                    bytes::Buf::advance(&mut self.in_buffer, advanced as _);
                 }
 
-                if let Some((_, ref length)) = self.header {
-                    let length = *length;
+                if let Some((_, len)) = &self.header {
+                    let len = *len as usize;
 
                     // Enforce frame size limit early and make sure `length`
                     // is not too big (fits into `usize`).
-                    if length > max_size as u64 {
+                    if len > max_size {
                         return Err(Error::Capacity(CapacityError::MessageTooLong {
-                            size: length as usize,
+                            size: len,
                             max_size,
                         }));
                     }
 
-                    let input_size = cursor.get_ref().len() as u64 - cursor.position();
-                    if length <= input_size {
-                        // No truncation here since `length` is checked above
-                        let mut payload = Vec::with_capacity(length as usize);
-                        if length > 0 {
-                            cursor.take(length).read_to_end(&mut payload)?;
-                        }
-                        break payload;
+                    if len <= self.in_buffer.len() {
+                        break self.in_buffer.split_to(len).freeze();
                     }
                 }
             }
 
             // Not enough data in buffer.
-            let size = self.in_buffer.read_from(stream)?;
+            let reserve_len = self.header.as_ref().map(|(_, l)| *l as usize).unwrap_or(6);
+            self.in_buffer.reserve(reserve_len);
+            let mut buf = self.in_buffer.split_off(self.in_buffer.len());
+            buf.resize(reserve_len.max(buf.capacity()), 0);
+            let size = stream.read(&mut buf)?;
+            buf.truncate(size);
+            self.in_buffer.unsplit(buf);
             if size == 0 {
                 trace!("no frame received");
                 return Ok(None);
@@ -267,6 +273,8 @@ mod tests {
 
     #[test]
     fn read_frames() {
+        env_logger::init();
+
         let raw = Cursor::new(vec![
             0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x82, 0x03, 0x03, 0x02, 0x01,
             0x99,
