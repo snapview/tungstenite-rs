@@ -1,6 +1,6 @@
 //! Lightweight, flexible WebSockets for Rust.
 #![deny(
-    // missing_docs,
+    missing_docs,
     missing_copy_implementations,
     missing_debug_implementations,
     trivial_casts,
