@@ -241,7 +241,7 @@ impl Message {
                 Cow::Borrowed(s) => Payload::from_static(s.as_bytes()),
                 Cow::Owned(s) => s.into(),
             },
-            Message::Frame(frame) => frame.payload,
+            Message::Frame(frame) => frame.into_payload(),
         }
     }
 
@@ -257,7 +257,7 @@ impl Message {
                 Cow::Borrowed(s) => Utf8Payload::from_static(s),
                 Cow::Owned(s) => s.into(),
             }),
-            Message::Frame(frame) => Ok(frame.payload.try_into()?),
+            Message::Frame(frame) => Ok(frame.into_text()?),
         }
     }
 
