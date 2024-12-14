@@ -5,7 +5,7 @@ use std::{
     io::{Cursor, ErrorKind, Read, Write},
     result::Result as StdResult,
     str::Utf8Error,
-    string::{FromUtf8Error, String},
+    string::String,
 };
 
 use byteorder::{NetworkEndian, ReadBytesExt};
@@ -16,7 +16,11 @@ use super::{
     mask::{apply_mask, generate_mask},
     Payload,
 };
-use crate::error::{Error, ProtocolError, Result};
+use crate::{
+    error::{Error, ProtocolError, Result},
+    protocol::frame::Utf8Payload,
+};
+use bytes::{Buf, BytesMut};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -209,7 +213,7 @@ impl FrameHeader {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Frame {
     header: FrameHeader,
-    pub(crate) payload: Payload,
+    payload: Payload,
 }
 
 impl Frame {
@@ -275,15 +279,9 @@ impl Frame {
         }
     }
 
-    /// Consume the frame into its payload as binary.
-    #[inline]
-    pub fn into_data(self) -> Vec<u8> {
-        self.payload.into_data()
-    }
-
     /// Consume the frame into its payload as string.
     #[inline]
-    pub fn into_text(self) -> StdResult<String, FromUtf8Error> {
+    pub fn into_text(self) -> StdResult<Utf8Payload, Utf8Error> {
         self.payload.into_text()
     }
 
@@ -308,8 +306,8 @@ impl Frame {
             _ => {
                 let mut data = self.payload.into_data();
                 let code = u16::from_be_bytes([data[0], data[1]]).into();
-                data.drain(0..2);
-                let text = String::from_utf8(data)?;
+                data.advance(2);
+                let text = String::from_utf8(data.to_vec())?;
                 Ok(Some(CloseFrame { code, reason: text.into() }))
             }
         }
@@ -353,12 +351,12 @@ impl Frame {
     #[inline]
     pub fn close(msg: Option<CloseFrame>) -> Frame {
         let payload = if let Some(CloseFrame { code, reason }) = msg {
-            let mut p = Vec::with_capacity(reason.len() + 2);
+            let mut p = BytesMut::with_capacity(reason.len() + 2);
             p.extend(u16::from(code).to_be_bytes());
             p.extend_from_slice(reason.as_bytes());
             p
         } else {
-            Vec::new()
+            <_>::default()
         };
 
         Frame { header: FrameHeader::default(), payload: Payload::Owned(payload) }
@@ -476,7 +474,7 @@ mod tests {
         let mut payload = Vec::new();
         raw.read_to_end(&mut payload).unwrap();
         let frame = Frame::from_payload(header, payload.into());
-        assert_eq!(frame.into_data(), vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
+        assert_eq!(frame.into_payload().as_slice(), &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
     }
 
     #[test]
@@ -489,7 +487,7 @@ mod tests {
 
     #[test]
     fn display() {
-        let f = Frame::message("hi there", OpCode::Data(Data::Text), true);
+        let f = Frame::message(Payload::from_static(b"hi there"), OpCode::Data(Data::Text), true);
         let view = format!("{f}");
         assert!(view.contains("payload:"));
     }

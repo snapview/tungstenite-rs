@@ -603,12 +603,12 @@ impl WebSocketContext {
                             Err(Error::Protocol(ProtocolError::UnknownControlFrameType(i)))
                         }
                         OpCtl::Ping => {
-                            let data = frame.into_data();
+                            let mut data = frame.into_payload();
                             // No ping processing after we sent a close frame.
                             if self.state.is_active() {
-                                self.set_additional(Frame::pong(data.clone()));
+                                self.set_additional(Frame::pong(data.share()));
                             }
-                            Ok(Some(Message::Ping(data.into())))
+                            Ok(Some(Message::Ping(data)))
                         }
                         OpCtl::Pong => Ok(Some(Message::Pong(frame.into_payload()))),
                     }
@@ -619,7 +619,10 @@ impl WebSocketContext {
                     match data {
                         OpData::Continue => {
                             if let Some(ref mut msg) = self.incomplete {
-                                msg.extend(frame.into_data(), self.config.max_message_size)?;
+                                msg.extend(
+                                    frame.into_payload().as_slice(),
+                                    self.config.max_message_size,
+                                )?;
                             } else {
                                 return Err(Error::Protocol(
                                     ProtocolError::UnexpectedContinueFrame,
@@ -634,23 +637,21 @@ impl WebSocketContext {
                         c if self.incomplete.is_some() => {
                             Err(Error::Protocol(ProtocolError::ExpectedFragment(c)))
                         }
+                        OpData::Text if fin => Ok(Some(Message::Text(frame.into_text()?))),
+                        OpData::Binary if fin => Ok(Some(Message::Binary(frame.into_payload()))),
                         OpData::Text | OpData::Binary => {
-                            let msg = {
-                                let message_type = match data {
-                                    OpData::Text => IncompleteMessageType::Text,
-                                    OpData::Binary => IncompleteMessageType::Binary,
-                                    _ => panic!("Bug: message is not text nor binary"),
-                                };
-                                let mut m = IncompleteMessage::new(message_type);
-                                m.extend(frame.into_data(), self.config.max_message_size)?;
-                                m
+                            let message_type = match data {
+                                OpData::Text => IncompleteMessageType::Text,
+                                OpData::Binary => IncompleteMessageType::Binary,
+                                _ => panic!("Bug: message is not text nor binary"),
                             };
-                            if fin {
-                                Ok(Some(msg.complete()?))
-                            } else {
-                                self.incomplete = Some(msg);
-                                Ok(None)
-                            }
+                            let mut incomplete = IncompleteMessage::new(message_type);
+                            incomplete.extend(
+                                frame.into_payload().as_slice(),
+                                self.config.max_message_size,
+                            )?;
+                            self.incomplete = Some(incomplete);
+                            Ok(None)
                         }
                         OpData::Reserved(i) => {
                             Err(Error::Protocol(ProtocolError::UnknownDataFrameType(i)))

@@ -1,7 +1,6 @@
-use std::{fmt::Display, mem, string::FromUtf8Error};
-
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use core::str;
+use std::{fmt::Display, mem};
 
 /// Utf8 payload.
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
@@ -46,6 +45,24 @@ impl TryFrom<Payload> for Utf8Payload {
     }
 }
 
+impl TryFrom<Bytes> for Utf8Payload {
+    type Error = str::Utf8Error;
+
+    #[inline]
+    fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
+        Payload::from(bytes).try_into()
+    }
+}
+
+impl TryFrom<BytesMut> for Utf8Payload {
+    type Error = str::Utf8Error;
+
+    #[inline]
+    fn try_from(bytes: BytesMut) -> Result<Self, Self::Error> {
+        Payload::from(bytes).try_into()
+    }
+}
+
 impl From<String> for Utf8Payload {
     #[inline]
     fn from(s: String) -> Self {
@@ -56,7 +73,7 @@ impl From<String> for Utf8Payload {
 impl From<&str> for Utf8Payload {
     #[inline]
     fn from(s: &str) -> Self {
-        Self(Payload::Owned(s.as_bytes().to_vec()))
+        Self(Payload::Owned(s.as_bytes().into()))
     }
 }
 
@@ -84,7 +101,7 @@ impl Display for Utf8Payload {
 #[derive(Debug, Clone)]
 pub enum Payload {
     /// Owned data with unique ownership.
-    Owned(Vec<u8>),
+    Owned(BytesMut),
     /// Shared data with shared ownership.
     Shared(Bytes),
 }
@@ -101,6 +118,15 @@ impl Payload {
         T: AsRef<[u8]> + Send + 'static,
     {
         Self::Shared(Bytes::from_owner(owner))
+    }
+
+    /// If owned converts into shared & then clones (cheaply).
+    #[inline]
+    pub fn share(&mut self) -> Self {
+        if let Self::Owned(bytes) = self {
+            *self = Self::Shared(mem::take(bytes).freeze());
+        }
+        self.clone()
     }
 
     /// Returns a slice of the payload.
@@ -144,7 +170,7 @@ impl Payload {
 
     /// Consumes the payload and returns the underlying data as a vector.
     #[inline]
-    pub fn into_data(self) -> Vec<u8> {
+    pub fn into_data(self) -> BytesMut {
         match self {
             Payload::Owned(v) => v,
             Payload::Shared(v) => v.into(),
@@ -153,32 +179,29 @@ impl Payload {
 
     /// Consumes the payload and returns the underlying data as a string.
     #[inline]
-    pub fn into_text(self) -> Result<String, FromUtf8Error> {
-        match self {
-            Payload::Owned(v) => Ok(String::from_utf8(v)?),
-            Payload::Shared(v) => Ok(String::from_utf8(v.into())?),
-        }
+    pub fn into_text(self) -> Result<Utf8Payload, str::Utf8Error> {
+        self.try_into()
     }
 }
 
 impl Default for Payload {
     #[inline]
     fn default() -> Self {
-        Self::Owned(Vec::new())
+        Self::Owned(<_>::default())
     }
 }
 
 impl From<Vec<u8>> for Payload {
     #[inline]
     fn from(v: Vec<u8>) -> Self {
-        Payload::Owned(v)
+        Payload::Owned(BytesMut::from_iter(v))
     }
 }
 
 impl From<String> for Payload {
     #[inline]
     fn from(v: String) -> Self {
-        Payload::Owned(v.into())
+        Vec::from(v).into()
     }
 }
 
@@ -189,17 +212,17 @@ impl From<Bytes> for Payload {
     }
 }
 
-impl From<&'static [u8]> for Payload {
+impl From<BytesMut> for Payload {
     #[inline]
-    fn from(v: &'static [u8]) -> Self {
-        Self::from_static(v)
+    fn from(v: BytesMut) -> Self {
+        Payload::Owned(v)
     }
 }
 
-impl From<&'static str> for Payload {
+impl From<&[u8]> for Payload {
     #[inline]
-    fn from(v: &'static str) -> Self {
-        Self::from_static(v.as_bytes())
+    fn from(v: &[u8]) -> Self {
+        Self::Owned(v.into())
     }
 }
 

@@ -1,8 +1,9 @@
 //! Benchmarks for write performance.
+use bytes::{BufMut, BytesMut};
 use criterion::Criterion;
 use std::{
-    hint,
-    io::{self, Read, Write},
+    fmt::Write as _,
+    hint, io,
     time::{Duration, Instant},
 };
 use tungstenite::{protocol::Role, Message, WebSocket};
@@ -16,12 +17,12 @@ const MOCK_WRITE_LEN: usize = 8 * 1024 * 1024;
 /// Each `flush` takes **~8µs** to simulate flush io.
 struct MockWrite(Vec<u8>);
 
-impl Read for MockWrite {
+impl io::Read for MockWrite {
     fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
         Err(io::Error::new(io::ErrorKind::WouldBlock, "reads not supported"))
     }
 }
-impl Write for MockWrite {
+impl io::Write for MockWrite {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if self.0.len() + buf.len() > MOCK_WRITE_LEN {
             self.flush()?;
@@ -54,11 +55,19 @@ fn benchmark(c: &mut Criterion) {
         let mut ws =
             WebSocket::from_raw_socket(MockWrite(Vec::with_capacity(MOCK_WRITE_LEN)), role, None);
 
+        let mut buf = BytesMut::with_capacity(128 * 1024);
+
         b.iter(|| {
             for i in 0_u64..100_000 {
                 let msg = match i {
-                    _ if i % 3 == 0 => Message::binary(i.to_le_bytes().to_vec()),
-                    _ => Message::text(format!("{{\"id\":{i}}}")),
+                    _ if i % 3 == 0 => {
+                        buf.put_slice(&i.to_le_bytes());
+                        Message::binary(buf.split())
+                    }
+                    _ => {
+                        buf.write_fmt(format_args!("{{\"id\":{i}}}")).unwrap();
+                        Message::Text(buf.split().try_into().unwrap())
+                    }
                 };
                 ws.write(msg).unwrap();
             }
