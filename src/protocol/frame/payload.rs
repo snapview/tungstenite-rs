@@ -7,6 +7,7 @@ use std::{fmt::Display, mem};
 pub struct Utf8Payload(Payload);
 
 impl Utf8Payload {
+    /// Creates from a static str.
     #[inline]
     pub const fn from_static(str: &'static str) -> Self {
         Self(Payload::Shared(Bytes::from_static(str.as_bytes())))
@@ -18,17 +19,20 @@ impl Utf8Payload {
         self.0.as_slice()
     }
 
+    /// Returns as a string slice.
     #[inline]
     pub fn as_str(&self) -> &str {
         // safety: is valid uft8
         unsafe { str::from_utf8_unchecked(self.as_slice()) }
     }
 
+    /// Returns length in bytes.
     #[inline]
     pub fn len(&self) -> usize {
         self.as_slice().len()
     }
 
+    /// Returns true if the length is 0.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -124,17 +128,10 @@ pub enum Payload {
 }
 
 impl Payload {
+    /// Creates from static bytes.
     #[inline]
     pub const fn from_static(bytes: &'static [u8]) -> Self {
         Self::Shared(Bytes::from_static(bytes))
-    }
-
-    #[inline]
-    pub fn from_owner<T>(owner: T) -> Self
-    where
-        T: AsRef<[u8]> + Send + 'static,
-    {
-        Self::Shared(Bytes::from_owner(owner))
     }
 
     /// Converts into [`Bytes`] internals & then clones (cheaply).
