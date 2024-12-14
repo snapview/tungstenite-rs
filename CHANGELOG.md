@@ -1,3 +1,9 @@
+# 0.25.0
+
+- New `Payload` type for `Message` that allows sending messages with a payload that can be cheaply cloned (`Bytes`).
+  Long standing [issue](https://github.com/snapview/tungstenite-rs/issues/96) solved!
+- Trim spaces on `Sec-WebSocket-Protocol` header.
+
 # 0.24.0
 
 - Raised MSRV to 1.63 to match `tokio-tungstenite`.
