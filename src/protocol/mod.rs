@@ -31,10 +31,10 @@ pub enum Role {
 
 /// The configuration for WebSocket connection.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct WebSocketConfig {
-    /// Does nothing, instead use `max_write_buffer_size`.
-    #[deprecated]
-    pub max_send_queue: Option<usize>,
+    /// Read buffer capacity. The default value is 128 KiB.
+    pub read_buffer_size: usize,
     /// The target minimum size of the write buffer to reach before writing the data
     /// to the underlying stream.
     /// The default value is 128 KiB.
@@ -74,9 +74,8 @@ pub struct WebSocketConfig {
 
 impl Default for WebSocketConfig {
     fn default() -> Self {
-        #[allow(deprecated)]
-        WebSocketConfig {
-            max_send_queue: None,
+        Self {
+            read_buffer_size: 128 * 1024,
             write_buffer_size: 128 * 1024,
             max_write_buffer_size: usize::MAX,
             max_message_size: Some(64 << 20),
@@ -87,6 +86,42 @@ impl Default for WebSocketConfig {
 }
 
 impl WebSocketConfig {
+    /// Set [`Self::read_buffer_size`].
+    pub fn read_buffer_size(mut self, read_buffer_size: usize) -> Self {
+        self.read_buffer_size = read_buffer_size;
+        self
+    }
+
+    /// Set [`Self::write_buffer_size`].
+    pub fn write_buffer_size(mut self, write_buffer_size: usize) -> Self {
+        self.write_buffer_size = write_buffer_size;
+        self
+    }
+
+    /// Set [`Self::max_write_buffer_size`].
+    pub fn max_write_buffer_size(mut self, max_write_buffer_size: usize) -> Self {
+        self.max_write_buffer_size = max_write_buffer_size;
+        self
+    }
+
+    /// Set [`Self::max_message_size`].
+    pub fn max_message_size(mut self, max_message_size: Option<usize>) -> Self {
+        self.max_message_size = max_message_size;
+        self
+    }
+
+    /// Set [`Self::max_frame_size`].
+    pub fn max_frame_size(mut self, max_frame_size: Option<usize>) -> Self {
+        self.max_frame_size = max_frame_size;
+        self
+    }
+
+    /// Set [`Self::accept_unmasked_frames`].
+    pub fn accept_unmasked_frames(mut self, accept_unmasked_frames: bool) -> Self {
+        self.accept_unmasked_frames = accept_unmasked_frames;
+        self
+    }
+
     /// Panic if values are invalid.
     pub(crate) fn assert_valid(&self) {
         assert!(
@@ -323,7 +358,8 @@ impl WebSocketContext {
     /// # Panics
     /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn new(role: Role, config: Option<WebSocketConfig>) -> Self {
-        Self::_new(role, FrameCodec::new(), config.unwrap_or_default())
+        let conf = config.unwrap_or_default();
+        Self::_new(role, FrameCodec::new(conf.read_buffer_size), conf)
     }
 
     /// Create a WebSocket context that manages an post-handshake stream.
@@ -331,7 +367,8 @@ impl WebSocketContext {
     /// # Panics
     /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn from_partially_read(part: Vec<u8>, role: Role, config: Option<WebSocketConfig>) -> Self {
-        Self::_new(role, FrameCodec::from_partially_read(part), config.unwrap_or_default())
+        let conf = config.unwrap_or_default();
+        Self::_new(role, FrameCodec::from_partially_read(part, conf.read_buffer_size), conf)
     }
 
     fn _new(role: Role, mut frame: FrameCodec, config: WebSocketConfig) -> Self {

@@ -26,14 +26,14 @@ fn main() {
                 Ok(response)
             };
 
-            let config = Some(WebSocketConfig {
-                // This setting allows to accept client frames which are not masked
-                // This is not in compliance with RFC 6455 but might be handy in some
-                // rare cases where it is necessary to integrate with existing/legacy
-                // clients which are sending unmasked frames
-                accept_unmasked_frames: true,
-                ..<_>::default()
-            });
+            let config = Some(
+                WebSocketConfig::default()
+                    // This setting allows to accept client frames which are not masked
+                    // This is not in compliance with RFC 6455 but might be handy in some
+                    // rare cases where it is necessary to integrate with existing/legacy
+                    // clients which are sending unmasked frames
+                    .accept_unmasked_frames(true),
+            );
 
             let mut websocket = accept_hdr_with_config(stream.unwrap(), callback, config).unwrap();
 

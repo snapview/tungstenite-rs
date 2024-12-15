@@ -20,6 +20,9 @@ use bytes::BytesMut;
 use log::*;
 use std::io::{Cursor, Error as IoError, ErrorKind as IoErrorKind, Read, Write};
 
+/// Read buffer size used for `FrameSocket`.
+const READ_BUF_LEN: usize = 128 * 1024;
+
 /// A reader and writer for WebSocket frames.
 #[derive(Debug)]
 pub struct FrameSocket<Stream> {
@@ -32,12 +35,12 @@ pub struct FrameSocket<Stream> {
 impl<Stream> FrameSocket<Stream> {
     /// Create a new frame socket.
     pub fn new(stream: Stream) -> Self {
-        FrameSocket { stream, codec: FrameCodec::new() }
+        FrameSocket { stream, codec: FrameCodec::new(READ_BUF_LEN) }
     }
 
     /// Create a new frame socket from partially read data.
     pub fn from_partially_read(stream: Stream, part: Vec<u8>) -> Self {
-        FrameSocket { stream, codec: FrameCodec::from_partially_read(part) }
+        FrameSocket { stream, codec: FrameCodec::from_partially_read(part, READ_BUF_LEN) }
     }
 
     /// Extract a stream from the socket.
@@ -114,13 +117,11 @@ pub(super) struct FrameCodec {
     header: Option<(FrameHeader, u64)>,
 }
 
-const READ_BUFFER_CAP: usize = 64 * 1024;
-
 impl FrameCodec {
     /// Create a new frame codec.
-    pub(super) fn new() -> Self {
+    pub(super) fn new(in_buf_len: usize) -> Self {
         Self {
-            in_buffer: BytesMut::with_capacity(READ_BUFFER_CAP),
+            in_buffer: BytesMut::with_capacity(in_buf_len),
             out_buffer: <_>::default(),
             max_out_buffer_len: usize::MAX,
             out_buffer_write_len: 0,
@@ -129,9 +130,9 @@ impl FrameCodec {
     }
 
     /// Create a new frame codec from partially read data.
-    pub(super) fn from_partially_read(part: Vec<u8>) -> Self {
+    pub(super) fn from_partially_read(part: Vec<u8>, min_in_buf_len: usize) -> Self {
         let mut in_buffer = BytesMut::from_iter(part);
-        in_buffer.reserve(READ_BUFFER_CAP.saturating_sub(in_buffer.len()));
+        in_buffer.reserve(min_in_buf_len.saturating_sub(in_buffer.len()));
         Self {
             in_buffer,
             out_buffer: <_>::default(),
