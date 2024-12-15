@@ -30,6 +30,14 @@ pub enum Role {
 }
 
 /// The configuration for WebSocket connection.
+///
+/// # Example
+/// ```
+/// # use tungstenite::protocol::WebSocketConfig;;
+/// let conf = WebSocketConfig::default()
+///     .read_buffer_size(256 * 1024)
+///     .write_buffer_size(256 * 1024);
+/// ```
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct WebSocketConfig {
