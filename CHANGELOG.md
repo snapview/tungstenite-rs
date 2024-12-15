@@ -1,12 +1,10 @@
-# Unreleased
-- Update `thiserror` to `2`.
-
 # 0.25.0
 
 - New `Payload` type for `Message` that allows sending messages with a payload that can be cheaply cloned (`Bytes`).
   Long standing [issue](https://github.com/snapview/tungstenite-rs/issues/96) solved!
 - Trim spaces on `Sec-WebSocket-Protocol` header.
 - Eliminate data copies when reading complete messages & optimise read buffer. Improves performance.
+- Update `thiserror` to `2`.
 
 # 0.24.0
 
