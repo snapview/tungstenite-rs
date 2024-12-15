@@ -37,7 +37,7 @@ fn write_flush_behaviour() {
     let mut ws = WebSocket::from_raw_socket(
         MockWrite::default(),
         tungstenite::protocol::Role::Server,
-        Some(WebSocketConfig { write_buffer_size: WRITE_BUFFER_SIZE, ..<_>::default() }),
+        Some(WebSocketConfig::default().write_buffer_size(WRITE_BUFFER_SIZE)),
     );
 
     assert_eq!(ws.get_ref().written_bytes, 0);
