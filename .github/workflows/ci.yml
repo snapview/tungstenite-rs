@@ -74,6 +74,9 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get install libssl-dev
 
+      - name: Disable env_logger dev-dependency (cargo 1.63 workaround)
+        run: sed -i 's/env_logger/#env_logger/' Cargo.toml
+
       - name: Check
         run: cargo check
 
