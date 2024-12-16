@@ -1,5 +1,6 @@
 # Unreleased
 - Implement `AsRef<[u8]>` for `Payload`, `AsRef<[u8]>`, `AsRef<str>` for `Utf8Payload`.
+- Implement `&str`-like `PartialEq` for `Utf8Payload`.
 
 # 0.25.0
 
