@@ -1,3 +1,6 @@
+# Unreleased
+- Implement `AsRef<[u8]>` for `Payload`, `AsRef<[u8]>`, `AsRef<str>` for `Utf8Payload`.
+
 # 0.25.0
 
 - New `Payload` type for `Message` that allows sending messages with a payload that can be cheaply cloned (`Bytes`).

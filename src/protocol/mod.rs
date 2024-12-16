@@ -664,10 +664,7 @@ impl WebSocketContext {
                     match data {
                         OpData::Continue => {
                             if let Some(ref mut msg) = self.incomplete {
-                                msg.extend(
-                                    frame.into_payload().as_slice(),
-                                    self.config.max_message_size,
-                                )?;
+                                msg.extend(frame.into_payload(), self.config.max_message_size)?;
                             } else {
                                 return Err(Error::Protocol(
                                     ProtocolError::UnexpectedContinueFrame,
@@ -697,10 +694,8 @@ impl WebSocketContext {
                                 _ => panic!("Bug: message is not text nor binary"),
                             };
                             let mut incomplete = IncompleteMessage::new(message_type);
-                            incomplete.extend(
-                                frame.into_payload().as_slice(),
-                                self.config.max_message_size,
-                            )?;
+                            incomplete
+                                .extend(frame.into_payload(), self.config.max_message_size)?;
                             self.incomplete = Some(incomplete);
                             Ok(None)
                         }

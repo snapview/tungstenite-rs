@@ -116,6 +116,20 @@ impl Display for Utf8Payload {
     }
 }
 
+impl AsRef<str> for Utf8Payload {
+    #[inline]
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<[u8]> for Utf8Payload {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.as_slice()
+    }
+}
+
 /// A payload of a WebSocket frame.
 #[derive(Debug, Clone)]
 pub enum Payload {
@@ -263,5 +277,12 @@ impl<const N: usize> PartialEq<&[u8; N]> for Payload {
     #[inline]
     fn eq(&self, other: &&[u8; N]) -> bool {
         self.as_slice() == *other
+    }
+}
+
+impl AsRef<[u8]> for Payload {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.as_slice()
     }
 }
