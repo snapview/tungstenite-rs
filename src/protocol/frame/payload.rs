@@ -130,6 +130,24 @@ impl AsRef<[u8]> for Utf8Payload {
     }
 }
 
+impl<T> PartialEq<T> for Utf8Payload
+where
+    for<'a> &'a str: PartialEq<T>,
+{
+    /// ```
+    /// use tungstenite::protocol::frame::Utf8Payload;
+    /// let payload = Utf8Payload::from_static("foo123");
+    /// assert_eq!(payload, "foo123");
+    /// assert_eq!(payload, "foo123".to_string());
+    /// assert_eq!(payload, &"foo123".to_string());
+    /// assert_eq!(payload, std::borrow::Cow::from("foo123"));
+    /// ```
+    #[inline]
+    fn eq(&self, other: &T) -> bool {
+        self.as_str() == *other
+    }
+}
+
 /// A payload of a WebSocket frame.
 #[derive(Debug, Clone)]
 pub enum Payload {
