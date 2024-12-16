@@ -283,13 +283,10 @@ mod tests {
         let mut sock = FrameSocket::new(raw);
 
         assert_eq!(
-            sock.read(None).unwrap().unwrap().into_payload().as_slice(),
+            sock.read(None).unwrap().unwrap().into_payload(),
             &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
-        assert_eq!(
-            sock.read(None).unwrap().unwrap().into_payload().as_slice(),
-            &[0x03, 0x02, 0x01]
-        );
+        assert_eq!(sock.read(None).unwrap().unwrap().into_payload(), &[0x03, 0x02, 0x01]);
         assert!(sock.read(None).unwrap().is_none());
 
         let (_, rest) = sock.into_inner();
@@ -301,7 +298,7 @@ mod tests {
         let raw = Cursor::new(vec![0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
         let mut sock = FrameSocket::from_partially_read(raw, vec![0x82, 0x07, 0x01]);
         assert_eq!(
-            sock.read(None).unwrap().unwrap().into_payload().as_slice(),
+            sock.read(None).unwrap().unwrap().into_payload(),
             &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
     }
