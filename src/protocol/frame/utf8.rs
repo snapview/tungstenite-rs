@@ -26,15 +26,15 @@ impl std::ops::Deref for Utf8Bytes {
 
     /// ```
     /// use tungstenite::protocol::frame::Utf8Bytes;
-    /// 
+    ///
     /// /// Example fn that takes a str slice
     /// fn a(s: &str) {}
-    /// 
+    ///
     /// let data = Utf8Bytes::from_static("foo123");
-    /// 
+    ///
     /// // auto-deref as arg
     /// a(&data);
-    /// 
+    ///
     /// // deref to str methods
     /// assert_eq!(data.len(), 6);
     /// ```
