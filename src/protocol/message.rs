@@ -3,7 +3,7 @@ use crate::{
     error::{CapacityError, Error, Result},
     protocol::frame::Utf8Bytes,
 };
-use std::{borrow::Cow, fmt, result::Result as StdResult, str};
+use std::{fmt, result::Result as StdResult, str};
 
 mod string_collect {
     use utf8::DecodeError;
@@ -169,7 +169,7 @@ pub enum Message {
     /// The payload here must have a length less than 125 bytes
     Pong(Bytes),
     /// A close message with the optional close frame.
-    Close(Option<CloseFrame<'static>>),
+    Close(Option<CloseFrame>),
     /// Raw frame. Note, that you're not going to get this value while reading the message.
     Frame(Frame),
 }
@@ -237,13 +237,10 @@ impl Message {
     /// Consume the WebSocket and return it as binary data.
     pub fn into_data(self) -> Bytes {
         match self {
-            Message::Text(string) => string.into(),
+            Message::Text(utf8) => utf8.into(),
             Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data,
             Message::Close(None) => <_>::default(),
-            Message::Close(Some(frame)) => match frame.reason {
-                Cow::Borrowed(s) => Bytes::from_static(s.as_bytes()),
-                Cow::Owned(s) => s.into(),
-            },
+            Message::Close(Some(frame)) => frame.reason.into(),
             Message::Frame(frame) => frame.into_payload(),
         }
     }
@@ -256,10 +253,7 @@ impl Message {
                 Ok(data.try_into()?)
             }
             Message::Close(None) => Ok(<_>::default()),
-            Message::Close(Some(frame)) => Ok(match frame.reason {
-                Cow::Borrowed(s) => Utf8Bytes::from_static(s),
-                Cow::Owned(s) => s.into(),
-            }),
+            Message::Close(Some(frame)) => Ok(frame.reason),
             Message::Frame(frame) => Ok(frame.into_text()?),
         }
     }
