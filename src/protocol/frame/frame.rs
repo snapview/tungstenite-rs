@@ -3,6 +3,7 @@ use std::{
     default::Default,
     fmt,
     io::{Cursor, ErrorKind, Read, Write},
+    mem,
     result::Result as StdResult,
     str::Utf8Error,
     string::String,
@@ -248,12 +249,6 @@ impl Frame {
         &self.payload
     }
 
-    // /// Get a mutable reference to the frame's payload.
-    // #[inline]
-    // pub fn payload_mut(&mut self) -> &mut [u8] {
-    //     self.payload.as_mut_slice()
-    // }
-
     /// Test whether the frame is masked.
     #[inline]
     pub(crate) fn is_masked(&self) -> bool {
@@ -274,9 +269,9 @@ impl Frame {
     #[inline]
     pub(crate) fn apply_mask(&mut self) {
         if let Some(mask) = self.header.mask.take() {
-            let mut bytes_mut = BytesMut::from(std::mem::take(&mut self.payload));
-            apply_mask(&mut bytes_mut, mask);
-            self.payload = bytes_mut.freeze();
+            let mut data = Vec::from(mem::take(&mut self.payload));
+            apply_mask(&mut data, mask);
+            self.payload = data.into();
         }
     }
 
