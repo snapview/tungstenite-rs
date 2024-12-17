@@ -703,7 +703,7 @@ impl WebSocketContext {
 
     /// Received a close frame. Tells if we need to return a close frame to the user.
     #[allow(clippy::option_option)]
-    fn do_close<'t>(&mut self, close: Option<CloseFrame<'t>>) -> Option<Option<CloseFrame<'t>>> {
+    fn do_close(&mut self, close: Option<CloseFrame>) -> Option<Option<CloseFrame>> {
         debug!("Received close frame: {close:?}");
         match self.state {
             WebSocketState::Active => {

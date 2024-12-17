@@ -1,5 +1,6 @@
+use byteorder::{NetworkEndian, ReadBytesExt};
+use log::*;
 use std::{
-    borrow::Cow,
     default::Default,
     fmt,
     io::{Cursor, ErrorKind, Read, Write},
@@ -9,9 +10,6 @@ use std::{
     string::String,
 };
 
-use byteorder::{NetworkEndian, ReadBytesExt};
-use log::*;
-
 use super::{
     coding::{CloseCode, Control, Data, OpCode},
     mask::{apply_mask, generate_mask},
@@ -20,25 +18,18 @@ use crate::{
     error::{Error, ProtocolError, Result},
     protocol::frame::Utf8Bytes,
 };
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct CloseFrame<'t> {
+pub struct CloseFrame {
     /// The reason as a code.
     pub code: CloseCode,
     /// The reason as text string.
-    pub reason: Cow<'t, str>,
+    pub reason: Utf8Bytes,
 }
 
-impl CloseFrame<'_> {
-    /// Convert into a owned string.
-    pub fn into_owned(self) -> CloseFrame<'static> {
-        CloseFrame { code: self.code, reason: self.reason.into_owned().into() }
-    }
-}
-
-impl fmt::Display for CloseFrame<'_> {
+impl fmt::Display for CloseFrame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} ({})", self.reason, self.code)
     }
@@ -284,16 +275,14 @@ impl Frame {
 
     /// Consume the frame into a closing frame.
     #[inline]
-    pub(crate) fn into_close(self) -> Result<Option<CloseFrame<'static>>> {
+    pub(crate) fn into_close(self) -> Result<Option<CloseFrame>> {
         match self.payload.len() {
             0 => Ok(None),
             1 => Err(Error::Protocol(ProtocolError::InvalidCloseSequence)),
             _ => {
-                let mut data = BytesMut::from(self.payload);
-                let code = u16::from_be_bytes([data[0], data[1]]).into();
-                data.advance(2);
-                let text = String::from_utf8(data.to_vec())?;
-                Ok(Some(CloseFrame { code, reason: text.into() }))
+                let code = u16::from_be_bytes([self.payload[0], self.payload[1]]).into();
+                let reason = Utf8Bytes::try_from(self.payload.slice(2..))?;
+                Ok(Some(CloseFrame { code, reason }))
             }
         }
     }

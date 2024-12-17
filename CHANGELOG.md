@@ -1,6 +1,6 @@
 # Unreleased
-- Implement `AsRef<[u8]>` for `Payload`, `AsRef<[u8]>`, `AsRef<str>` for `Utf8Payload`.
-- Implement `&str`-like `PartialEq` for `Utf8Payload`.
+- Simplify `Message` to use `Bytes` payload directly with simpler `Utf8Bytes` for text.
+- Change `CloseFrame` to use `Utf8Bytes` for `reason`.
 
 # 0.25.0
 
