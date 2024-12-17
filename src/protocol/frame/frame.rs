@@ -264,17 +264,6 @@ impl Frame {
         self.header.set_random_mask();
     }
 
-    /// This method unmasks the payload and should only be called on frames that are actually
-    /// masked. In other words, those frames that have just been received from a client endpoint.
-    #[inline]
-    pub(crate) fn apply_mask(&mut self) {
-        if let Some(mask) = self.header.mask.take() {
-            let mut data = Vec::from(mem::take(&mut self.payload));
-            apply_mask(&mut data, mask);
-            self.payload = data.into();
-        }
-    }
-
     /// Consume the frame into its payload as string.
     #[inline]
     pub fn into_text(self) -> StdResult<Utf8Bytes, Utf8Error> {
@@ -366,8 +355,28 @@ impl Frame {
     /// Write a frame out to a buffer
     pub fn format(mut self, output: &mut impl Write) -> Result<()> {
         self.header.format(self.payload.len() as u64, output)?;
-        self.apply_mask();
-        output.write_all(self.payload())?;
+
+        if let Some(mask) = self.header.mask.take() {
+            let mut data = Vec::from(mem::take(&mut self.payload));
+            apply_mask(&mut data, mask);
+            output.write_all(&data)?;
+        } else {
+            output.write_all(&self.payload)?;
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn format_into_buf(mut self, buf: &mut Vec<u8>) -> Result<()> {
+        self.header.format(self.payload.len() as u64, buf)?;
+
+        let len = buf.len();
+        buf.extend_from_slice(&self.payload);
+
+        if let Some(mask) = self.header.mask.take() {
+            apply_mask(&mut buf[len..], mask);
+        }
+
         Ok(())
     }
 }
@@ -478,6 +487,14 @@ mod tests {
         let frame = Frame::ping(vec![0x01, 0x02]);
         let mut buf = Vec::with_capacity(frame.len());
         frame.format(&mut buf).unwrap();
+        assert_eq!(buf, vec![0x89, 0x02, 0x01, 0x02]);
+    }
+
+    #[test]
+    fn format_into_buf() {
+        let frame = Frame::ping(vec![0x01, 0x02]);
+        let mut buf = Vec::with_capacity(frame.len());
+        frame.format_into_buf(&mut buf).unwrap();
         assert_eq!(buf, vec![0x89, 0x02, 0x01, 0x02]);
     }
 

@@ -248,7 +248,7 @@ impl FrameCodec {
         trace!("writing frame {frame}");
 
         self.out_buffer.reserve(frame.len());
-        frame.format(&mut self.out_buffer).expect("Bug: can't write to vector");
+        frame.format_into_buf(&mut self.out_buffer).expect("Bug: can't write to vector");
 
         if self.out_buffer.len() > self.out_buffer_write_len {
             self.write_out_buffer(stream)
