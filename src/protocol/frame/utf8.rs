@@ -16,7 +16,7 @@ impl Utf8Bytes {
     /// Returns as a string slice.
     #[inline]
     pub fn as_str(&self) -> &str {
-        // safety: is valid uft8
+        // SAFETY: is valid uft8
         unsafe { str::from_utf8_unchecked(&self.0) }
     }
 }
