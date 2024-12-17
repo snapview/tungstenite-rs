@@ -13,7 +13,10 @@ use self::{
     },
     message::{IncompleteMessage, IncompleteMessageType},
 };
-use crate::error::{CapacityError, Error, ProtocolError, Result};
+use crate::{
+    error::{CapacityError, Error, ProtocolError, Result},
+    protocol::frame::Utf8Bytes,
+};
 use log::*;
 use std::{
     io::{self, Read, Write},
@@ -713,7 +716,7 @@ impl WebSocketContext {
                     if !frame.code.is_allowed() {
                         CloseFrame {
                             code: CloseCode::Protocol,
-                            reason: "Protocol violation".into(),
+                            reason: Utf8Bytes::from_static("Protocol violation"),
                         }
                     } else {
                         frame
