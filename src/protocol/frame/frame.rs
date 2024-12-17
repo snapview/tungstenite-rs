@@ -249,11 +249,11 @@ impl Frame {
         self.payload.as_slice()
     }
 
-    /// Get a mutable reference to the frame's payload.
-    #[inline]
-    pub fn payload_mut(&mut self) -> &mut [u8] {
-        self.payload.as_mut_slice()
-    }
+    // /// Get a mutable reference to the frame's payload.
+    // #[inline]
+    // pub fn payload_mut(&mut self) -> &mut [u8] {
+    //     self.payload.as_mut_slice()
+    // }
 
     /// Test whether the frame is masked.
     #[inline]
@@ -275,7 +275,7 @@ impl Frame {
     #[inline]
     pub(crate) fn apply_mask(&mut self) {
         if let Some(mask) = self.header.mask.take() {
-            apply_mask(self.payload.as_mut_slice(), mask);
+            self.payload.mutate(|data| apply_mask(data, mask));
         }
     }
 
@@ -359,7 +359,7 @@ impl Frame {
             <_>::default()
         };
 
-        Frame { header: FrameHeader::default(), payload: Payload::Owned(payload) }
+        Frame { header: FrameHeader::default(), payload: payload.into() }
     }
 
     /// Create a frame from given header and data.

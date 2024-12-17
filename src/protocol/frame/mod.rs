@@ -207,7 +207,7 @@ impl FrameCodec {
 
         let (header, length) = self.header.take().expect("Bug: no frame header");
         debug_assert_eq!(payload.len() as u64, length);
-        let frame = Frame::from_payload(header, Payload::Owned(payload));
+        let frame = Frame::from_payload(header, payload.into());
         trace!("received frame {frame}");
         Ok(Some(frame))
     }

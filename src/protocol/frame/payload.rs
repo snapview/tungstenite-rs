@@ -1,6 +1,6 @@
 use bytes::{Bytes, BytesMut};
 use core::str;
-use std::{fmt::Display, mem};
+use std::fmt::Display;
 
 /// Utf8 payload.
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
@@ -92,7 +92,7 @@ impl From<String> for Utf8Payload {
 impl From<&str> for Utf8Payload {
     #[inline]
     fn from(s: &str) -> Self {
-        Self(Payload::Owned(s.as_bytes().into()))
+        Self(s.as_bytes().into())
     }
 }
 
@@ -151,12 +151,12 @@ where
 /// A payload of a WebSocket frame.
 #[derive(Debug, Clone)]
 pub enum Payload {
-    /// Owned data with unique ownership.
-    Owned(BytesMut),
+    // /// Owned data with unique ownership.
+    // Owned(BytesMut),
     /// Shared data with shared ownership.
     Shared(Bytes),
-    /// Owned vec data.
-    Vec(Vec<u8>),
+    // /// Owned vec data.
+    // Vec(Vec<u8>),
 }
 
 impl Payload {
@@ -166,17 +166,25 @@ impl Payload {
         Self::Shared(Bytes::from_static(bytes))
     }
 
+    #[inline]
+    pub(crate) fn mutate(&mut self, f: impl FnOnce(&mut [u8])) {
+        let Self::Shared(bytes) = self;
+        let mut bytes_mut = BytesMut::from(std::mem::take(bytes));
+        f(&mut bytes_mut);
+        *bytes = bytes_mut.freeze();
+    }
+
     /// Converts into [`Bytes`] internals & then clones (cheaply).
     pub fn share(&mut self) -> Self {
-        match self {
-            Self::Owned(data) => {
-                *self = Self::Shared(mem::take(data).freeze());
-            }
-            Self::Vec(data) => {
-                *self = Self::Shared(Bytes::from(mem::take(data)));
-            }
-            Self::Shared(_) => {}
-        }
+        // match self {
+        //     Self::Owned(data) => {
+        //         *self = Self::Shared(mem::take(data).freeze());
+        //     }
+        //     // Self::Vec(data) => {
+        //     //     *self = Self::Shared(Bytes::from(mem::take(data)));
+        //     // }
+        //     Self::Shared(_) => {}
+        // }
         self.clone()
     }
 
@@ -184,35 +192,35 @@ impl Payload {
     #[inline]
     pub fn as_slice(&self) -> &[u8] {
         match self {
-            Payload::Owned(v) => v,
+            // Payload::Owned(v) => v,
             Payload::Shared(v) => v,
-            Payload::Vec(v) => v,
+            // Payload::Vec(v) => v,
         }
     }
 
-    /// Returns a mutable slice of the payload.
-    ///
-    /// Note that this will internally allocate if the payload is shared
-    /// and there are other references to the same data. No allocation
-    /// would happen if the payload is owned or if there is only one
-    /// `Bytes` instance referencing the data.
-    #[inline]
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        match self {
-            Payload::Owned(v) => &mut *v,
-            Payload::Vec(v) => &mut *v,
-            Payload::Shared(v) => {
-                // Using `Bytes::to_vec()` or `Vec::from(bytes.as_ref())` would mean making a copy.
-                // `Bytes::into()` would not make a copy if our `Bytes` instance is the only one.
-                let data = mem::take(v).into();
-                *self = Payload::Owned(data);
-                match self {
-                    Payload::Owned(v) => v,
-                    _ => unreachable!(),
-                }
-            }
-        }
-    }
+    // /// Returns a mutable slice of the payload.
+    // ///
+    // /// Note that this will internally allocate if the payload is shared
+    // /// and there are other references to the same data. No allocation
+    // /// would happen if the payload is owned or if there is only one
+    // /// `Bytes` instance referencing the data.
+    // #[inline]
+    // pub fn as_mut_slice(&mut self) -> &mut [u8] {
+    //     match self {
+    //         Payload::Owned(v) => &mut *v,
+    //         // Payload::Vec(v) => &mut *v,
+    //         Payload::Shared(v) => {
+    //             // Using `Bytes::to_vec()` or `Vec::from(bytes.as_ref())` would mean making a copy.
+    //             // `Bytes::into()` would not make a copy if our `Bytes` instance is the only one.
+    //             let data = mem::take(v).into();
+    //             *self = Payload::Owned(data);
+    //             match self {
+    //                 Payload::Owned(v) => v,
+    //                 _ => unreachable!(),
+    //             }
+    //         }
+    //     }
+    // }
 
     /// Returns the length of the payload.
     #[inline]
@@ -236,14 +244,14 @@ impl Payload {
 impl Default for Payload {
     #[inline]
     fn default() -> Self {
-        Self::Owned(<_>::default())
+        Self::Shared(<_>::default())
     }
 }
 
 impl From<Vec<u8>> for Payload {
     #[inline]
     fn from(v: Vec<u8>) -> Self {
-        Payload::Vec(v)
+        Payload::Shared(Bytes::from(v))
     }
 }
 
@@ -264,14 +272,14 @@ impl From<Bytes> for Payload {
 impl From<BytesMut> for Payload {
     #[inline]
     fn from(v: BytesMut) -> Self {
-        Payload::Owned(v)
+        Payload::Shared(v.freeze())
     }
 }
 
 impl From<&[u8]> for Payload {
     #[inline]
     fn from(v: &[u8]) -> Self {
-        Self::Owned(v.into())
+        Self::Shared(Bytes::copy_from_slice(v))
     }
 }
 
