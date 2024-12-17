@@ -14,13 +14,12 @@ use log::*;
 use super::{
     coding::{CloseCode, Control, Data, OpCode},
     mask::{apply_mask, generate_mask},
-    Payload,
 };
 use crate::{
     error::{Error, ProtocolError, Result},
-    protocol::frame::Utf8Payload,
+    protocol::frame::Utf8Bytes,
 };
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -213,7 +212,7 @@ impl FrameHeader {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Frame {
     header: FrameHeader,
-    payload: Payload,
+    payload: Bytes,
 }
 
 impl Frame {
@@ -246,7 +245,7 @@ impl Frame {
     /// Get a reference to the frame's payload.
     #[inline]
     pub fn payload(&self) -> &[u8] {
-        self.payload.as_slice()
+        &self.payload
     }
 
     // /// Get a mutable reference to the frame's payload.
@@ -275,26 +274,28 @@ impl Frame {
     #[inline]
     pub(crate) fn apply_mask(&mut self) {
         if let Some(mask) = self.header.mask.take() {
-            self.payload.mutate(|data| apply_mask(data, mask));
+            let mut bytes_mut = BytesMut::from(std::mem::take(&mut self.payload));
+            apply_mask(&mut bytes_mut, mask);
+            self.payload = bytes_mut.freeze();
         }
     }
 
     /// Consume the frame into its payload as string.
     #[inline]
-    pub fn into_text(self) -> StdResult<Utf8Payload, Utf8Error> {
-        self.payload.into_text()
+    pub fn into_text(self) -> StdResult<Utf8Bytes, Utf8Error> {
+        self.payload.try_into()
     }
 
     /// Consume the frame into its payload.
     #[inline]
-    pub fn into_payload(self) -> Payload {
+    pub fn into_payload(self) -> Bytes {
         self.payload
     }
 
     /// Get frame payload as `&str`.
     #[inline]
     pub fn to_text(&self) -> Result<&str, Utf8Error> {
-        std::str::from_utf8(self.payload.as_slice())
+        std::str::from_utf8(&self.payload)
     }
 
     /// Consume the frame into a closing frame.
@@ -304,7 +305,7 @@ impl Frame {
             0 => Ok(None),
             1 => Err(Error::Protocol(ProtocolError::InvalidCloseSequence)),
             _ => {
-                let mut data = self.payload.as_slice();
+                let mut data = BytesMut::from(self.payload);
                 let code = u16::from_be_bytes([data[0], data[1]]).into();
                 data.advance(2);
                 let text = String::from_utf8(data.to_vec())?;
@@ -315,7 +316,7 @@ impl Frame {
 
     /// Create a new data frame.
     #[inline]
-    pub fn message(data: impl Into<Payload>, opcode: OpCode, is_final: bool) -> Frame {
+    pub fn message(data: impl Into<Bytes>, opcode: OpCode, is_final: bool) -> Frame {
         debug_assert!(matches!(opcode, OpCode::Data(_)), "Invalid opcode for data frame.");
         Frame {
             header: FrameHeader { is_final, opcode, ..FrameHeader::default() },
@@ -325,7 +326,7 @@ impl Frame {
 
     /// Create a new Pong control frame.
     #[inline]
-    pub fn pong(data: impl Into<Payload>) -> Frame {
+    pub fn pong(data: impl Into<Bytes>) -> Frame {
         Frame {
             header: FrameHeader {
                 opcode: OpCode::Control(Control::Pong),
@@ -337,7 +338,7 @@ impl Frame {
 
     /// Create a new Ping control frame.
     #[inline]
-    pub fn ping(data: impl Into<Payload>) -> Frame {
+    pub fn ping(data: impl Into<Bytes>) -> Frame {
         Frame {
             header: FrameHeader {
                 opcode: OpCode::Control(Control::Ping),
@@ -363,7 +364,7 @@ impl Frame {
     }
 
     /// Create a frame from given header and data.
-    pub fn from_payload(header: FrameHeader, payload: Payload) -> Self {
+    pub fn from_payload(header: FrameHeader, payload: Bytes) -> Self {
         Frame { header, payload }
     }
 
@@ -399,7 +400,7 @@ payload: 0x{}
             // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
             self.len(),
             self.payload.len(),
-            self.payload.as_slice().iter().fold(String::new(), |mut output, byte| {
+            self.payload.iter().fold(String::new(), |mut output, byte| {
                 _ = write!(output, "{byte:02x}");
                 output
             })
@@ -474,7 +475,7 @@ mod tests {
         let mut payload = Vec::new();
         raw.read_to_end(&mut payload).unwrap();
         let frame = Frame::from_payload(header, payload.into());
-        assert_eq!(frame.into_payload(), &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
+        assert_eq!(frame.into_payload(), &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07][..]);
     }
 
     #[test]
@@ -487,7 +488,7 @@ mod tests {
 
     #[test]
     fn display() {
-        let f = Frame::message(Payload::from_static(b"hi there"), OpCode::Data(Data::Text), true);
+        let f = Frame::message(Bytes::from_static(b"hi there"), OpCode::Data(Data::Text), true);
         let view = format!("{f}");
         assert!(view.contains("payload:"));
     }

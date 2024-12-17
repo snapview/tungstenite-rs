@@ -586,13 +586,15 @@ impl WebSocketContext {
     }
 
     /// Try to decode one message frame. May return None.
-    fn read_message_frame<Stream>(&mut self, stream: &mut Stream) -> Result<Option<Message>>
-    where
-        Stream: Read + Write,
-    {
-        if let Some(mut frame) = self
+    fn read_message_frame(&mut self, stream: &mut impl Read) -> Result<Option<Message>> {
+        if let Some(frame) = self
             .frame
-            .read_frame(stream, self.config.max_frame_size)
+            .read_frame(
+                stream,
+                self.config.max_frame_size,
+                matches!(self.role, Role::Server),
+                self.config.accept_unmasked_frames,
+            )
             .check_connection_reset(self.state)?
         {
             if !self.state.can_read() {
@@ -610,26 +612,9 @@ impl WebSocketContext {
                 }
             }
 
-            match self.role {
-                Role::Server => {
-                    if frame.is_masked() {
-                        // A server MUST remove masking for data frames received from a client
-                        // as described in Section 5.3. (RFC 6455)
-                        frame.apply_mask();
-                    } else if !self.config.accept_unmasked_frames {
-                        // The server MUST close the connection upon receiving a
-                        // frame that is not masked. (RFC 6455)
-                        // The only exception here is if the user explicitly accepts given
-                        // stream by setting WebSocketConfig.accept_unmasked_frames to true
-                        return Err(Error::Protocol(ProtocolError::UnmaskedFrameFromClient));
-                    }
-                }
-                Role::Client => {
-                    if frame.is_masked() {
-                        // A client MUST close a connection if it detects a masked frame. (RFC 6455)
-                        return Err(Error::Protocol(ProtocolError::MaskedFrameFromServer));
-                    }
-                }
+            if self.role == Role::Client && frame.is_masked() {
+                // A client MUST close a connection if it detects a masked frame. (RFC 6455)
+                return Err(Error::Protocol(ProtocolError::MaskedFrameFromServer));
             }
 
             match frame.header().opcode {
@@ -648,10 +633,10 @@ impl WebSocketContext {
                             Err(Error::Protocol(ProtocolError::UnknownControlFrameType(i)))
                         }
                         OpCtl::Ping => {
-                            let mut data = frame.into_payload();
+                            let data = frame.into_payload();
                             // No ping processing after we sent a close frame.
                             if self.state.is_active() {
-                                self.set_additional(Frame::pong(data.share()));
+                                self.set_additional(Frame::pong(data.clone()));
                             }
                             Ok(Some(Message::Ping(data)))
                         }

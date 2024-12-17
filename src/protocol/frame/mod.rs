@@ -5,15 +5,16 @@ pub mod coding;
 #[allow(clippy::module_inception)]
 mod frame;
 mod mask;
-mod payload;
+mod utf8;
 
 pub use self::{
     frame::{CloseFrame, Frame, FrameHeader},
-    payload::{Payload, Utf8Payload},
+    utf8::Utf8Bytes,
 };
 
 use crate::{
-    error::{CapacityError, Error, Result},
+    error::{CapacityError, Error, ProtocolError, Result},
+    protocol::frame::mask::apply_mask,
     Message,
 };
 use bytes::BytesMut;
@@ -65,7 +66,7 @@ where
 {
     /// Read a frame from stream.
     pub fn read(&mut self, max_size: Option<usize>) -> Result<Option<Frame>> {
-        self.codec.read_frame(&mut self.stream, max_size)
+        self.codec.read_frame(&mut self.stream, max_size, false, true)
     }
 }
 
@@ -158,13 +159,15 @@ impl FrameCodec {
         &mut self,
         stream: &mut Stream,
         max_size: Option<usize>,
+        unmask: bool,
+        accept_unmasked: bool,
     ) -> Result<Option<Frame>>
     where
         Stream: Read,
     {
         let max_size = max_size.unwrap_or_else(usize::max_value);
 
-        let payload = loop {
+        let mut payload = loop {
             {
                 if self.header.is_none() {
                     let mut cursor = Cursor::new(&mut self.in_buffer);
@@ -205,9 +208,24 @@ impl FrameCodec {
             }
         };
 
-        let (header, length) = self.header.take().expect("Bug: no frame header");
+        let (mut header, length) = self.header.take().expect("Bug: no frame header");
         debug_assert_eq!(payload.len() as u64, length);
-        let frame = Frame::from_payload(header, payload.into());
+
+        if unmask {
+            if let Some(mask) = header.mask.take() {
+                // A server MUST remove masking for data frames received from a client
+                // as described in Section 5.3. (RFC 6455)
+                apply_mask(&mut payload, mask);
+            } else if !accept_unmasked {
+                // The server MUST close the connection upon receiving a
+                // frame that is not masked. (RFC 6455)
+                // The only exception here is if the user explicitly accepts given
+                // stream by setting WebSocketConfig.accept_unmasked_frames to true
+                return Err(Error::Protocol(ProtocolError::UnmaskedFrameFromClient));
+            }
+        }
+
+        let frame = Frame::from_payload(header, payload.freeze());
         trace!("received frame {frame}");
         Ok(Some(frame))
     }
@@ -284,9 +302,9 @@ mod tests {
 
         assert_eq!(
             sock.read(None).unwrap().unwrap().into_payload(),
-            &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
+            &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07][..]
         );
-        assert_eq!(sock.read(None).unwrap().unwrap().into_payload(), &[0x03, 0x02, 0x01]);
+        assert_eq!(sock.read(None).unwrap().unwrap().into_payload(), &[0x03, 0x02, 0x01][..]);
         assert!(sock.read(None).unwrap().is_none());
 
         let (_, rest) = sock.into_inner();
@@ -299,7 +317,7 @@ mod tests {
         let mut sock = FrameSocket::from_partially_read(raw, vec![0x82, 0x07, 0x01]);
         assert_eq!(
             sock.read(None).unwrap().unwrap().into_payload(),
-            &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
+            &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07][..]
         );
     }
 
