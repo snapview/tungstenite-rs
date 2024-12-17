@@ -64,7 +64,7 @@ fn benchmark(c: &mut Criterion) {
                 while sum != expected_sum {
                     match ws.read().unwrap() {
                         Message::Binary(v) => {
-                            let a: &[u8; 8] = v.as_slice().try_into().unwrap();
+                            let a: &[u8; 8] = v.as_ref().try_into().unwrap();
                             sum += u64::from_le_bytes(*a);
                         }
                         Message::Text(msg) => {

@@ -1,7 +1,9 @@
+use super::frame::{CloseFrame, Frame};
+use crate::{
+    error::{CapacityError, Error, Result},
+    protocol::frame::Utf8Bytes,
+};
 use std::{borrow::Cow, fmt, result::Result as StdResult, str};
-
-use super::frame::{CloseFrame, Frame, Payload, Utf8Payload};
-use crate::error::{CapacityError, Error, Result};
 
 mod string_collect {
     use utf8::DecodeError;
@@ -74,6 +76,7 @@ mod string_collect {
 }
 
 use self::string_collect::StringCollector;
+use bytes::Bytes;
 
 /// A struct representing the incomplete message.
 #[derive(Debug)]
@@ -154,17 +157,17 @@ pub enum IncompleteMessageType {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Message {
     /// A text WebSocket message
-    Text(Utf8Payload),
+    Text(Utf8Bytes),
     /// A binary WebSocket message
-    Binary(Payload),
+    Binary(Bytes),
     /// A ping message with the specified payload
     ///
     /// The payload here must have a length less than 125 bytes
-    Ping(Payload),
+    Ping(Bytes),
     /// A pong message with the specified payload
     ///
     /// The payload here must have a length less than 125 bytes
-    Pong(Payload),
+    Pong(Bytes),
     /// A close message with the optional close frame.
     Close(Option<CloseFrame<'static>>),
     /// Raw frame. Note, that you're not going to get this value while reading the message.
@@ -175,7 +178,7 @@ impl Message {
     /// Create a new text WebSocket message from a stringable.
     pub fn text<S>(string: S) -> Message
     where
-        S: Into<Utf8Payload>,
+        S: Into<Utf8Bytes>,
     {
         Message::Text(string.into())
     }
@@ -183,7 +186,7 @@ impl Message {
     /// Create a new binary WebSocket message by converting to `Vec<u8>`.
     pub fn binary<B>(bin: B) -> Message
     where
-        B: Into<Payload>,
+        B: Into<Bytes>,
     {
         Message::Binary(bin.into())
     }
@@ -232,13 +235,13 @@ impl Message {
     }
 
     /// Consume the WebSocket and return it as binary data.
-    pub fn into_data(self) -> Payload {
+    pub fn into_data(self) -> Bytes {
         match self {
             Message::Text(string) => string.into(),
             Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => data,
             Message::Close(None) => <_>::default(),
             Message::Close(Some(frame)) => match frame.reason {
-                Cow::Borrowed(s) => Payload::from_static(s.as_bytes()),
+                Cow::Borrowed(s) => Bytes::from_static(s.as_bytes()),
                 Cow::Owned(s) => s.into(),
             },
             Message::Frame(frame) => frame.into_payload(),
@@ -246,7 +249,7 @@ impl Message {
     }
 
     /// Attempt to consume the WebSocket message and convert it to a String.
-    pub fn into_text(self) -> Result<Utf8Payload> {
+    pub fn into_text(self) -> Result<Utf8Bytes> {
         match self {
             Message::Text(txt) => Ok(txt),
             Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => {
@@ -254,7 +257,7 @@ impl Message {
             }
             Message::Close(None) => Ok(<_>::default()),
             Message::Close(Some(frame)) => Ok(match frame.reason {
-                Cow::Borrowed(s) => Utf8Payload::from_static(s),
+                Cow::Borrowed(s) => Utf8Bytes::from_static(s),
                 Cow::Owned(s) => s.into(),
             }),
             Message::Frame(frame) => Ok(frame.into_text()?),
@@ -267,7 +270,7 @@ impl Message {
         match *self {
             Message::Text(ref string) => Ok(string.as_str()),
             Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
-                Ok(str::from_utf8(data.as_slice())?)
+                Ok(str::from_utf8(data)?)
             }
             Message::Close(None) => Ok(""),
             Message::Close(Some(ref frame)) => Ok(&frame.reason),
@@ -293,7 +296,7 @@ impl<'s> From<&'s str> for Message {
 impl<'b> From<&'b [u8]> for Message {
     #[inline]
     fn from(data: &'b [u8]) -> Self {
-        Message::binary(data)
+        Message::binary(Bytes::copy_from_slice(data))
     }
 }
 
@@ -304,10 +307,10 @@ impl From<Vec<u8>> for Message {
     }
 }
 
-impl From<Message> for Vec<u8> {
+impl From<Message> for Bytes {
     #[inline]
     fn from(message: Message) -> Self {
-        message.into_data().as_slice().into()
+        message.into_data()
     }
 }
 
@@ -351,11 +354,11 @@ mod tests {
     }
 
     #[test]
-    fn binary_convert_into_vec() {
+    fn binary_convert_into_bytes() {
         let bin = vec![6u8, 7, 8, 9, 10, 241];
         let bin_copy = bin.clone();
         let msg = Message::from(bin);
-        let serialized: Vec<u8> = msg.into();
+        let serialized: Bytes = msg.into();
         assert_eq!(bin_copy, serialized);
     }
 
