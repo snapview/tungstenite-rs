@@ -25,12 +25,10 @@ impl std::ops::Deref for Utf8Bytes {
     type Target = str;
 
     /// ```
-    /// use tungstenite::protocol::frame::Utf8Bytes;
-    ///
     /// /// Example fn that takes a str slice
     /// fn a(s: &str) {}
     ///
-    /// let data = Utf8Bytes::from_static("foo123");
+    /// let data = tungstenite::Utf8Bytes::from_static("foo123");
     ///
     /// // auto-deref as arg
     /// a(&data);
@@ -49,8 +47,7 @@ where
     for<'a> &'a str: PartialEq<T>,
 {
     /// ```
-    /// use tungstenite::protocol::frame::Utf8Bytes;
-    /// let payload = Utf8Bytes::from_static("foo123");
+    /// let payload = tungstenite::Utf8Bytes::from_static("foo123");
     /// assert_eq!(payload, "foo123");
     /// assert_eq!(payload, "foo123".to_string());
     /// assert_eq!(payload, &"foo123".to_string());

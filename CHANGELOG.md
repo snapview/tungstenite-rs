@@ -1,6 +1,7 @@
 # Unreleased
 - Simplify `Message` to use `Bytes` payload directly with simpler `Utf8Bytes` for text.
 - Change `CloseFrame` to use `Utf8Bytes` for `reason`.
+- Re-export `Bytes`.
 
 # 0.25.0
 
