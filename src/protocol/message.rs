@@ -183,7 +183,7 @@ impl Message {
         Message::Text(string.into())
     }
 
-    /// Create a new binary WebSocket message by converting to `Vec<u8>`.
+    /// Create a new binary WebSocket message by converting to `Bytes`.
     pub fn binary<B>(bin: B) -> Message
     where
         B: Into<Bytes>,
