@@ -297,6 +297,18 @@ impl Frame {
         }
     }
 
+    /// Create a new compressed data frame.
+    #[inline]
+    #[cfg(feature = "deflate")]
+    pub(crate) fn compressed_message(data: Vec<u8>, opcode: OpCode, is_final: bool) -> Frame {
+        debug_assert!(matches!(opcode, OpCode::Data(_)), "Invalid opcode for data frame.");
+
+        Frame {
+            header: FrameHeader { is_final, opcode, rsv1: true, ..FrameHeader::default() },
+            payload: data.into(),
+        }
+    }
+
     /// Create a new Pong control frame.
     #[inline]
     pub fn pong(data: impl Into<Bytes>) -> Frame {
