@@ -840,9 +840,8 @@ impl WebSocketContext {
         data: Bytes,
         is_final: bool,
     ) -> Result<Option<Message>> {
-        #[allow(unused_labels)]
-        'extend: {
-            #[cfg(feature = "deflate")]
+        #[cfg(feature = "deflate")]
+        {
             if msg.compressed() {
                 // `msg.compressed()` is only true when compression is enabled so it's safe to unwrap
                 let data = self
@@ -853,11 +852,13 @@ impl WebSocketContext {
                     .decompress(data.to_vec(), is_final)?;
 
                 msg.extend(data, self.config.max_message_size)?;
-                break 'extend;
+            } else {
+                msg.extend(data, self.config.max_message_size)?;
             }
+        }
 
-            msg.extend(data, self.config.max_message_size)?;
-        };
+        #[cfg(not(feature = "deflate"))]
+        msg.extend(data, self.config.max_message_size)?;
 
         if is_final {
             Ok(Some(msg.complete()?))
