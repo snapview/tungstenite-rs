@@ -20,6 +20,7 @@ use crate::{
     extensions::Extensions,
     protocol::frame::Utf8Bytes,
 };
+use bytes::Bytes;
 use log::*;
 use std::{
     io::{self, Read, Write},
@@ -501,8 +502,9 @@ impl WebSocketContext {
         config: Option<WebSocketConfig>,
         extensions: Option<Extensions>,
     ) -> Self {
+        let conf = config.unwrap_or_default();
         WebSocketContext {
-            frame: FrameCodec::from_partially_read(part),
+            frame: FrameCodec::from_partially_read(part, conf.read_buffer_size),
             extensions,
             ..WebSocketContext::new(role, config)
         }
@@ -617,7 +619,7 @@ impl WebSocketContext {
         Ok(())
     }
 
-    fn prepare_data_frame(&mut self, data: Vec<u8>, opdata: OpData) -> Result<Frame> {
+    fn prepare_data_frame(&mut self, data: Bytes, opdata: OpData) -> Result<Frame> {
         debug_assert!(matches!(opdata, OpData::Text | OpData::Binary), "Invalid data frame kind");
         let opcode = OpCode::Data(opdata);
         let is_final = true;
@@ -739,26 +741,9 @@ impl WebSocketContext {
                 hdr.rsv1
             };
 
-            match self.role {
-                Role::Server => {
-                    if frame.is_masked() {
-                        // A server MUST remove masking for data frames received from a client
-                        // as described in Section 5.3. (RFC 6455)
-                        frame.apply_mask();
-                    } else if !self.config.accept_unmasked_frames {
-                        // The server MUST close the connection upon receiving a
-                        // frame that is not masked. (RFC 6455)
-                        // The only exception here is if the user explicitly accepts given
-                        // stream by setting WebSocketConfig.accept_unmasked_frames to true
-                        return Err(Error::Protocol(ProtocolError::UnmaskedFrameFromClient));
-                    }
-                }
-                Role::Client => {
-                    if frame.is_masked() {
-                        // A client MUST close a connection if it detects a masked frame. (RFC 6455)
-                        return Err(Error::Protocol(ProtocolError::MaskedFrameFromServer));
-                    }
-                }
+            if self.role == Role::Client && frame.is_masked() {
+                // A client MUST close a connection if it detects a masked frame. (RFC 6455)
+                return Err(Error::Protocol(ProtocolError::MaskedFrameFromServer));
             }
 
             match frame.header().opcode {
@@ -806,7 +791,7 @@ impl WebSocketContext {
                                 .incomplete
                                 .take()
                                 .ok_or(Error::Protocol(ProtocolError::UnexpectedContinueFrame))?;
-                            self.extend_incomplete(msg, frame.into_data(), fin)
+                            self.extend_incomplete(msg, frame.into_payload(), fin)
                         }
 
                         c if self.incomplete.is_some() => {
@@ -830,7 +815,7 @@ impl WebSocketContext {
                             let msg = IncompleteMessage::new(message_type, is_compressed);
                             #[cfg(not(feature = "deflate"))]
                             let msg = IncompleteMessage::new(message_type);
-                            self.extend_incomplete(msg, frame.into_data(), fin)
+                            self.extend_incomplete(msg, frame.into_payload(), fin)
                         }
                         OpData::Reserved(i) => {
                             Err(Error::Protocol(ProtocolError::UnknownDataFrameType(i)))
@@ -852,21 +837,28 @@ impl WebSocketContext {
     fn extend_incomplete(
         &mut self,
         mut msg: IncompleteMessage,
-        data: Vec<u8>,
+        data: Bytes,
         is_final: bool,
     ) -> Result<Option<Message>> {
-        #[cfg(feature = "deflate")]
-        let data = if msg.compressed() {
-            // `msg.compressed()` is only true when compression is enabled so it's safe to unwrap
-            self.extensions
-                .as_mut()
-                .and_then(|x| x.compression.as_mut())
-                .unwrap()
-                .decompress(data, is_final)?
-        } else {
-            data
+        #[allow(unused_labels)]
+        'extend: {
+            #[cfg(feature = "deflate")]
+            if msg.compressed() {
+                // `msg.compressed()` is only true when compression is enabled so it's safe to unwrap
+                let data = self
+                    .extensions
+                    .as_mut()
+                    .and_then(|x| x.compression.as_mut())
+                    .unwrap()
+                    .decompress(data.to_vec(), is_final)?;
+
+                msg.extend(data, self.config.max_message_size)?;
+                break 'extend;
+            }
+
+            msg.extend(data, self.config.max_message_size)?;
         };
-        msg.extend(data, self.config.max_message_size)?;
+
         if is_final {
             Ok(Some(msg.complete()?))
         } else {
