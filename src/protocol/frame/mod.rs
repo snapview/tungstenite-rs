@@ -225,10 +225,7 @@ impl FrameCodec {
     fn read_in(&mut self, stream: &mut impl Read) -> io::Result<usize> {
         let len = self.in_buffer.len();
         debug_assert!(self.in_buffer.capacity() > len);
-        // SAFETY: truncated after read so uninit bytes are never read
-        unsafe {
-            self.in_buffer.set_len(self.in_buffer.capacity());
-        }
+        self.in_buffer.resize(self.in_buffer.capacity(), 0);
         let size = stream.read(&mut self.in_buffer[len..]);
         self.in_buffer.truncate(len + size.as_ref().copied().unwrap_or(0));
         size
