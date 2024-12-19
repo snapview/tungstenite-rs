@@ -19,7 +19,7 @@ use crate::{
 };
 use bytes::BytesMut;
 use log::*;
-use std::io::{self, Cursor, Error as IoError, ErrorKind as IoErrorKind, Read, Write};
+use std::io::{Cursor, Error as IoError, ErrorKind as IoErrorKind, Read, Write};
 
 /// Read buffer size used for `FrameSocket`.
 const READ_BUF_LEN: usize = 128 * 1024;
@@ -155,13 +155,16 @@ impl FrameCodec {
     }
 
     /// Read a frame from the provided stream.
-    pub(super) fn read_frame(
+    pub(super) fn read_frame<Stream>(
         &mut self,
-        stream: &mut impl Read,
+        stream: &mut Stream,
         max_size: Option<usize>,
         unmask: bool,
         accept_unmasked: bool,
-    ) -> Result<Option<Frame>> {
+    ) -> Result<Option<Frame>>
+    where
+        Stream: Read,
+    {
         let max_size = max_size.unwrap_or_else(usize::max_value);
 
         let mut payload = loop {
@@ -192,8 +195,14 @@ impl FrameCodec {
             }
 
             // Not enough data in buffer.
-            self.in_buffer.reserve(self.header.as_ref().map(|(_, l)| *l as usize).unwrap_or(6));
-            if self.read_in(stream)? == 0 {
+            let reserve_len = self.header.as_ref().map(|(_, l)| *l as usize).unwrap_or(6);
+            self.in_buffer.reserve(reserve_len);
+            let mut buf = self.in_buffer.split_off(self.in_buffer.len());
+            buf.resize(reserve_len.max(buf.capacity()), 0);
+            let size = stream.read(&mut buf)?;
+            buf.truncate(size);
+            self.in_buffer.unsplit(buf);
+            if size == 0 {
                 trace!("no frame received");
                 return Ok(None);
             }
@@ -219,19 +228,6 @@ impl FrameCodec {
         let frame = Frame::from_payload(header, payload.freeze());
         trace!("received frame {frame}");
         Ok(Some(frame))
-    }
-
-    /// Read into available `in_buffer` capacity.
-    fn read_in(&mut self, stream: &mut impl Read) -> io::Result<usize> {
-        let len = self.in_buffer.len();
-        debug_assert!(self.in_buffer.capacity() > len);
-        // SAFETY: truncated after read so uninit bytes are never read
-        unsafe {
-            self.in_buffer.set_len(self.in_buffer.capacity());
-        }
-        let size = stream.read(&mut self.in_buffer[len..]);
-        self.in_buffer.truncate(len + size.as_ref().copied().unwrap_or(0));
-        size
     }
 
     /// Writes a frame into the `out_buffer`.
