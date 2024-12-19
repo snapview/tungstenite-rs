@@ -1,11 +1,10 @@
 //! Benchmarks for write performance.
-use criterion::{BatchSize, Criterion};
+use criterion::Criterion;
 use std::{
-    hint,
-    io::{self, Read, Write},
+    hint, io,
     time::{Duration, Instant},
 };
-use tungstenite::{Message, WebSocket};
+use tungstenite::{protocol::Role, Message, WebSocket};
 
 const MOCK_WRITE_LEN: usize = 8 * 1024 * 1024;
 
@@ -16,12 +15,12 @@ const MOCK_WRITE_LEN: usize = 8 * 1024 * 1024;
 /// Each `flush` takes **~8µs** to simulate flush io.
 struct MockWrite(Vec<u8>);
 
-impl Read for MockWrite {
+impl io::Read for MockWrite {
     fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
         Err(io::Error::new(io::ErrorKind::WouldBlock, "reads not supported"))
     }
 }
-impl Write for MockWrite {
+impl io::Write for MockWrite {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if self.0.len() + buf.len() > MOCK_WRITE_LEN {
             self.flush()?;
@@ -50,24 +49,28 @@ fn spin(duration: Duration) {
 }
 
 fn benchmark(c: &mut Criterion) {
-    // Writes 100k small json text messages then flushes
-    c.bench_function("write 100k small texts then flush", |b| {
-        let mut ws = WebSocket::from_raw_socket(
-            MockWrite(Vec::with_capacity(MOCK_WRITE_LEN)),
-            tungstenite::protocol::Role::Server,
-            None,
-        );
+    fn write_100k_then_flush(role: Role, b: &mut criterion::Bencher<'_>) {
+        let mut ws =
+            WebSocket::from_raw_socket(MockWrite(Vec::with_capacity(MOCK_WRITE_LEN)), role, None);
 
-        b.iter_batched(
-            || (0..100_000).map(|i| Message::Text(format!("{{\"id\":{i}}}"))),
-            |batch| {
-                for msg in batch {
-                    ws.write(msg).unwrap();
-                }
-                ws.flush().unwrap();
-            },
-            BatchSize::SmallInput,
-        );
+        b.iter(|| {
+            for i in 0_u64..100_000 {
+                let msg = match i {
+                    _ if i % 3 == 0 => Message::binary(i.to_le_bytes().to_vec()),
+                    _ => Message::text(format!("{{\"id\":{i}}}")),
+                };
+                ws.write(msg).unwrap();
+            }
+            ws.flush().unwrap();
+        });
+    }
+
+    c.bench_function("write 100k small messages then flush (server)", |b| {
+        write_100k_then_flush(Role::Server, b);
+    });
+
+    c.bench_function("write+mask 100k small messages then flush (client)", |b| {
+        write_100k_then_flush(Role::Client, b);
     });
 }
 

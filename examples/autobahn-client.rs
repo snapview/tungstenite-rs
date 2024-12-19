@@ -11,7 +11,7 @@ fn get_case_count() -> Result<u32> {
     let (mut socket, _) = connect("ws://localhost:9001/getCaseCount")?;
     let msg = socket.read()?;
     socket.close(None)?;
-    Ok(msg.into_text()?.parse::<u32>().unwrap())
+    Ok(msg.into_text()?.as_str().parse::<u32>().unwrap())
 }
 
 fn update_reports() -> Result<()> {

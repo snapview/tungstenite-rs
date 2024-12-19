@@ -1,38 +1,35 @@
 use byteorder::{NetworkEndian, ReadBytesExt};
 use log::*;
 use std::{
-    borrow::Cow,
     default::Default,
     fmt,
     io::{Cursor, ErrorKind, Read, Write},
+    mem,
     result::Result as StdResult,
     str::Utf8Error,
-    string::{FromUtf8Error, String},
+    string::String,
 };
 
 use super::{
     coding::{CloseCode, Control, Data, OpCode},
     mask::{apply_mask, generate_mask},
 };
-use crate::error::{Error, ProtocolError, Result};
+use crate::{
+    error::{Error, ProtocolError, Result},
+    protocol::frame::Utf8Bytes,
+};
+use bytes::{Bytes, BytesMut};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct CloseFrame<'t> {
+pub struct CloseFrame {
     /// The reason as a code.
     pub code: CloseCode,
     /// The reason as text string.
-    pub reason: Cow<'t, str>,
+    pub reason: Utf8Bytes,
 }
 
-impl<'t> CloseFrame<'t> {
-    /// Convert into a owned string.
-    pub fn into_owned(self) -> CloseFrame<'static> {
-        CloseFrame { code: self.code, reason: self.reason.into_owned().into() }
-    }
-}
-
-impl<'t> fmt::Display for CloseFrame<'t> {
+impl fmt::Display for CloseFrame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} ({})", self.reason, self.code)
     }
@@ -207,7 +204,7 @@ impl FrameHeader {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Frame {
     header: FrameHeader,
-    payload: Vec<u8>,
+    payload: Bytes,
 }
 
 impl Frame {
@@ -239,14 +236,8 @@ impl Frame {
 
     /// Get a reference to the frame's payload.
     #[inline]
-    pub fn payload(&self) -> &Vec<u8> {
+    pub fn payload(&self) -> &[u8] {
         &self.payload
-    }
-
-    /// Get a mutable reference to the frame's payload.
-    #[inline]
-    pub fn payload_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload
     }
 
     /// Test whether the frame is masked.
@@ -264,25 +255,16 @@ impl Frame {
         self.header.set_random_mask();
     }
 
-    /// This method unmasks the payload and should only be called on frames that are actually
-    /// masked. In other words, those frames that have just been received from a client endpoint.
-    #[inline]
-    pub(crate) fn apply_mask(&mut self) {
-        if let Some(mask) = self.header.mask.take() {
-            apply_mask(&mut self.payload, mask);
-        }
-    }
-
-    /// Consume the frame into its payload as binary.
-    #[inline]
-    pub fn into_data(self) -> Vec<u8> {
-        self.payload
-    }
-
     /// Consume the frame into its payload as string.
     #[inline]
-    pub fn into_string(self) -> StdResult<String, FromUtf8Error> {
-        String::from_utf8(self.payload)
+    pub fn into_text(self) -> StdResult<Utf8Bytes, Utf8Error> {
+        self.payload.try_into()
+    }
+
+    /// Consume the frame into its payload.
+    #[inline]
+    pub fn into_payload(self) -> Bytes {
+        self.payload
     }
 
     /// Get frame payload as `&str`.
@@ -293,26 +275,26 @@ impl Frame {
 
     /// Consume the frame into a closing frame.
     #[inline]
-    pub(crate) fn into_close(self) -> Result<Option<CloseFrame<'static>>> {
+    pub(crate) fn into_close(self) -> Result<Option<CloseFrame>> {
         match self.payload.len() {
             0 => Ok(None),
             1 => Err(Error::Protocol(ProtocolError::InvalidCloseSequence)),
             _ => {
-                let mut data = self.payload;
-                let code = u16::from_be_bytes([data[0], data[1]]).into();
-                data.drain(0..2);
-                let text = String::from_utf8(data)?;
-                Ok(Some(CloseFrame { code, reason: text.into() }))
+                let code = u16::from_be_bytes([self.payload[0], self.payload[1]]).into();
+                let reason = Utf8Bytes::try_from(self.payload.slice(2..))?;
+                Ok(Some(CloseFrame { code, reason }))
             }
         }
     }
 
     /// Create a new data frame.
     #[inline]
-    pub fn message(data: Vec<u8>, opcode: OpCode, is_final: bool) -> Frame {
+    pub fn message(data: impl Into<Bytes>, opcode: OpCode, is_final: bool) -> Frame {
         debug_assert!(matches!(opcode, OpCode::Data(_)), "Invalid opcode for data frame.");
-
-        Frame { header: FrameHeader { is_final, opcode, ..FrameHeader::default() }, payload: data }
+        Frame {
+            header: FrameHeader { is_final, opcode, ..FrameHeader::default() },
+            payload: data.into(),
+        }
     }
 
     /// Create a new compressed data frame.
@@ -329,25 +311,25 @@ impl Frame {
 
     /// Create a new Pong control frame.
     #[inline]
-    pub fn pong(data: Vec<u8>) -> Frame {
+    pub fn pong(data: impl Into<Bytes>) -> Frame {
         Frame {
             header: FrameHeader {
                 opcode: OpCode::Control(Control::Pong),
                 ..FrameHeader::default()
             },
-            payload: data,
+            payload: data.into(),
         }
     }
 
     /// Create a new Ping control frame.
     #[inline]
-    pub fn ping(data: Vec<u8>) -> Frame {
+    pub fn ping(data: impl Into<Bytes>) -> Frame {
         Frame {
             header: FrameHeader {
                 opcode: OpCode::Control(Control::Ping),
                 ..FrameHeader::default()
             },
-            payload: data,
+            payload: data.into(),
         }
     }
 
@@ -355,27 +337,47 @@ impl Frame {
     #[inline]
     pub fn close(msg: Option<CloseFrame>) -> Frame {
         let payload = if let Some(CloseFrame { code, reason }) = msg {
-            let mut p = Vec::with_capacity(reason.as_bytes().len() + 2);
+            let mut p = BytesMut::with_capacity(reason.len() + 2);
             p.extend(u16::from(code).to_be_bytes());
             p.extend_from_slice(reason.as_bytes());
             p
         } else {
-            Vec::new()
+            <_>::default()
         };
 
-        Frame { header: FrameHeader::default(), payload }
+        Frame { header: FrameHeader::default(), payload: payload.into() }
     }
 
     /// Create a frame from given header and data.
-    pub fn from_payload(header: FrameHeader, payload: Vec<u8>) -> Self {
+    pub fn from_payload(header: FrameHeader, payload: Bytes) -> Self {
         Frame { header, payload }
     }
 
     /// Write a frame out to a buffer
     pub fn format(mut self, output: &mut impl Write) -> Result<()> {
         self.header.format(self.payload.len() as u64, output)?;
-        self.apply_mask();
-        output.write_all(self.payload())?;
+
+        if let Some(mask) = self.header.mask.take() {
+            let mut data = Vec::from(mem::take(&mut self.payload));
+            apply_mask(&mut data, mask);
+            output.write_all(&data)?;
+        } else {
+            output.write_all(&self.payload)?;
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn format_into_buf(mut self, buf: &mut Vec<u8>) -> Result<()> {
+        self.header.format(self.payload.len() as u64, buf)?;
+
+        let len = buf.len();
+        buf.extend_from_slice(&self.payload);
+
+        if let Some(mask) = self.header.mask.take() {
+            apply_mask(&mut buf[len..], mask);
+        }
+
         Ok(())
     }
 }
@@ -477,8 +479,8 @@ mod tests {
         assert_eq!(length, 7);
         let mut payload = Vec::new();
         raw.read_to_end(&mut payload).unwrap();
-        let frame = Frame::from_payload(header, payload);
-        assert_eq!(frame.into_data(), vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
+        let frame = Frame::from_payload(header, payload.into());
+        assert_eq!(frame.into_payload(), &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07][..]);
     }
 
     #[test]
@@ -490,8 +492,16 @@ mod tests {
     }
 
     #[test]
+    fn format_into_buf() {
+        let frame = Frame::ping(vec![0x01, 0x02]);
+        let mut buf = Vec::with_capacity(frame.len());
+        frame.format_into_buf(&mut buf).unwrap();
+        assert_eq!(buf, vec![0x89, 0x02, 0x01, 0x02]);
+    }
+
+    #[test]
     fn display() {
-        let f = Frame::message("hi there".into(), OpCode::Data(Data::Text), true);
+        let f = Frame::message(Bytes::from_static(b"hi there"), OpCode::Data(Data::Text), true);
         let view = format!("{f}");
         assert!(view.contains("payload:"));
     }

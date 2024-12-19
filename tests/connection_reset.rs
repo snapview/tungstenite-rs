@@ -64,7 +64,7 @@ fn test_server_close() {
         },
         |mut srv_sock| {
             let message = srv_sock.read().unwrap();
-            assert_eq!(message.into_data(), b"Hello WebSocket");
+            assert_eq!(message.into_data(), b"Hello WebSocket"[..]);
 
             srv_sock.close(None).unwrap(); // send close to client
 
@@ -100,7 +100,7 @@ fn test_evil_server_close() {
         },
         |mut srv_sock| {
             let message = srv_sock.read().unwrap();
-            assert_eq!(message.into_data(), b"Hello WebSocket");
+            assert_eq!(message.into_data(), b"Hello WebSocket"[..]);
 
             srv_sock.close(None).unwrap(); // send close to client
 
@@ -121,7 +121,7 @@ fn test_client_close() {
             cli_sock.send(Message::Text("Hello WebSocket".into())).unwrap();
 
             let message = cli_sock.read().unwrap(); // receive answer from server
-            assert_eq!(message.into_data(), b"From Server");
+            assert_eq!(message.into_data(), b"From Server"[..]);
 
             cli_sock.close(None).unwrap(); // send close to server
 
@@ -136,7 +136,7 @@ fn test_client_close() {
         },
         |mut srv_sock| {
             let message = srv_sock.read().unwrap();
-            assert_eq!(message.into_data(), b"Hello WebSocket");
+            assert_eq!(message.into_data(), b"Hello WebSocket"[..]);
 
             srv_sock.send(Message::Text("From Server".into())).unwrap();
 

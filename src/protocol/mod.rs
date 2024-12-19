@@ -16,8 +16,9 @@ use self::{
 #[cfg(feature = "handshake")]
 use crate::handshake::headers::SecWebsocketExtensions;
 use crate::{
-    error::{Error, ProtocolError, Result},
+    error::{CapacityError, Error, ProtocolError, Result},
     extensions::Extensions,
+    protocol::frame::Utf8Bytes,
 };
 use log::*;
 use std::{
@@ -35,12 +36,19 @@ pub enum Role {
 }
 
 /// The configuration for WebSocket connection.
+///
+/// # Example
+/// ```
+/// # use tungstenite::protocol::WebSocketConfig;;
+/// let conf = WebSocketConfig::default()
+///     .read_buffer_size(256 * 1024)
+///     .write_buffer_size(256 * 1024);
+/// ```
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct WebSocketConfig {
-    /// Does nothing, instead use `max_write_buffer_size`.
-    #[deprecated]
-    pub max_send_queue: Option<usize>,
+    /// Read buffer capacity. The default value is 128 KiB.
+    pub read_buffer_size: usize,
     /// The target minimum size of the write buffer to reach before writing the data
     /// to the underlying stream.
     /// The default value is 128 KiB.
@@ -83,9 +91,8 @@ pub struct WebSocketConfig {
 
 impl Default for WebSocketConfig {
     fn default() -> Self {
-        #[allow(deprecated)]
-        WebSocketConfig {
-            max_send_queue: None,
+        Self {
+            read_buffer_size: 128 * 1024,
             write_buffer_size: 128 * 1024,
             max_write_buffer_size: usize::MAX,
             max_message_size: Some(64 << 20),
@@ -156,6 +163,42 @@ impl WebSocketConfig {
 }
 
 impl WebSocketConfig {
+    /// Set [`Self::read_buffer_size`].
+    pub fn read_buffer_size(mut self, read_buffer_size: usize) -> Self {
+        self.read_buffer_size = read_buffer_size;
+        self
+    }
+
+    /// Set [`Self::write_buffer_size`].
+    pub fn write_buffer_size(mut self, write_buffer_size: usize) -> Self {
+        self.write_buffer_size = write_buffer_size;
+        self
+    }
+
+    /// Set [`Self::max_write_buffer_size`].
+    pub fn max_write_buffer_size(mut self, max_write_buffer_size: usize) -> Self {
+        self.max_write_buffer_size = max_write_buffer_size;
+        self
+    }
+
+    /// Set [`Self::max_message_size`].
+    pub fn max_message_size(mut self, max_message_size: Option<usize>) -> Self {
+        self.max_message_size = max_message_size;
+        self
+    }
+
+    /// Set [`Self::max_frame_size`].
+    pub fn max_frame_size(mut self, max_frame_size: Option<usize>) -> Self {
+        self.max_frame_size = max_frame_size;
+        self
+    }
+
+    /// Set [`Self::accept_unmasked_frames`].
+    pub fn accept_unmasked_frames(mut self, accept_unmasked_frames: bool) -> Self {
+        self.accept_unmasked_frames = accept_unmasked_frames;
+        self
+    }
+
     /// Panic if values are invalid.
     pub(crate) fn assert_valid(&self) {
         assert!(
@@ -422,7 +465,8 @@ impl WebSocketContext {
     /// # Panics
     /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn new(role: Role, config: Option<WebSocketConfig>) -> Self {
-        Self::_new(role, FrameCodec::new(), config.unwrap_or_default())
+        let conf = config.unwrap_or_default();
+        Self::_new(role, FrameCodec::new(conf.read_buffer_size), conf)
     }
 
     /// Create a WebSocket context that manages an post-handshake stream.
@@ -430,7 +474,8 @@ impl WebSocketContext {
     /// # Panics
     /// Panics if config is invalid e.g. `max_write_buffer_size <= write_buffer_size`.
     pub fn from_partially_read(part: Vec<u8>, role: Role, config: Option<WebSocketConfig>) -> Self {
-        Self::_new(role, FrameCodec::from_partially_read(part), config.unwrap_or_default())
+        let conf = config.unwrap_or_default();
+        Self::_new(role, FrameCodec::from_partially_read(part, conf.read_buffer_size), conf)
     }
 
     fn _new(role: Role, mut frame: FrameCodec, config: WebSocketConfig) -> Self {
@@ -666,13 +711,15 @@ impl WebSocketContext {
     }
 
     /// Try to decode one message frame. May return None.
-    fn read_message_frame<Stream>(&mut self, stream: &mut Stream) -> Result<Option<Message>>
-    where
-        Stream: Read + Write,
-    {
-        if let Some(mut frame) = self
+    fn read_message_frame(&mut self, stream: &mut impl Read) -> Result<Option<Message>> {
+        if let Some(frame) = self
             .frame
-            .read_frame(stream, self.config.max_frame_size)
+            .read_frame(
+                stream,
+                self.config.max_frame_size,
+                matches!(self.role, Role::Server),
+                self.config.accept_unmasked_frames,
+            )
             .check_connection_reset(self.state)?
         {
             if !self.state.can_read() {
@@ -734,14 +781,14 @@ impl WebSocketContext {
                             Err(Error::Protocol(ProtocolError::UnknownControlFrameType(i)))
                         }
                         OpCtl::Ping => {
-                            let data = frame.into_data();
+                            let data = frame.into_payload();
                             // No ping processing after we sent a close frame.
                             if self.state.is_active() {
                                 self.set_additional(Frame::pong(data.clone()));
                             }
                             Ok(Some(Message::Ping(data)))
                         }
-                        OpCtl::Pong => Ok(Some(Message::Pong(frame.into_data()))),
+                        OpCtl::Pong => Ok(Some(Message::Pong(frame.into_payload()))),
                     }
                 }
 
@@ -765,7 +812,14 @@ impl WebSocketContext {
                         c if self.incomplete.is_some() => {
                             Err(Error::Protocol(ProtocolError::ExpectedFragment(c)))
                         }
-
+                        OpData::Text if fin => {
+                            check_max_size(frame.payload().len(), self.config.max_message_size)?;
+                            Ok(Some(Message::Text(frame.into_text()?)))
+                        }
+                        OpData::Binary if fin => {
+                            check_max_size(frame.payload().len(), self.config.max_message_size)?;
+                            Ok(Some(Message::Binary(frame.into_payload())))
+                        }
                         OpData::Text | OpData::Binary => {
                             let message_type = match data {
                                 OpData::Text => IncompleteMessageType::Text,
@@ -823,7 +877,7 @@ impl WebSocketContext {
 
     /// Received a close frame. Tells if we need to return a close frame to the user.
     #[allow(clippy::option_option)]
-    fn do_close<'t>(&mut self, close: Option<CloseFrame<'t>>) -> Option<Option<CloseFrame<'t>>> {
+    fn do_close(&mut self, close: Option<CloseFrame>) -> Option<Option<CloseFrame>> {
         debug!("Received close frame: {close:?}");
         match self.state {
             WebSocketState::Active => {
@@ -833,7 +887,7 @@ impl WebSocketContext {
                     if !frame.code.is_allowed() {
                         CloseFrame {
                             code: CloseCode::Protocol,
-                            reason: "Protocol violation".into(),
+                            reason: Utf8Bytes::from_static("Protocol violation"),
                         }
                     } else {
                         frame
@@ -898,6 +952,15 @@ impl WebSocketContext {
             false
         }
     }
+}
+
+fn check_max_size(size: usize, max_size: Option<usize>) -> crate::Result<()> {
+    if let Some(max_size) = max_size {
+        if size > max_size {
+            return Err(Error::Capacity(CapacityError::MessageTooLong { size, max_size }));
+        }
+    }
+    Ok(())
 }
 
 /// The current connection state.
@@ -989,10 +1052,10 @@ mod tests {
             0x03,
         ]);
         let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, None);
-        assert_eq!(socket.read().unwrap(), Message::Ping(vec![1, 2]));
-        assert_eq!(socket.read().unwrap(), Message::Pong(vec![3]));
+        assert_eq!(socket.read().unwrap(), Message::Ping(vec![1, 2].into()));
+        assert_eq!(socket.read().unwrap(), Message::Pong(vec![3].into()));
         assert_eq!(socket.read().unwrap(), Message::Text("Hello, World!".into()));
-        assert_eq!(socket.read().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03]));
+        assert_eq!(socket.read().unwrap(), Message::Binary(vec![0x01, 0x02, 0x03].into()));
     }
 
     #[test]
