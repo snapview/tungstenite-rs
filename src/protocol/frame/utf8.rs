@@ -19,6 +19,13 @@ impl Utf8Bytes {
         // SAFETY: is valid uft8
         unsafe { str::from_utf8_unchecked(&self.0) }
     }
+
+    /// Creates from a [`Bytes`] object without checking the encoding.
+    ///
+    /// SAFETY: The bytes passed in must be valid UTF-8.
+    pub unsafe fn from_bytes_unchecked(bytes: Bytes) -> Self {
+        Self(bytes)
+    }
 }
 
 impl std::ops::Deref for Utf8Bytes {
