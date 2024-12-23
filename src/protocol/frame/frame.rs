@@ -1,4 +1,3 @@
-use byteorder::{NetworkEndian, ReadBytesExt};
 use log::*;
 use std::{
     default::Default,
@@ -18,7 +17,7 @@ use crate::{
     error::{Error, ProtocolError, Result},
     protocol::frame::Utf8Bytes,
 };
-use bytes::{Bytes, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -161,14 +160,11 @@ impl FrameHeader {
             let length_byte = second & 0x7F;
             let length_length = LengthFormat::for_byte(length_byte).extra_bytes();
             if length_length > 0 {
-                match cursor.read_uint::<NetworkEndian>(length_length) {
-                    Err(ref err) if err.kind() == ErrorKind::UnexpectedEof => {
-                        return Ok(None);
-                    }
-                    Err(err) => {
-                        return Err(err.into());
-                    }
-                    Ok(read) => read,
+                let mut buffer = [0; 8];
+                match cursor.read_exact(&mut buffer[..length_length]) {
+                    Err(ref err) if err.kind() == ErrorKind::UnexpectedEof => return Ok(None),
+                    Err(err) => return Err(err.into()),
+                    Ok(()) => buffer[..length_length].as_ref().get_uint(length_length),
                 }
             } else {
                 u64::from(length_byte)
