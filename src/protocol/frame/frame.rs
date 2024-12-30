@@ -17,7 +17,7 @@ use crate::{
     error::{Error, ProtocolError, Result},
     protocol::frame::Utf8Bytes,
 };
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -160,11 +160,18 @@ impl FrameHeader {
             let length_byte = second & 0x7F;
             let length_length = LengthFormat::for_byte(length_byte).extra_bytes();
             if length_length > 0 {
-                let mut buffer = [0; 8];
-                match cursor.read_exact(&mut buffer[..length_length]) {
+                const SIZE: usize = mem::size_of::<u64>();
+                let mut buffer = [0; SIZE];
+                let start = match SIZE.checked_sub(length_length) {
+                    Some(start) => start,
+                    None => {
+                        panic!("the integer can fit {} bytes, but {} is given", SIZE, length_length)
+                    }
+                };
+                match cursor.read_exact(&mut buffer[start..]) {
                     Err(ref err) if err.kind() == ErrorKind::UnexpectedEof => return Ok(None),
                     Err(err) => return Err(err.into()),
-                    Ok(()) => buffer[..length_length].as_ref().get_uint(length_length),
+                    Ok(()) => u64::from_be_bytes(buffer),
                 }
             } else {
                 u64::from(length_byte)
