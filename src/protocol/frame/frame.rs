@@ -1,4 +1,3 @@
-use byteorder::{NetworkEndian, ReadBytesExt};
 use log::*;
 use std::{
     default::Default,
@@ -161,14 +160,14 @@ impl FrameHeader {
             let length_byte = second & 0x7F;
             let length_length = LengthFormat::for_byte(length_byte).extra_bytes();
             if length_length > 0 {
-                match cursor.read_uint::<NetworkEndian>(length_length) {
-                    Err(ref err) if err.kind() == ErrorKind::UnexpectedEof => {
-                        return Ok(None);
-                    }
-                    Err(err) => {
-                        return Err(err.into());
-                    }
-                    Ok(read) => read,
+                const SIZE: usize = mem::size_of::<u64>();
+                assert!(length_length <= SIZE, "length exceeded size of u64");
+                let start = SIZE - length_length;
+                let mut buffer = [0; SIZE];
+                match cursor.read_exact(&mut buffer[start..]) {
+                    Err(ref err) if err.kind() == ErrorKind::UnexpectedEof => return Ok(None),
+                    Err(err) => return Err(err.into()),
+                    Ok(()) => u64::from_be_bytes(buffer),
                 }
             } else {
                 u64::from(length_byte)
