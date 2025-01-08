@@ -161,13 +161,9 @@ impl FrameHeader {
             let length_length = LengthFormat::for_byte(length_byte).extra_bytes();
             if length_length > 0 {
                 const SIZE: usize = mem::size_of::<u64>();
+                assert!(length_length <= SIZE, "length exceeded size of u64");
+                let start = SIZE - length_length;
                 let mut buffer = [0; SIZE];
-                let start = match SIZE.checked_sub(length_length) {
-                    Some(start) => start,
-                    None => {
-                        panic!("the integer can fit {} bytes, but {} is given", SIZE, length_length)
-                    }
-                };
                 match cursor.read_exact(&mut buffer[start..]) {
                     Err(ref err) if err.kind() == ErrorKind::UnexpectedEof => return Ok(None),
                     Err(err) => return Err(err.into()),
