@@ -36,7 +36,7 @@ pub enum Role {
 ///
 /// # Example
 /// ```
-/// # use tungstenite::protocol::WebSocketConfig;;
+/// # use layer8_tungstenite::protocol::WebSocketConfig;;
 /// let conf = WebSocketConfig::default()
 ///     .read_buffer_size(256 * 1024)
 ///     .write_buffer_size(256 * 1024);

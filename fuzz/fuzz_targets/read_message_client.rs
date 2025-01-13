@@ -1,11 +1,11 @@
 #![no_main]
 #[macro_use] extern crate libfuzzer_sys;
-extern crate tungstenite;
+extern crate layer8_tungstenite;
 
 use std::io;
 use std::io::Cursor;
-use tungstenite::WebSocket;
-use tungstenite::protocol::Role;
+use layer8_tungstenite::WebSocket;
+use layer8_tungstenite::protocol::Role;
 //use std::result::Result;
 
 // FIXME: copypasted from tungstenite's protocol/mod.rs

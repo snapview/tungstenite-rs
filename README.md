@@ -1,4 +1,4 @@
-# Tungstenite
+# Layer8 Tungstenite
 
 Lightweight stream-based WebSocket implementation for [Rust](https://www.rust-lang.org/).
 

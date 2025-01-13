@@ -1,5 +1,5 @@
 use std::io::{self, Read, Write};
-use tungstenite::{protocol::WebSocketConfig, Message, WebSocket};
+use layer8_tungstenite::{protocol::WebSocketConfig, Message, WebSocket};
 
 /// `Write` impl that records call stats and drops the data.
 #[derive(Debug, Default)]
@@ -36,7 +36,7 @@ fn write_flush_behaviour() {
 
     let mut ws = WebSocket::from_raw_socket(
         MockWrite::default(),
-        tungstenite::protocol::Role::Server,
+        layer8_tungstenite::protocol::Role::Server,
         Some(WebSocketConfig::default().write_buffer_size(WRITE_BUFFER_SIZE)),
     );
 

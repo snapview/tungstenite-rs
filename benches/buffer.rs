@@ -4,7 +4,7 @@ use bytes::Buf;
 use criterion::*;
 use input_buffer::InputBuffer;
 
-use tungstenite::buffer::ReadBuffer;
+use layer8_tungstenite::buffer::ReadBuffer;
 
 const CHUNK_SIZE: usize = 4096;
 

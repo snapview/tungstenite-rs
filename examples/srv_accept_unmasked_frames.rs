@@ -1,5 +1,5 @@
 use std::{net::TcpListener, thread::spawn};
-use tungstenite::{
+use layer8_tungstenite::{
     accept_hdr_with_config,
     handshake::server::{Request, Response},
     protocol::WebSocketConfig,

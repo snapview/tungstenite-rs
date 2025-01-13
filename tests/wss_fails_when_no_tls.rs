@@ -1,6 +1,6 @@
 #![cfg(all(feature = "handshake", not(any(feature = "native-tls", feature = "__rustls-tls"))))]
 
-use tungstenite::{connect, error::UrlError, Error};
+use layer8_tungstenite::{connect, error::UrlError, Error};
 
 #[test]
 fn wss_url_fails_when_no_tls_support() {

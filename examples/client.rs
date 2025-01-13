@@ -1,4 +1,4 @@
-use tungstenite::{connect, Message};
+use layer8_tungstenite::{connect, Message};
 
 fn main() {
     env_logger::init();

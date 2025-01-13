@@ -4,7 +4,7 @@ use std::{
     thread::{sleep, spawn},
     time::Duration,
 };
-use tungstenite::{
+use layer8_tungstenite::{
     accept_hdr, connect,
     error::{Error, ProtocolError, SubProtocolError},
     handshake::{

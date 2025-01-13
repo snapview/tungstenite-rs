@@ -1,6 +1,6 @@
 use log::*;
 
-use tungstenite::{connect, Error, Message, Result};
+use layer8_tungstenite::{connect, Error, Message, Result};
 
 const AGENT: &str = "Tungstenite";
 

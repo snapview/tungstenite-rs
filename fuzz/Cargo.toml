@@ -7,7 +7,7 @@ publish = false
 [package.metadata]
 cargo-fuzz = true
 
-[dependencies.tungstenite]
+[dependencies.layer8_tungstenite]
 path = ".."
 [dependencies.libfuzzer-sys]
 git = "https://github.com/rust-fuzz/libfuzzer-sys.git"

@@ -2,7 +2,8 @@ use std::{
     io::{self, Cursor, Read, Write},
     mem,
 };
-use tungstenite::{
+
+use layer8_tungstenite::{
     protocol::frame::{
         coding::{Control, OpCode},
         Frame, FrameHeader,
@@ -66,8 +67,11 @@ impl Write for MockWrite {
 /// even if WouldBlock errors are encountered.
 #[test]
 fn read_usage_auto_pong_flush() {
-    let mut ws =
-        WebSocket::from_raw_socket(MockWrite::default(), tungstenite::protocol::Role::Client, None);
+    let mut ws = WebSocket::from_raw_socket(
+        MockWrite::default(),
+        layer8_tungstenite::protocol::Role::Client,
+        None,
+    );
 
     // Receiving a ping should auto scheduled a pong on next read or write (but not written yet).
     let msg = ws.read().unwrap();
@@ -80,7 +84,7 @@ fn read_usage_auto_pong_flush() {
     // This read call should have tried to write & flush a pong response, with the flush WouldBlock-ing
     let next = ws.read().unwrap_err();
     assert!(
-        matches!(next, tungstenite::Error::Io(ref err) if err.kind() == io::ErrorKind::WouldBlock),
+        matches!(next, layer8_tungstenite::Error::Io(ref err) if err.kind() == io::ErrorKind::WouldBlock),
         "Unexpected read err {:?}",
         next
     );
@@ -100,7 +104,7 @@ fn read_usage_auto_pong_flush() {
     // This read call should try to flush the pong again, which again WouldBlock
     let next = ws.read().unwrap_err();
     assert!(
-        matches!(next, tungstenite::Error::Io(ref err) if err.kind() == io::ErrorKind::WouldBlock),
+        matches!(next, layer8_tungstenite::Error::Io(ref err) if err.kind() == io::ErrorKind::WouldBlock),
         "Unexpected read err {:?}",
         next
     );
@@ -113,7 +117,7 @@ fn read_usage_auto_pong_flush() {
     // This read call should try to flush the pong again, 3rd flush attempt is the charm
     let next = ws.read().unwrap_err();
     assert!(
-        matches!(next, tungstenite::Error::Io(ref err) if err.kind() == io::ErrorKind::WouldBlock),
+        matches!(next, layer8_tungstenite::Error::Io(ref err) if err.kind() == io::ErrorKind::WouldBlock),
         "Unexpected read err {:?}",
         next
     );

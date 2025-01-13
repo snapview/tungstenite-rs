@@ -114,7 +114,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
 /// The URL may be either ws:// or wss://.
 /// To support wss:// URLs, feature `native-tls` or `rustls-tls` must be turned on.
 ///
-/// This function "just works" for those who wants a simple blocking solution
+/// This function "just works" for those who want a simple blocking solution
 /// similar to `std::net::TcpStream`. If you want a non-blocking or other
 /// custom stream, call `client` instead.
 ///
@@ -280,7 +280,7 @@ impl IntoClientRequest for httparse::Request<'_, '_> {
 /// ```rust no_run
 /// # use crate::*;
 /// use http::Uri;
-/// use tungstenite::{connect, ClientRequestBuilder};
+/// use layer8_tungstenite::{connect, ClientRequestBuilder};
 ///
 /// let uri: Uri = "ws://localhost:3012/socket".parse().unwrap();
 /// let token = "my_jwt_token";
