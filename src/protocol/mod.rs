@@ -44,7 +44,16 @@ pub enum Role {
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct WebSocketConfig {
-    /// Read buffer capacity. The default value is 128 KiB.
+    /// Read buffer capacity. This buffer is eagerly allocated and used for receiving
+    /// messages.
+    ///
+    /// For high read load scenarios a larger buffer, e.g. 128 KiB, improves performance.
+    ///
+    /// For scenarios where you expect a lot of connections and don't need high read load
+    /// performance a smaller buffer, e.g. 4 KiB, would be appropriate to lower total
+    /// memory usage.
+    ///
+    /// The default value is 128 KiB.
     pub read_buffer_size: usize,
     /// The target minimum size of the write buffer to reach before writing the data
     /// to the underlying stream.
