@@ -1,3 +1,7 @@
+# 0.26.1
+
+- Fix/revert unsoundness that could lead to UB with dodgy `Read` stream implementations.
+
 # 0.26.0
 - Simplify `Message` to use `Bytes` payload directly with simpler `Utf8Bytes` for text.
 - Change `CloseFrame` to use `Utf8Bytes` for `reason`.
