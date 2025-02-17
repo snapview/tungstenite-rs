@@ -797,13 +797,29 @@ impl WebSocketContext {
                         c if self.incomplete.is_some() => {
                             Err(Error::Protocol(ProtocolError::ExpectedFragment(c)))
                         }
-                        OpData::Text if fin => {
-                            check_max_size(frame.payload().len(), self.config.max_message_size)?;
-                            Ok(Some(Message::Text(frame.into_text()?)))
-                        }
-                        OpData::Binary if fin => {
-                            check_max_size(frame.payload().len(), self.config.max_message_size)?;
-                            Ok(Some(Message::Binary(frame.into_payload())))
+                        OpData::Text | OpData::Binary if fin => {
+                            let payload = frame.into_payload();
+
+                            #[cfg(feature = "deflate")]
+                            let payload = if is_compressed {
+                                // `msg.compressed()` is only true when compression is enabled so it's safe to unwrap
+                                self.extensions
+                                    .as_mut()
+                                    .and_then(|x| x.compression.as_mut())
+                                    .unwrap()
+                                    .decompress(payload.to_vec(), fin)?
+                                    .into()
+                            } else {
+                                payload
+                            };
+
+                            check_max_size(payload.len(), self.config.max_message_size)?;
+
+                            match data {
+                                OpData::Text => Ok(Some(Message::Text(payload.try_into()?))),
+                                OpData::Binary => Ok(Some(Message::Binary(payload))),
+                                _ => panic!("Bug: message is not text nor binary"),
+                            }
                         }
                         OpData::Text | OpData::Binary => {
                             let message_type = match data {
@@ -841,20 +857,18 @@ impl WebSocketContext {
         is_final: bool,
     ) -> Result<Option<Message>> {
         #[cfg(feature = "deflate")]
-        {
-            if msg.compressed() {
-                // `msg.compressed()` is only true when compression is enabled so it's safe to unwrap
-                let data = self
-                    .extensions
-                    .as_mut()
-                    .and_then(|x| x.compression.as_mut())
-                    .unwrap()
-                    .decompress(data.to_vec(), is_final)?;
+        if msg.compressed() {
+            // `msg.compressed()` is only true when compression is enabled so it's safe to unwrap
+            let data = self
+                .extensions
+                .as_mut()
+                .and_then(|x| x.compression.as_mut())
+                .unwrap()
+                .decompress(data.to_vec(), is_final)?;
 
-                msg.extend(data, self.config.max_message_size)?;
-            } else {
-                msg.extend(data, self.config.max_message_size)?;
-            }
+            msg.extend(data, self.config.max_message_size)?;
+        } else {
+            msg.extend(data, self.config.max_message_size)?;
         }
 
         #[cfg(not(feature = "deflate"))]
