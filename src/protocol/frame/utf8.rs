@@ -51,6 +51,33 @@ impl std::ops::Deref for Utf8Bytes {
     }
 }
 
+impl AsRef<[u8]> for Utf8Bytes {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl AsRef<str> for Utf8Bytes {
+    #[inline]
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<Bytes> for Utf8Bytes {
+    #[inline]
+    fn as_ref(&self) -> &Bytes {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<str> for Utf8Bytes {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
 impl<T> PartialEq<T> for Utf8Bytes
 where
     for<'a> &'a str: PartialEq<T>,
