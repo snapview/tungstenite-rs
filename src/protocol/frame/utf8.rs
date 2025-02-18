@@ -3,7 +3,7 @@ use core::str;
 use std::fmt::Display;
 
 /// Utf8 payload.
-#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
 pub struct Utf8Bytes(Bytes);
 
 impl Utf8Bytes {
@@ -75,6 +75,12 @@ impl AsRef<Bytes> for Utf8Bytes {
 impl std::borrow::Borrow<str> for Utf8Bytes {
     fn borrow(&self) -> &str {
         self.as_str()
+    }
+}
+
+impl core::hash::Hash for Utf8Bytes {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state)
     }
 }
 
@@ -167,5 +173,22 @@ impl From<Utf8Bytes> for Bytes {
     #[inline]
     fn from(Utf8Bytes(bytes): Utf8Bytes) -> Self {
         bytes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::{
+        borrow::Borrow,
+        hash::{BuildHasher, RandomState},
+    };
+
+    #[test]
+    fn hash_consistency() {
+        let bytes = Utf8Bytes::from_static("hash_consistency");
+        let hasher = RandomState::new();
+        assert_eq!(hasher.hash_one::<&str>(bytes.borrow()), hasher.hash_one(bytes));
     }
 }
