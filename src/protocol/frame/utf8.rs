@@ -3,7 +3,7 @@ use core::str;
 use std::fmt::Display;
 
 /// Utf8 payload.
-#[derive(Debug, Default, Clone, Eq, PartialEq)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct Utf8Bytes(Bytes);
 
 impl Utf8Bytes {
