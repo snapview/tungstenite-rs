@@ -78,6 +78,18 @@ impl std::borrow::Borrow<str> for Utf8Bytes {
     }
 }
 
+impl PartialOrd for Utf8Bytes {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Utf8Bytes {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_str().cmp(other.as_str())
+    }
+}
+
 impl<T> PartialEq<T> for Utf8Bytes
 where
     for<'a> &'a str: PartialEq<T>,
