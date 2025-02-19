@@ -33,10 +33,11 @@ mod string_collect {
             if let Some(mut incomplete) = self.incomplete.take() {
                 if let Some((result, rest)) = incomplete.try_complete(input) {
                     input = rest;
-                    if let Ok(text) = result {
-                        self.data.push_str(text);
-                    } else {
-                        return Err(Error::Utf8);
+                    match result {
+                        Ok(text) => self.data.push_str(text),
+                        Err(result_bytes) => {
+                            return Err(Error::Utf8(String::from_utf8_lossy(result_bytes).into()))
+                        }
                     }
                 } else {
                     input = &[];
@@ -55,9 +56,9 @@ mod string_collect {
                         self.incomplete = Some(incomplete_suffix);
                         Ok(())
                     }
-                    Err(DecodeError::Invalid { valid_prefix, .. }) => {
+                    Err(DecodeError::Invalid { valid_prefix, invalid_sequence, .. }) => {
                         self.data.push_str(valid_prefix);
-                        Err(Error::Utf8)
+                        Err(Error::Utf8(String::from_utf8_lossy(invalid_sequence).into()))
                     }
                 }
             } else {
@@ -66,8 +67,8 @@ mod string_collect {
         }
 
         pub fn into_string(self) -> Result<String> {
-            if self.incomplete.is_some() {
-                Err(Error::Utf8)
+            if let Some(incomplete) = self.incomplete {
+                Err(Error::Utf8(format!("incomplete string: {:?}", incomplete)))
             } else {
                 Ok(self.data)
             }
