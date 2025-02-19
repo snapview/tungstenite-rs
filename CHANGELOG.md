@@ -1,5 +1,6 @@
-# Unreleased
+# 0.26.2
 - Add `WebSocketConfig::read_buffer_size` docs explaining performance/memory tradeoff.
+- Implement traits and add helper methods for the UTF8 payloads making them comparable and more ergonomic.
 
 # 0.26.1
 - Fix/revert unsoundness that could lead to UB with dodgy `Read` stream implementations.

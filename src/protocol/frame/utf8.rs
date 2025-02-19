@@ -3,7 +3,7 @@ use core::str;
 use std::fmt::Display;
 
 /// Utf8 payload.
-#[derive(Debug, Default, Clone, Eq, PartialEq)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct Utf8Bytes(Bytes);
 
 impl Utf8Bytes {
@@ -48,6 +48,45 @@ impl std::ops::Deref for Utf8Bytes {
     #[inline]
     fn deref(&self) -> &Self::Target {
         self.as_str()
+    }
+}
+
+impl AsRef<[u8]> for Utf8Bytes {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl AsRef<str> for Utf8Bytes {
+    #[inline]
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<Bytes> for Utf8Bytes {
+    #[inline]
+    fn as_ref(&self) -> &Bytes {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<str> for Utf8Bytes {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl PartialOrd for Utf8Bytes {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Utf8Bytes {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_str().cmp(other.as_str())
     }
 }
 
