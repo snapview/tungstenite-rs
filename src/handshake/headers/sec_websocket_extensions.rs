@@ -97,7 +97,7 @@ impl SecWebsocketExtensions {
     ///
     /// ## Panic
     ///
-    /// Panics if the static string is not a valid extensions valie.
+    /// Panics if the static string is not a valid extension value.
     pub fn from_static(s: &'static str) -> Self {
         let value = HeaderValue::from_static(s);
         SecWebsocketExtensions::try_from(&value).expect("valid static string")
