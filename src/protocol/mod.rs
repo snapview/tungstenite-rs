@@ -807,7 +807,7 @@ impl WebSocketContext {
                                     .as_mut()
                                     .and_then(|x| x.compression.as_mut())
                                     .unwrap()
-                                    .decompress(payload.to_vec(), fin)?
+                                    .decompress(payload.into(), fin)?
                                     .into()
                             } else {
                                 payload
@@ -864,7 +864,7 @@ impl WebSocketContext {
                 .as_mut()
                 .and_then(|x| x.compression.as_mut())
                 .unwrap()
-                .decompress(data.to_vec(), is_final)?;
+                .decompress(data.into(), is_final)?;
 
             msg.extend(data, self.config.max_message_size)?;
         } else {
