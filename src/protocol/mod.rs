@@ -255,6 +255,29 @@ impl<Stream: Read + Write> WebSocket<Stream> {
         self.context.read(&mut self.socket)
     }
 
+    /// Read a message from stream, if possible.
+    ///
+    /// This will also queue responses to ping and close messages. These responses
+    /// will be written and flushed on the next call to [`read`](Self::read),
+    /// [`write`](Self::write) or [`flush`](Self::flush).
+    ///
+    /// # Closing the connection
+    /// When the remote endpoint decides to close the connection this will return
+    /// the close message with an optional close frame.
+    ///
+    /// You should continue calling [`read`](Self::read), [`write`](Self::write) or
+    /// [`flush`](Self::flush) to drive the reply to the close frame until [`Error::ConnectionClosed`]
+    /// is returned. Once that happens it is safe to drop the underlying connection.
+    ///
+    /// # Safety
+    ///
+    /// This function uses `FrameCodec::read_in_unsound` which can be unsound.
+    /// It is up to the caller of this function to ensure that the underlying `Read` implementation does not
+    /// attempt to read the uninitialized buffer and only writes to it.
+    pub unsafe fn read_unsound(&mut self) -> Result<Message> {
+        unsafe { self.context.read_unsound(&mut self.socket) }
+    }
+
     /// Writes and immediately flushes a message.
     /// Equivalent to calling [`write`](Self::write) then [`flush`](Self::flush).
     pub fn send(&mut self, message: Message) -> Result<()> {
@@ -441,9 +464,44 @@ impl WebSocketContext {
     ///
     /// This function sends pong and close responses automatically.
     /// However, it never blocks on write.
+    #[inline]
     pub fn read<Stream>(&mut self, stream: &mut Stream) -> Result<Message>
     where
         Stream: Read + Write,
+    {
+        self.read_inner(stream, &FrameCodec::read_in)
+    }
+
+    /// Read a message from the provided stream, if possible.
+    ///
+    /// This function sends pong and close responses automatically.
+    /// However, it never blocks on write.
+    ///
+    /// # Safety
+    ///
+    /// This function uses `FrameCodec::read_in_unsound` which can be unsound.
+    /// It is up to the caller of this function to ensure that the underlying `Read` implementation does not
+    /// attempt to read the uninitialized buffer and only writes to it.
+    #[inline]
+    pub unsafe fn read_unsound<Stream>(&mut self, stream: &mut Stream) -> Result<Message>
+    where
+        Stream: Read + Write,
+    {
+        self.read_inner(stream, &|fc, s| unsafe { fc.read_in_unsound(s) })
+    }
+
+    /// Read a message from the provided stream, if possible.
+    ///
+    /// This function sends pong and close responses automatically.
+    /// However, it never blocks on write.
+    fn read_inner<Stream, Reader>(
+        &mut self,
+        stream: &mut Stream,
+        reader: &Reader,
+    ) -> Result<Message>
+    where
+        Stream: Read + Write,
+        Reader: Fn(&mut FrameCodec, &mut Stream) -> io::Result<usize>,
     {
         // Do not read from already closed connections.
         self.state.check_not_terminated()?;
@@ -466,7 +524,7 @@ impl WebSocketContext {
 
             // If we get here, either write blocks or we have nothing to write.
             // Thus if read blocks, just let it return WouldBlock.
-            if let Some(message) = self.read_message_frame(stream)? {
+            if let Some(message) = self.read_message_frame(stream, reader)? {
                 trace!("Received message {message}");
                 return Ok(message);
             }
@@ -598,7 +656,15 @@ impl WebSocketContext {
     }
 
     /// Try to decode one message frame. May return None.
-    fn read_message_frame(&mut self, stream: &mut impl Read) -> Result<Option<Message>> {
+    fn read_message_frame<Stream, Reader>(
+        &mut self,
+        stream: &mut Stream,
+        reader: &Reader,
+    ) -> Result<Option<Message>>
+    where
+        Stream: Read,
+        Reader: Fn(&mut FrameCodec, &mut Stream) -> io::Result<usize>,
+    {
         if let Some(frame) = self
             .frame
             .read_frame(
@@ -606,6 +672,7 @@ impl WebSocketContext {
                 self.config.max_frame_size,
                 matches!(self.role, Role::Server),
                 self.config.accept_unmasked_frames,
+                reader,
             )
             .check_connection_reset(self.state)?
         {
