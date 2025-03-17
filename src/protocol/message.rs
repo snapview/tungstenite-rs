@@ -294,6 +294,12 @@ impl<'b> From<&'b [u8]> for Message {
     }
 }
 
+impl From<Bytes> for Message {
+    fn from(data: Bytes) -> Self {
+        Message::binary(data)
+    }
+}
+
 impl From<Vec<u8>> for Message {
     #[inline]
     fn from(data: Vec<u8>) -> Self {
@@ -335,6 +341,14 @@ mod tests {
     fn binary_convert() {
         let bin = [6u8, 7, 8, 9, 10, 241];
         let msg = Message::from(&bin[..]);
+        assert!(msg.is_binary());
+        assert!(msg.into_text().is_err());
+    }
+
+    #[test]
+    fn binary_convert_bytes() {
+        let bin = Bytes::from_iter([6u8, 7, 8, 9, 10, 241]);
+        let msg = Message::from(bin);
         assert!(msg.is_binary());
         assert!(msg.into_text().is_err());
     }
