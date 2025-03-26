@@ -236,9 +236,9 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
     ) -> Result<ProcessingResult<Self::InternalStream, Self::FinalResult>> {
         Ok(match finish {
             StageResult::DoneReading { stream, result, tail } => {
-                if !tail.is_empty() {
-                    return Err(Error::Protocol(ProtocolError::JunkAfterRequest));
-                }
+                // if !tail.is_empty() {
+                //     return Err(Error::Protocol(ProtocolError::JunkAfterRequest));
+                // }
 
                 let response = create_response(&result)?;
                 let callback_result = if let Some(callback) = self.callback.take() {
