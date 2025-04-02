@@ -57,8 +57,8 @@ pub enum Error {
     #[error("Write buffer is full")]
     WriteBufferFull(Message),
     /// UTF coding error.
-    #[error("UTF-8 encoding error")]
-    Utf8,
+    #[error("UTF-8 encoding error: {0}")]
+    Utf8(String),
     /// Attack attempt detected.
     #[error("Attack attempt detected")]
     AttackAttempt,
@@ -76,14 +76,14 @@ pub enum Error {
 }
 
 impl From<str::Utf8Error> for Error {
-    fn from(_: str::Utf8Error) -> Self {
-        Error::Utf8
+    fn from(err: str::Utf8Error) -> Self {
+        Error::Utf8(err.to_string())
     }
 }
 
 impl From<string::FromUtf8Error> for Error {
-    fn from(_: string::FromUtf8Error) -> Self {
-        Error::Utf8
+    fn from(err: string::FromUtf8Error) -> Self {
+        Error::Utf8(err.to_string())
     }
 }
 
@@ -103,8 +103,8 @@ impl From<http::header::InvalidHeaderName> for Error {
 
 #[cfg(feature = "handshake")]
 impl From<http::header::ToStrError> for Error {
-    fn from(_: http::header::ToStrError) -> Self {
-        Error::Utf8
+    fn from(err: http::header::ToStrError) -> Self {
+        Error::Utf8(err.to_string())
     }
 }
 
