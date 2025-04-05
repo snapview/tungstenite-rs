@@ -66,7 +66,20 @@ where
 {
     /// Read a frame from stream.
     pub fn read(&mut self, max_size: Option<usize>) -> Result<Option<Frame>> {
-        self.codec.read_frame(&mut self.stream, max_size, false, true)
+        self.codec.read_frame(&mut self.stream, max_size, false, true, &FrameCodec::read_in)
+    }
+
+    /// Read a frame from stream.
+    ///
+    /// # Safety
+    ///
+    /// This function uses `FrameCodec::read_in_unsound` which can be unsound.
+    /// It is up to the caller of this function to ensure that the underlying `Read` implementation does not
+    /// attempt to read the uninitialized buffer and only writes to it.
+    pub unsafe fn read_unsound(&mut self, max_size: Option<usize>) -> Result<Option<Frame>> {
+        self.codec.read_frame(&mut self.stream, max_size, false, true, &|fc, s| unsafe {
+            fc.read_in_unsound(s)
+        })
     }
 }
 
@@ -155,13 +168,18 @@ impl FrameCodec {
     }
 
     /// Read a frame from the provided stream.
-    pub(super) fn read_frame(
+    pub(super) fn read_frame<Stream, Reader>(
         &mut self,
-        stream: &mut impl Read,
+        stream: &mut Stream,
         max_size: Option<usize>,
         unmask: bool,
         accept_unmasked: bool,
-    ) -> Result<Option<Frame>> {
+        reader: &Reader,
+    ) -> Result<Option<Frame>>
+    where
+        Stream: Read,
+        Reader: Fn(&mut FrameCodec, &mut Stream) -> io::Result<usize>,
+    {
         let max_size = max_size.unwrap_or_else(usize::max_value);
 
         let mut payload = loop {
@@ -193,7 +211,7 @@ impl FrameCodec {
 
             // Not enough data in buffer.
             self.in_buffer.reserve(self.header.as_ref().map(|(_, l)| *l as usize).unwrap_or(6));
-            if self.read_in(stream)? == 0 {
+            if reader(self, stream)? == 0 {
                 trace!("no frame received");
                 return Ok(None);
             }
@@ -222,10 +240,29 @@ impl FrameCodec {
     }
 
     /// Read into available `in_buffer` capacity.
-    fn read_in(&mut self, stream: &mut impl Read) -> io::Result<usize> {
+    pub(super) fn read_in(&mut self, stream: &mut impl Read) -> io::Result<usize> {
         let len = self.in_buffer.len();
         debug_assert!(self.in_buffer.capacity() > len);
         self.in_buffer.resize(self.in_buffer.capacity(), 0);
+        let size = stream.read(&mut self.in_buffer[len..]);
+        self.in_buffer.truncate(len + size.as_ref().copied().unwrap_or(0));
+        size
+    }
+
+    /// Read into available `in_buffer` capacity.
+    ///
+    /// # Safety
+    ///
+    /// This function uses `BytesMut::set_len` to set the reading buffer length without initializing memory.
+    /// This is generally unsound.
+    /// It is up to the caller of this function to ensure that the underlying `Read` implementation does not
+    /// attempt to read the uninitialized buffer and only writes to it.
+    pub(super) unsafe fn read_in_unsound(&mut self, stream: &mut impl Read) -> io::Result<usize> {
+        let len = self.in_buffer.len();
+        debug_assert!(self.in_buffer.capacity() > len);
+        unsafe {
+            self.in_buffer.set_len(self.in_buffer.capacity());
+        }
         let size = stream.read(&mut self.in_buffer[len..]);
         self.in_buffer.truncate(len + size.as_ref().copied().unwrap_or(0));
         size
