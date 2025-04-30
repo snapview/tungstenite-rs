@@ -97,7 +97,7 @@ impl Default for WebSocketConfig {
         Self {
             read_buffer_size: 128 * 1024,
             write_buffer_size: 128 * 1024,
-            max_write_buffer_size: 16 * 1024 * 1024,
+            max_write_buffer_size: 64 * 1024 * 1024,
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
             accept_unmasked_frames: false,
