@@ -790,17 +790,19 @@ impl WebSocketContext {
                     let fin = frame.header().is_final;
                     match data {
                         OpData::Continue => {
-                            if self.incomplete.is_some() && is_compressed {
+                            if self.incomplete.is_none() {
+                                return Err(Error::Protocol(
+                                    ProtocolError::UnexpectedContinueFrame,
+                                ));
+                            }
+
+                            if is_compressed {
                                 return Err(Error::Protocol(
                                     ProtocolError::CompressedContinueFrame,
                                 ));
                             }
 
-                            let msg = self
-                                .incomplete
-                                .take()
-                                .ok_or(Error::Protocol(ProtocolError::UnexpectedContinueFrame))?;
-                            self.extend_incomplete(msg, frame.into_payload(), fin)
+                            self.extend_incomplete(frame.into_payload(), fin)
                         }
 
                         c if self.incomplete.is_some() => {
@@ -836,11 +838,18 @@ impl WebSocketContext {
                                 OpData::Binary => IncompleteMessageType::Binary,
                                 _ => panic!("Bug: message is not text nor binary"),
                             };
+
                             #[cfg(feature = "deflate")]
-                            let msg = IncompleteMessage::new(message_type, is_compressed);
+                            {
+                                self.incomplete =
+                                    Some(IncompleteMessage::new(message_type, is_compressed));
+                            }
                             #[cfg(not(feature = "deflate"))]
-                            let msg = IncompleteMessage::new(message_type);
-                            self.extend_incomplete(msg, frame.into_payload(), fin)
+                            {
+                                self.incomplete = Some(IncompleteMessage::new(message_type));
+                            }
+
+                            self.extend_incomplete(frame.into_payload(), fin)
                         }
                         OpData::Reserved(i) => {
                             Err(Error::Protocol(ProtocolError::UnknownDataFrameType(i)))
@@ -859,12 +868,12 @@ impl WebSocketContext {
         }
     }
 
-    fn extend_incomplete(
-        &mut self,
-        mut msg: IncompleteMessage,
-        data: Bytes,
-        is_final: bool,
-    ) -> Result<Option<Message>> {
+    // Inlining this seems to be a big performance win.
+    // I suspect it allows the compiler to prove self.incomplete is not None.
+    #[inline(always)]
+    fn extend_incomplete(&mut self, data: Bytes, is_final: bool) -> Result<Option<Message>> {
+        let msg = self.incomplete.as_mut().unwrap();
+
         #[cfg(feature = "deflate")]
         if msg.compressed() {
             // `msg.compressed()` is only true when compression is enabled so it's safe to unwrap
@@ -884,9 +893,8 @@ impl WebSocketContext {
         msg.extend(data, self.config.max_message_size)?;
 
         if is_final {
-            Ok(Some(msg.complete()?))
+            Ok(Some(self.incomplete.take().unwrap().complete()?))
         } else {
-            self.incomplete = Some(msg);
             Ok(None)
         }
     }
