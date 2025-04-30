@@ -33,10 +33,11 @@ mod string_collect {
             if let Some(mut incomplete) = self.incomplete.take() {
                 if let Some((result, rest)) = incomplete.try_complete(input) {
                     input = rest;
-                    if let Ok(text) = result {
-                        self.data.push_str(text);
-                    } else {
-                        return Err(Error::Utf8);
+                    match result {
+                        Ok(text) => self.data.push_str(text),
+                        Err(result_bytes) => {
+                            return Err(Error::Utf8(String::from_utf8_lossy(result_bytes).into()))
+                        }
                     }
                 } else {
                     input = &[];
@@ -55,9 +56,9 @@ mod string_collect {
                         self.incomplete = Some(incomplete_suffix);
                         Ok(())
                     }
-                    Err(DecodeError::Invalid { valid_prefix, .. }) => {
+                    Err(DecodeError::Invalid { valid_prefix, invalid_sequence, .. }) => {
                         self.data.push_str(valid_prefix);
-                        Err(Error::Utf8)
+                        Err(Error::Utf8(String::from_utf8_lossy(invalid_sequence).into()))
                     }
                 }
             } else {
@@ -66,8 +67,8 @@ mod string_collect {
         }
 
         pub fn into_string(self) -> Result<String> {
-            if self.incomplete.is_some() {
-                Err(Error::Utf8)
+            if let Some(incomplete) = self.incomplete {
+                Err(Error::Utf8(format!("incomplete string: {:?}", incomplete)))
             } else {
                 Ok(self.data)
             }
@@ -316,6 +317,12 @@ impl<'b> From<&'b [u8]> for Message {
     }
 }
 
+impl From<Bytes> for Message {
+    fn from(data: Bytes) -> Self {
+        Message::binary(data)
+    }
+}
+
 impl From<Vec<u8>> for Message {
     #[inline]
     fn from(data: Vec<u8>) -> Self {
@@ -357,6 +364,14 @@ mod tests {
     fn binary_convert() {
         let bin = [6u8, 7, 8, 9, 10, 241];
         let msg = Message::from(&bin[..]);
+        assert!(msg.is_binary());
+        assert!(msg.into_text().is_err());
+    }
+
+    #[test]
+    fn binary_convert_bytes() {
+        let bin = Bytes::from_iter([6u8, 7, 8, 9, 10, 241]);
+        let msg = Message::from(bin);
         assert!(msg.is_binary());
         assert!(msg.into_text().is_err());
     }

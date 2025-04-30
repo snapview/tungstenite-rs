@@ -46,7 +46,7 @@ fn main() {
     for case in 1..=total {
         if let Err(e) = run_test(case) {
             match e {
-                Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
+                Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8(_) => (),
                 err => error!("test: {}", err),
             }
         }

@@ -1,5 +1,8 @@
-# 0.26.1
+# 0.26.2
+- Add `WebSocketConfig::read_buffer_size` docs explaining performance/memory tradeoff.
+- Implement traits and add helper methods for the UTF8 payloads making them comparable and more ergonomic.
 
+# 0.26.1
 - Fix/revert unsoundness that could lead to UB with dodgy `Read` stream implementations.
 
 # 0.26.0
@@ -11,7 +14,8 @@
 
 - New `Payload` type for `Message` that allows sending messages with a payload that can be cheaply cloned (`Bytes`).
   Long standing [issue](https://github.com/snapview/tungstenite-rs/issues/96) solved!
-- Add `WebSocketConfig::read_buffer_size` default 128 KiB.
+- Add `WebSocketConfig::read_buffer_size` default 128 KiB. This improves high load read performance.
+  **Note: This default increases memory usage compared to previous versions particularly for users expecting a high number of connections. Configure 4-8 KiB to get a similar memory usage to 0.24**.
 - Make `WebSocketConfig` non-exhaustive & add builder style construction fns.
 - Remove deprecated `WebSocketConfig::max_send_queue`.
 - Trim spaces on `Sec-WebSocket-Protocol` header.

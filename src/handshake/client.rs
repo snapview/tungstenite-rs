@@ -161,7 +161,15 @@ pub fn generate_request(
                 HeaderName::from_bytes(header.as_bytes()).unwrap(),
             ))
         })?;
-        write!(req, "{header}: {value}\r\n", header = header, value = value.to_str()?).unwrap();
+        write!(
+            req,
+            "{header}: {value}\r\n",
+            header = header,
+            value = value.to_str().map_err(|err| {
+                Error::Utf8(format!("{err} for header name '{header}' with value: {value:?}"))
+            })?
+        )
+        .unwrap();
     }
 
     // Now we must ensure that the headers that we've written once are not anymore present in the map.
@@ -188,7 +196,15 @@ pub fn generate_request(
             name = "Origin";
         }
 
-        writeln!(req, "{}: {}\r", name, v.to_str()?).unwrap();
+        writeln!(
+            req,
+            "{}: {}\r",
+            name,
+            v.to_str().map_err(|err| {
+                Error::Utf8(format!("{err} for header name '{name}' with value: {v:?}"))
+            })?
+        )
+        .unwrap();
     }
 
     if let Some(offers) = config.and_then(|c| c.generate_offers()) {

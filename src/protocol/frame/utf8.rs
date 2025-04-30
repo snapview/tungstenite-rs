@@ -51,6 +51,51 @@ impl std::ops::Deref for Utf8Bytes {
     }
 }
 
+impl AsRef<[u8]> for Utf8Bytes {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl AsRef<str> for Utf8Bytes {
+    #[inline]
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl AsRef<Bytes> for Utf8Bytes {
+    #[inline]
+    fn as_ref(&self) -> &Bytes {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<str> for Utf8Bytes {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl core::hash::Hash for Utf8Bytes {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state)
+    }
+}
+
+impl PartialOrd for Utf8Bytes {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Utf8Bytes {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_str().cmp(other.as_str())
+    }
+}
+
 impl<T> PartialEq<T> for Utf8Bytes
 where
     for<'a> &'a str: PartialEq<T>,
@@ -128,5 +173,22 @@ impl From<Utf8Bytes> for Bytes {
     #[inline]
     fn from(Utf8Bytes(bytes): Utf8Bytes) -> Self {
         bytes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::{
+        borrow::Borrow,
+        hash::{BuildHasher, RandomState},
+    };
+
+    #[test]
+    fn hash_consistency() {
+        let bytes = Utf8Bytes::from_static("hash_consistency");
+        let hasher = RandomState::new();
+        assert_eq!(hasher.hash_one::<&str>(bytes.borrow()), hasher.hash_one(bytes));
     }
 }
