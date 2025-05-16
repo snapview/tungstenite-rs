@@ -1,3 +1,6 @@
+# Unreleased
+- Fix large message read performance by enforcing max `read_buffer_size` read chunks.
+
 # 0.26.2
 - Add `WebSocketConfig::read_buffer_size` docs explaining performance/memory tradeoff.
 - Implement traits and add helper methods for the UTF8 payloads making them comparable and more ergonomic.
