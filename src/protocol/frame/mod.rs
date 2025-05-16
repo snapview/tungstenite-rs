@@ -104,6 +104,7 @@ where
 pub(super) struct FrameCodec {
     /// Buffer to read data from the stream.
     in_buffer: BytesMut,
+    in_buf_max_read: usize,
     /// Buffer to send packets to the network.
     out_buffer: Vec<u8>,
     /// Capacity limit for `out_buffer`.
@@ -123,6 +124,7 @@ impl FrameCodec {
     pub(super) fn new(in_buf_len: usize) -> Self {
         Self {
             in_buffer: BytesMut::with_capacity(in_buf_len),
+            in_buf_max_read: in_buf_len,
             out_buffer: <_>::default(),
             max_out_buffer_len: usize::MAX,
             out_buffer_write_len: 0,
@@ -136,6 +138,7 @@ impl FrameCodec {
         in_buffer.reserve(min_in_buf_len.saturating_sub(in_buffer.len()));
         Self {
             in_buffer,
+            in_buf_max_read: min_in_buf_len,
             out_buffer: <_>::default(),
             max_out_buffer_len: usize::MAX,
             out_buffer_write_len: 0,
@@ -164,6 +167,7 @@ impl FrameCodec {
     ) -> Result<Option<Frame>> {
         let max_size = max_size.unwrap_or_else(usize::max_value);
 
+        let mut reserved_full_msg_len = false;
         let mut payload = loop {
             {
                 if self.header.is_none() {
@@ -192,7 +196,14 @@ impl FrameCodec {
             }
 
             // Not enough data in buffer.
-            self.in_buffer.reserve(self.header.as_ref().map(|(_, l)| *l as usize).unwrap_or(6));
+            if let Some((_, len)) = &self.header {
+                if !reserved_full_msg_len {
+                    self.in_buffer.reserve(*len as usize);
+                    reserved_full_msg_len = true;
+                }
+            } else {
+                self.in_buffer.reserve(FrameHeader::MAX_SIZE);
+            }
             if self.read_in(stream)? == 0 {
                 trace!("no frame received");
                 return Ok(None);
@@ -225,7 +236,7 @@ impl FrameCodec {
     fn read_in(&mut self, stream: &mut impl Read) -> io::Result<usize> {
         let len = self.in_buffer.len();
         debug_assert!(self.in_buffer.capacity() > len);
-        self.in_buffer.resize(self.in_buffer.capacity(), 0);
+        self.in_buffer.resize(self.in_buffer.capacity().min(len + self.in_buf_max_read), 0);
         let size = stream.read(&mut self.in_buffer[len..]);
         self.in_buffer.truncate(len + size.as_ref().copied().unwrap_or(0));
         size
