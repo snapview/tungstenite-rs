@@ -66,8 +66,8 @@ impl Default for FrameHeader {
 }
 
 impl FrameHeader {
-    /// > longest possible header is 14 bytes, which would represent a message sent from
-    /// > the client to the server with a payload greater then 64KB.
+    /// > The longest possible header is 14 bytes, which would represent a message sent from
+    /// > the client to the server with a payload greater than 64KB.
     pub(crate) const MAX_SIZE: usize = 14;
 
     /// Parse a header from an input stream.
