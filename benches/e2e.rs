@@ -1,4 +1,4 @@
-//! Benchmarks for read performance.
+//! Benchmarks for end to end performance including real `Read` & `Write` impls.
 use bytes::Bytes;
 use criterion::{BatchSize, Criterion, Throughput};
 use rand::{
@@ -68,8 +68,8 @@ fn benchmark(c: &mut Criterion) {
         server_thread.join().unwrap();
     }
 
-    // bench sending & receiving various sizes 1Kib to 1Gib.
-    for len in (0..21).map(|n| 1024 * 2_usize.pow(n)) {
+    // bench sending & receiving various sizes 512B to 1GiB.
+    for len in (0..8).map(|n| 512 * 8_usize.pow(n)) {
         let mut group = c.benchmark_group("send+recv");
         group
             .throughput(Throughput::Bytes(len as u64 * 2)) // *2 as we send and then recv it
