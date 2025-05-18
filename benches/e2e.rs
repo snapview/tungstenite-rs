@@ -39,7 +39,7 @@ fn benchmark(c: &mut Criterion) {
         });
 
         let (mut client, _) = tungstenite::client::connect_with_config(
-            format!("ws://localhost:{port}"),
+            format!("ws://127.0.0.1:{port}"),
             Some(conf),
             3,
         )
