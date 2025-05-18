@@ -1,6 +1,6 @@
 //! Benchmarks for read performance.
 use bytes::Bytes;
-use criterion::{BatchSize, Criterion};
+use criterion::{BatchSize, Criterion, Throughput};
 use rand::{
     distr::{Alphanumeric, SampleString},
     rngs::SmallRng,
@@ -68,10 +68,12 @@ fn benchmark(c: &mut Criterion) {
         server_thread.join().unwrap();
     }
 
-    // bench sending & receiving various message sizes 1Kib to 1Gib.
+    // bench sending & receiving various sizes 1Kib to 1Gib.
     for len in (0..21).map(|n| 1024 * 2_usize.pow(n)) {
-        let human_len = HumanLen(len);
-        c.bench_function(&format!("send+recv {human_len}"), |b| send_and_recv(len, b));
+        let mut group = c.benchmark_group("send+recv");
+        group
+            .throughput(Throughput::Bytes(len as u64 * 2)) // *2 as we send and then recv it
+            .bench_function(HumanLen(len).to_string(), |b| send_and_recv(len, b));
     }
 }
 
