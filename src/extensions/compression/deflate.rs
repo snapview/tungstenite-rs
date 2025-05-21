@@ -1,6 +1,7 @@
 #[cfg(feature = "handshake")]
 use std::convert::TryFrom;
 
+use bytes::Bytes;
 #[cfg(feature = "handshake")]
 use bytes::BytesMut;
 use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
@@ -87,20 +88,25 @@ impl DeflateConfig {
 
     /// Value for `Sec-WebSocket-Extensions` request header.
     pub(crate) fn generate_offer(&self) -> WebsocketExtension {
-        let mut offers = Vec::new();
-        if self.server_no_context_takeover {
-            offers.push(HeaderValue::from_static(SERVER_NO_CONTEXT_TAKEOVER));
-        }
-
         // > a client informs the peer server of a hint that even if the server doesn't include the
         // > "client_no_context_takeover" extension parameter in the corresponding
         // > extension negotiation response to the offer, the client is not going
         // > to use context takeover.
         // > https://www.rfc-editor.org/rfc/rfc7692#section-7.1.1.2
-        if self.client_no_context_takeover {
-            offers.push(HeaderValue::from_static(CLIENT_NO_CONTEXT_TAKEOVER));
+
+        match (self.server_no_context_takeover, self.client_no_context_takeover) {
+            (true, true) => to_header_value(&[
+                HeaderValue::from_static(SERVER_NO_CONTEXT_TAKEOVER),
+                HeaderValue::from_static(CLIENT_NO_CONTEXT_TAKEOVER),
+            ]),
+            (true, false) => {
+                to_header_value(&[HeaderValue::from_static(SERVER_NO_CONTEXT_TAKEOVER)])
+            }
+            (false, true) => {
+                to_header_value(&[HeaderValue::from_static(CLIENT_NO_CONTEXT_TAKEOVER)])
+            }
+            (false, false) => to_header_value(&[]),
         }
-        to_header_value(&offers)
     }
 
     /// Returns negotiation response based on offers and `DeflateContext` to manage per message compression.
@@ -368,16 +374,20 @@ impl DeflateContext {
     }
 
     // Compress the data of message.
-    pub(crate) fn compress(&mut self, data: &[u8]) -> Result<Vec<u8>, DeflateError> {
+    pub(crate) fn compress(&mut self, data: Bytes) -> Result<Bytes, DeflateError> {
         // https://datatracker.ietf.org/doc/html/rfc7692#section-7.2.1
         // 1. Compress all the octets of the payload of the message using DEFLATE.
         let mut output = Vec::with_capacity(data.len());
-        let before_in = self.compressor.total_in() as usize;
-        while (self.compressor.total_in() as usize) - before_in < data.len() {
-            let offset = (self.compressor.total_in() as usize) - before_in;
+        let before_in = self.compressor.total_in();
+        while (self.compressor.total_in()) - before_in < u64::try_from(data.len()).unwrap() {
+            let offset = (self.compressor.total_in()) - before_in;
             match self
                 .compressor
-                .compress_vec(&data[offset..], &mut output, FlushCompress::None)
+                .compress_vec(
+                    &data[usize::try_from(offset).unwrap()..],
+                    &mut output,
+                    FlushCompress::None,
+                )
                 .map_err(|e| DeflateError::Compress(e.into()))?
             {
                 Status::Ok => continue,
@@ -403,31 +413,35 @@ impl DeflateContext {
         //    After this step, the last octet of the compressed data contains
         //    (possibly part of) the DEFLATE header bits with the "BTYPE" bits
         //    set to 00.
-        output.truncate(output.len() - 4);
+        output.truncate(output.len() - TRAILER.len());
 
         if !self.own_context_takeover() {
             self.compressor.reset();
         }
 
-        Ok(output)
+        Ok(Bytes::from(output))
     }
 
     pub(crate) fn decompress(
         &mut self,
-        mut data: Vec<u8>,
+        mut data: BytesMut,
         is_final: bool,
-    ) -> Result<Vec<u8>, DeflateError> {
+    ) -> Result<Bytes, DeflateError> {
         if is_final {
             data.extend_from_slice(&TRAILER);
         }
 
-        let before_in = self.decompressor.total_in() as usize;
+        let before_in = self.decompressor.total_in();
         let mut output = Vec::with_capacity(2 * data.len());
         loop {
-            let offset = (self.decompressor.total_in() as usize) - before_in;
+            let offset = (self.decompressor.total_in()) - before_in;
             match self
                 .decompressor
-                .decompress_vec(&data[offset..], &mut output, FlushDecompress::None)
+                .decompress_vec(
+                    &data[usize::try_from(offset).unwrap()..],
+                    &mut output,
+                    FlushDecompress::None,
+                )
                 .map_err(|e| DeflateError::Decompress(e.into()))?
             {
                 Status::Ok => output.reserve(2 * output.len()),
@@ -439,12 +453,16 @@ impl DeflateContext {
             self.decompressor.reset(false);
         }
 
-        Ok(output)
+        Ok(Bytes::from(output))
     }
 }
 
 #[cfg(feature = "handshake")]
 fn to_header_value(params: &[HeaderValue]) -> WebsocketExtension {
+    if params.is_empty() {
+        return WebsocketExtension::from_static(PER_MESSAGE_DEFLATE);
+    }
+
     let mut buf = BytesMut::from(PER_MESSAGE_DEFLATE.as_bytes());
     for param in params {
         buf.extend_from_slice(b"; ");

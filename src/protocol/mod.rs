@@ -121,14 +121,10 @@ impl WebSocketConfig {
     pub(crate) fn generate_offers(&self) -> Option<SecWebsocketExtensions> {
         #[cfg(feature = "deflate")]
         {
-            let mut offers = Vec::new();
             if let Some(compression) = self.compression.map(|c| c.generate_offer()) {
-                offers.push(compression);
-            }
-            if offers.is_empty() {
-                None
+                Some(SecWebsocketExtensions::new(vec![compression]))
             } else {
-                Some(SecWebsocketExtensions::new(offers))
+                None
             }
         }
         #[cfg(not(feature = "deflate"))]
@@ -148,21 +144,14 @@ impl WebSocketConfig {
         {
             // To support more extensions, store extension context in `Extensions` and
             // concatenate negotiation responses from each extension.
-            let mut agreed_extensions = Vec::new();
-            let mut extensions = Extensions::default();
-
             if let Some(compression) = &self.compression {
                 if let Some((agreed, compression)) = compression.accept_offer(offers) {
-                    agreed_extensions.push(agreed);
-                    extensions.compression = Some(compression);
+                    let extensions = Extensions { compression: Some(compression) };
+                    return Some((SecWebsocketExtensions::new(vec![agreed]), extensions));
                 }
             }
 
-            if agreed_extensions.is_empty() {
-                None
-            } else {
-                Some((SecWebsocketExtensions::new(agreed_extensions), extensions))
-            }
+            None
         }
 
         #[cfg(not(feature = "deflate"))]
@@ -634,7 +623,7 @@ impl WebSocketContext {
         let is_final = true;
         #[cfg(feature = "deflate")]
         if let Some(pmce) = self.extensions.as_mut().and_then(|e| e.compression.as_mut()) {
-            return Ok(Frame::compressed_message(pmce.compress(&data)?, opcode, is_final));
+            return Ok(Frame::compressed_message(pmce.compress(data)?, opcode, is_final));
         }
         Ok(Frame::message(data, opcode, is_final))
     }
