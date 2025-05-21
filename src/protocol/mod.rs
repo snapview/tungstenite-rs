@@ -121,11 +121,9 @@ impl WebSocketConfig {
     pub(crate) fn generate_offers(&self) -> Option<SecWebsocketExtensions> {
         #[cfg(feature = "deflate")]
         {
-            if let Some(compression) = self.compression.map(|c| c.generate_offer()) {
-                Some(SecWebsocketExtensions::new(vec![compression]))
-            } else {
-                None
-            }
+            self.compression
+                .map(|c| c.generate_offer())
+                .map(|compression| SecWebsocketExtensions::new(vec![compression]))
         }
         #[cfg(not(feature = "deflate"))]
         {
@@ -808,7 +806,6 @@ impl WebSocketContext {
                                     .and_then(|x| x.compression.as_mut())
                                     .unwrap()
                                     .decompress(payload.into(), fin)?
-                                    .into()
                             } else {
                                 payload
                             };

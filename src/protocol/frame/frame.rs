@@ -304,7 +304,7 @@ impl Frame {
 
         Frame {
             header: FrameHeader { is_final, opcode, rsv1: true, ..FrameHeader::default() },
-            payload: data.into(),
+            payload: data,
         }
     }
 

@@ -1,9 +1,7 @@
 #[cfg(feature = "handshake")]
 use std::convert::TryFrom;
 
-use bytes::Bytes;
-#[cfg(feature = "handshake")]
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
 #[cfg(feature = "handshake")]
 use http::HeaderValue;
