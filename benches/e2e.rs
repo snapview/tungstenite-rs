@@ -19,9 +19,7 @@ fn benchmark(c: &mut Criterion) {
     fn send_and_recv(msg_len: usize, b: &mut criterion::Bencher<'_>) {
         let socket = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = socket.local_addr().unwrap().port();
-        let conf = WebSocketConfig::default()
-            .max_message_size(Some(usize::MAX))
-            .max_frame_size(Some(usize::MAX));
+        let conf = WebSocketConfig::default().max_message_size(None).max_frame_size(None);
 
         let server_thread = std::thread::spawn(move || {
             // single thread / single client server
