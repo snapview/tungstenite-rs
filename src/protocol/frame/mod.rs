@@ -173,31 +173,31 @@ impl FrameCodec {
                 self.header = FrameHeader::parse(&mut cursor)?;
                 let advanced = cursor.position();
                 bytes::Buf::advance(&mut self.in_buffer, advanced as _);
+
                 if let Some((_, len)) = &self.header {
-                    // reserve full message length only once, even
-                    // for multiple loops or if WouldBlock errors cause
-                    // multiple fn calls.
-                    self.in_buffer.reserve(*len as usize);
+                    let len = *len as usize;
+
+                    // Enforce frame size limit early
+                    if len > max_size {
+                        return Err(Error::Capacity(CapacityError::MessageTooLong {
+                            size: len,
+                            max_size,
+                        }));
+                    }
+
+                    // Reserve full message length only once, even for multiple
+                    // loops or if WouldBlock errors cause multiple fn calls.
+                    self.in_buffer.reserve(len);
+                } else {
+                    self.in_buffer.reserve(FrameHeader::MAX_SIZE);
                 }
             }
 
             if let Some((_, len)) = &self.header {
                 let len = *len as usize;
-
-                // Enforce frame size limit early and make sure `length`
-                // is not too big (fits into `usize`).
-                if len > max_size {
-                    return Err(Error::Capacity(CapacityError::MessageTooLong {
-                        size: len,
-                        max_size,
-                    }));
-                }
-
                 if len <= self.in_buffer.len() {
                     break self.in_buffer.split_to(len);
                 }
-            } else {
-                self.in_buffer.reserve(FrameHeader::MAX_SIZE);
             }
 
             // Not enough data in buffer.
