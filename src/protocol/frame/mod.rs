@@ -167,43 +167,40 @@ impl FrameCodec {
     ) -> Result<Option<Frame>> {
         let max_size = max_size.unwrap_or_else(usize::max_value);
 
-        let mut reserved_full_msg_len = false;
         let mut payload = loop {
-            {
-                if self.header.is_none() {
-                    let mut cursor = Cursor::new(&mut self.in_buffer);
-                    self.header = FrameHeader::parse(&mut cursor)?;
-                    let advanced = cursor.position();
-                    bytes::Buf::advance(&mut self.in_buffer, advanced as _);
-                }
-
+            if self.header.is_none() {
+                let mut cursor = Cursor::new(&mut self.in_buffer);
+                self.header = FrameHeader::parse(&mut cursor)?;
+                let advanced = cursor.position();
+                bytes::Buf::advance(&mut self.in_buffer, advanced as _);
                 if let Some((_, len)) = &self.header {
-                    let len = *len as usize;
-
-                    // Enforce frame size limit early and make sure `length`
-                    // is not too big (fits into `usize`).
-                    if len > max_size {
-                        return Err(Error::Capacity(CapacityError::MessageTooLong {
-                            size: len,
-                            max_size,
-                        }));
-                    }
-
-                    if len <= self.in_buffer.len() {
-                        break self.in_buffer.split_to(len);
-                    }
+                    // reserve full message length only once, even
+                    // for multiple loops or if WouldBlock errors cause
+                    // multiple fn calls.
+                    self.in_buffer.reserve(*len as usize);
                 }
             }
 
-            // Not enough data in buffer.
             if let Some((_, len)) = &self.header {
-                if !reserved_full_msg_len {
-                    self.in_buffer.reserve(*len as usize);
-                    reserved_full_msg_len = true;
+                let len = *len as usize;
+
+                // Enforce frame size limit early and make sure `length`
+                // is not too big (fits into `usize`).
+                if len > max_size {
+                    return Err(Error::Capacity(CapacityError::MessageTooLong {
+                        size: len,
+                        max_size,
+                    }));
+                }
+
+                if len <= self.in_buffer.len() {
+                    break self.in_buffer.split_to(len);
                 }
             } else {
                 self.in_buffer.reserve(FrameHeader::MAX_SIZE);
             }
+
+            // Not enough data in buffer.
             if self.read_in(stream)? == 0 {
                 trace!("no frame received");
                 return Ok(None);
