@@ -1,9 +1,12 @@
-use std::io::{Cursor, Read, Result as IoResult};
+#![allow(clippy::incompatible_msrv)] // msrv doesn't apply to benches
 
 use bytes::Buf;
-use criterion::*;
+use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use input_buffer::InputBuffer;
-
+use std::{
+    hint::black_box,
+    io::{Cursor, Read, Result as IoResult},
+};
 use tungstenite::buffer::ReadBuffer;
 
 const CHUNK_SIZE: usize = 4096;

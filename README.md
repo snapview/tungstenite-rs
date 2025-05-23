@@ -80,6 +80,12 @@ Testing
 Tungstenite is thoroughly tested and passes the [Autobahn Test Suite](https://github.com/crossbario/autobahn-testsuite) for
 WebSockets. It is also covered by internal unit tests as well as possible.
 
+Benchmark
+---------
+Benches are in [./benches](./benches/).
+* Run all with `cargo bench --bench \* -- --quick --noplot`
+* Run a particular set with, say "e2e", with `cargo bench --bench e2e -- --quick --noplot`
+
 Contributing
 ------------
 
