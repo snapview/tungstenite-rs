@@ -1,5 +1,6 @@
-# Unreleased
+# 0.27.0
 - Fix large message read performance by enforcing max `read_buffer_size` read chunks.
+- Make `Hash` implementation consistent for `Utf8Bytes` payloads.
 
 # 0.26.2
 - Add `WebSocketConfig::read_buffer_size` docs explaining performance/memory tradeoff.
