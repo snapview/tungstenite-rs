@@ -71,7 +71,7 @@ fn read_usage_auto_pong_flush() {
 
     // Receiving a ping should auto scheduled a pong on next read or write (but not written yet).
     let msg = ws.read().unwrap();
-    assert!(matches!(msg, Message::Ping(_)), "Unexpected msg {:?}", msg);
+    assert!(matches!(msg, Message::Ping(_)), "Unexpected msg {msg:?}");
     assert_eq!(ws.get_ref().read_calls, 1);
     assert!(ws.get_ref().written_data.is_empty(), "Unexpected {:?}", ws.get_ref());
     assert!(ws.get_ref().flushed_data.is_empty(), "Unexpected {:?}", ws.get_ref());
@@ -81,8 +81,7 @@ fn read_usage_auto_pong_flush() {
     let next = ws.read().unwrap_err();
     assert!(
         matches!(next, tungstenite::Error::Io(ref err) if err.kind() == io::ErrorKind::WouldBlock),
-        "Unexpected read err {:?}",
-        next
+        "Unexpected read err {next:?}",
     );
     assert_eq!(ws.get_ref().read_calls, 2);
     assert!(!ws.get_ref().written_data.is_empty(), "Should have written a pong frame");
@@ -101,8 +100,7 @@ fn read_usage_auto_pong_flush() {
     let next = ws.read().unwrap_err();
     assert!(
         matches!(next, tungstenite::Error::Io(ref err) if err.kind() == io::ErrorKind::WouldBlock),
-        "Unexpected read err {:?}",
-        next
+        "Unexpected read err {next:?}",
     );
     assert_eq!(ws.get_ref().read_calls, 3);
     assert_eq!(ws.get_ref().write_calls, 1);
@@ -114,8 +112,7 @@ fn read_usage_auto_pong_flush() {
     let next = ws.read().unwrap_err();
     assert!(
         matches!(next, tungstenite::Error::Io(ref err) if err.kind() == io::ErrorKind::WouldBlock),
-        "Unexpected read err {:?}",
-        next
+        "Unexpected read err {next:?}",
     );
     assert_eq!(ws.get_ref().read_calls, 4);
     assert_eq!(ws.get_ref().write_calls, 1);

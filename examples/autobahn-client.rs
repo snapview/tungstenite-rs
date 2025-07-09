@@ -18,7 +18,7 @@ fn update_reports() -> Result<()> {
 }
 
 fn run_test(case: u32) -> Result<()> {
-    info!("Running test case {}", case);
+    info!("Running test case {case}");
     let case_url = format!("ws://localhost:9001/runCase?case={case}&agent={AGENT}");
     let (mut socket, _) = connect(case_url)?;
     loop {
