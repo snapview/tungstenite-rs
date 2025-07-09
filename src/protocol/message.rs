@@ -68,7 +68,7 @@ mod string_collect {
 
         pub fn into_string(self) -> Result<String> {
             if let Some(incomplete) = self.incomplete {
-                Err(Error::Utf8(format!("incomplete string: {:?}", incomplete)))
+                Err(Error::Utf8(format!("incomplete string: {incomplete:?}")))
             } else {
                 Ok(self.data)
             }

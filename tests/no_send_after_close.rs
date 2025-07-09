@@ -34,7 +34,7 @@ fn test_no_send_after_close() {
         let err = client.read().unwrap_err(); // now we should get ConnectionClosed
         match err {
             Error::ConnectionClosed => {}
-            _ => panic!("unexpected error: {:?}", err),
+            _ => panic!("unexpected error: {err:?}"),
         }
     });
 
@@ -49,7 +49,7 @@ fn test_no_send_after_close() {
 
     match err.unwrap_err() {
         Error::Protocol(s) => assert_eq!(s, ProtocolError::SendAfterClosing),
-        e => panic!("unexpected error: {:?}", e),
+        e => panic!("unexpected error: {e:?}"),
     }
 
     drop(client_handler);

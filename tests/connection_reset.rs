@@ -33,7 +33,7 @@ where
 
     let client_thread = spawn(move || {
         let (client, _) =
-            connect(format!("ws://localhost:{}/socket", port)).expect("Can't connect to port");
+            connect(format!("ws://localhost:{port}/socket")).expect("Can't connect to port");
 
         client_task(client);
     });
@@ -59,7 +59,7 @@ fn test_server_close() {
             let err = cli_sock.read().unwrap_err(); // now we should get ConnectionClosed
             match err {
                 Error::ConnectionClosed => {}
-                _ => panic!("unexpected error: {:?}", err),
+                _ => panic!("unexpected error: {err:?}"),
             }
         },
         |mut srv_sock| {
@@ -74,7 +74,7 @@ fn test_server_close() {
             let err = srv_sock.read().unwrap_err(); // now we should get ConnectionClosed
             match err {
                 Error::ConnectionClosed => {}
-                _ => panic!("unexpected error: {:?}", err),
+                _ => panic!("unexpected error: {err:?}"),
             }
         },
     );
@@ -95,7 +95,7 @@ fn test_evil_server_close() {
             let err = cli_sock.read().unwrap_err(); // now we should get ConnectionClosed
             match err {
                 Error::ConnectionClosed => {}
-                _ => panic!("unexpected error: {:?}", err),
+                _ => panic!("unexpected error: {err:?}"),
             }
         },
         |mut srv_sock| {
@@ -131,7 +131,7 @@ fn test_client_close() {
             let err = cli_sock.read().unwrap_err(); // now we should get ConnectionClosed
             match err {
                 Error::ConnectionClosed => {}
-                _ => panic!("unexpected error: {:?}", err),
+                _ => panic!("unexpected error: {err:?}"),
             }
         },
         |mut srv_sock| {
@@ -146,7 +146,7 @@ fn test_client_close() {
             let err = srv_sock.read().unwrap_err(); // now we should get ConnectionClosed
             match err {
                 Error::ConnectionClosed => {}
-                _ => panic!("unexpected error: {:?}", err),
+                _ => panic!("unexpected error: {err:?}"),
             }
         },
     );

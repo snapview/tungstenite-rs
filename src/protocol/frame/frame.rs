@@ -141,12 +141,12 @@ impl FrameHeader {
             if cursor.read(&mut head)? != 2 {
                 return Ok(None);
             }
-            trace!("Parsed headers {:?}", head);
+            trace!("Parsed headers {head:?}");
             (head[0], head[1])
         };
 
-        trace!("First: {:b}", first);
-        trace!("Second: {:b}", second);
+        trace!("First: {first:b}");
+        trace!("Second: {second:b}");
 
         let is_final = first & 0x80 != 0;
 
@@ -155,10 +155,10 @@ impl FrameHeader {
         let rsv3 = first & 0x10 != 0;
 
         let opcode = OpCode::from(first & 0x0F);
-        trace!("Opcode: {:?}", opcode);
+        trace!("Opcode: {opcode:?}");
 
         let masked = second & 0x80 != 0;
-        trace!("Masked: {:?}", masked);
+        trace!("Masked: {masked:?}");
 
         let length = {
             let length_byte = second & 0x7F;
