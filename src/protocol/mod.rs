@@ -550,12 +550,16 @@ impl WebSocketContext {
         let should_flush = if let Some(msg) = self.additional_send.take() {
             trace!("Sending pong/close");
             match self.buffer_frame(stream, msg) {
-                Err(Error::WriteBufferFull(Message::Frame(msg))) => {
+                Err(Error::WriteBufferFull(msg)) => {
                     // if an system message would exceed the buffer put it back in
                     // `additional_send` for retry. Otherwise returning this error
                     // may not make sense to the user, e.g. calling `flush`.
-                    self.set_additional(msg);
-                    false
+                    if let Message::Frame(msg) = *msg {
+                        self.set_additional(msg);
+                        false
+                    } else {
+                        unreachable!()
+                    }
                 }
                 Err(err) => return Err(err),
                 Ok(_) => true,

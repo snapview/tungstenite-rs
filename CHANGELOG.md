@@ -1,3 +1,7 @@
+# Unreleased (0.28.0)
+* Reduce `Error` size 136 -> **32** by boxing internals of `Error::Http`, `Error::WriteBufferFull`,
+  `ProtocolError::InvalidHeader`, `TlsError::Native`, `TlsError::Rustls`.
+
 # 0.27.0
 - Fix large message read performance by enforcing max `read_buffer_size` read chunks.
 - Make `Hash` implementation consistent for `Utf8Bytes` payloads.

@@ -40,7 +40,7 @@ fn main() {
         if let Err(e) = run_test(case) {
             match e {
                 Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8(_) => (),
-                err => error!("test: {}", err),
+                err => error!("test: {err}"),
             }
         }
     }
