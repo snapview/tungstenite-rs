@@ -554,9 +554,12 @@ impl WebSocketContext {
                     // if an system message would exceed the buffer put it back in
                     // `additional_send` for retry. Otherwise returning this error
                     // may not make sense to the user, e.g. calling `flush`.
-                    let Message::Frame(msg) = *msg else { unreachable!() };
-                    self.set_additional(msg);
-                    false
+                    if let Message::Frame(msg) = *msg {
+                        self.set_additional(msg);
+                        false
+                    } else {
+                        unreachable!()
+                    }
                 }
                 Err(err) => return Err(err),
                 Ok(_) => true,
