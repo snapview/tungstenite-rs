@@ -129,7 +129,7 @@ pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
         .get(KEY_HEADERNAME)
         .ok_or_else(|| {
             Error::Protocol(ProtocolError::InvalidHeader(
-                HeaderName::from_bytes(KEY_HEADERNAME.as_bytes()).unwrap(),
+                HeaderName::from_bytes(KEY_HEADERNAME.as_bytes()).unwrap().into(),
             ))
         })?
         .to_str()?
@@ -146,7 +146,7 @@ pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
     for &header in &WEBSOCKET_HEADERS {
         let value = headers.remove(header).ok_or_else(|| {
             Error::Protocol(ProtocolError::InvalidHeader(
-                HeaderName::from_bytes(header.as_bytes()).unwrap(),
+                HeaderName::from_bytes(header.as_bytes()).unwrap().into(),
             ))
         })?;
         write!(
@@ -171,7 +171,7 @@ pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
         // If we encounter them again, then the request is considered invalid and error is returned.
         // Note that we can't use `.contains()`, since `&str` does not coerce to `&String` in Rust.
         if insensitive.iter().any(|x| x == name) {
-            return Err(Error::Protocol(ProtocolError::InvalidHeader(k.clone())));
+            return Err(Error::Protocol(ProtocolError::InvalidHeader(k.clone().into())));
         }
 
         // Relates to the issue of some servers treating headers in a case-sensitive way, please see:

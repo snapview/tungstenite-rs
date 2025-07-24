@@ -203,7 +203,7 @@ pub enum ProtocolError {
     /// Invalid header is passed. Or the header is missing in the request. Or not present at all. Check the request that you pass.
     #[error("Missing, duplicated or incorrect header {0}")]
     #[cfg(feature = "handshake")]
-    InvalidHeader(HeaderName),
+    InvalidHeader(Box<HeaderName>),
     /// No more data while still performing handshake.
     #[error("Handshake not finished")]
     HandshakeIncomplete,
@@ -289,15 +289,29 @@ pub enum TlsError {
     /// Native TLS error.
     #[cfg(feature = "native-tls")]
     #[error("native-tls error: {0}")]
-    Native(#[from] native_tls_crate::Error),
+    Native(Box<native_tls_crate::Error>),
     /// Rustls error.
     #[cfg(feature = "__rustls-tls")]
     #[error("rustls error: {0}")]
-    Rustls(#[from] rustls::Error),
+    Rustls(Box<rustls::Error>),
     /// DNS name resolution error.
     #[cfg(feature = "__rustls-tls")]
     #[error("Invalid DNS name")]
     InvalidDnsName,
+}
+
+#[cfg(feature = "native-tls")]
+impl From<native_tls_crate::Error> for TlsError {
+    fn from(e: native_tls_crate::Error) -> Self {
+        Self::Native(e.into())
+    }
+}
+
+#[cfg(feature = "__rustls-tls")]
+impl From<rustls::Error> for TlsError {
+    fn from(e: rustls::Error) -> Self {
+        Self::Rustls(e.into())
+    }
 }
 
 #[cfg(test)]
@@ -305,6 +319,18 @@ mod test {
     #[test]
     fn error_size() {
         let size = std::mem::size_of::<crate::Error>();
-        assert!(size <= 40, "Error is large: {size}");
+        assert!(size <= 32, "Error is large: {size}");
+    }
+
+    #[test]
+    fn tls_error_size() {
+        let size = std::mem::size_of::<crate::error::TlsError>();
+        assert!(size <= 16, "TlsError is large: {size}");
+    }
+
+    #[test]
+    fn protocol_error_size() {
+        let size = std::mem::size_of::<crate::error::ProtocolError>();
+        assert!(size <= 16, "ProtocolError is large: {size}");
     }
 }

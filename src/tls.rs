@@ -52,7 +52,7 @@ mod encryption {
                 Mode::Plain => Ok(MaybeTlsStream::Plain(socket)),
                 Mode::Tls => {
                     let try_connector = tls_connector.map_or_else(TlsConnector::new, Ok);
-                    let connector = try_connector.map_err(TlsError::Native)?;
+                    let connector = try_connector.map_err(TlsError::from)?;
                     let connected = connector.connect(domain, socket);
                     match connected {
                         Err(e) => match e {
@@ -141,7 +141,7 @@ mod encryption {
                     let domain = ServerName::try_from(domain)
                         .map_err(|_| TlsError::InvalidDnsName)?
                         .to_owned();
-                    let client = ClientConnection::new(config, domain).map_err(TlsError::Rustls)?;
+                    let client = ClientConnection::new(config, domain).map_err(TlsError::from)?;
                     let stream = StreamOwned::new(client, socket);
 
                     Ok(MaybeTlsStream::Rustls(stream))
