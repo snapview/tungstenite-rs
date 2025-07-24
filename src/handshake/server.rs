@@ -280,7 +280,7 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
 
                     let (parts, body) = err.into_parts();
                     let body = body.map(|b| b.as_bytes().to_vec());
-                    return Err(Error::Http(http::Response::from_parts(parts, body)));
+                    return Err(Error::Http(http::Response::from_parts(parts, body).into()));
                 } else {
                     debug!("Server handshake done.");
                     let websocket = WebSocket::from_raw_socket(stream, Role::Server, self.config);
