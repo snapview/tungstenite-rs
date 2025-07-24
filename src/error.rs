@@ -55,7 +55,7 @@ pub enum Error {
     Protocol(#[from] ProtocolError),
     /// Message write buffer is full.
     #[error("Write buffer is full")]
-    WriteBufferFull(Message),
+    WriteBufferFull(Box<Message>),
     /// UTF coding error.
     #[error("UTF-8 encoding error: {0}")]
     Utf8(String),
@@ -305,6 +305,6 @@ mod test {
     #[test]
     fn error_size() {
         let size = std::mem::size_of::<crate::Error>();
-        assert!(size <= 56, "Error is large: {size}");
+        assert!(size <= 40, "Error is large: {size}");
     }
 }

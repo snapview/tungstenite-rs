@@ -251,7 +251,7 @@ impl FrameCodec {
         Stream: Write,
     {
         if frame.len() + self.out_buffer.len() > self.max_out_buffer_len {
-            return Err(Error::WriteBufferFull(Message::Frame(frame)));
+            return Err(Error::WriteBufferFull(Message::Frame(frame).into()));
         }
 
         trace!("writing frame {frame}");
