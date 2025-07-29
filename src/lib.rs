@@ -22,6 +22,7 @@ pub mod buffer;
 #[cfg(feature = "handshake")]
 pub mod client;
 pub mod error;
+pub mod extensions;
 #[cfg(feature = "handshake")]
 pub mod handshake;
 pub mod protocol;
@@ -32,7 +33,9 @@ pub mod stream;
 mod tls;
 pub mod util;
 
+#[cfg(feature = "handshake")]
 const READ_BUFFER_CHUNK_SIZE: usize = 4096;
+#[cfg(feature = "handshake")]
 type ReadBuffer = buffer::ReadBuffer<READ_BUFFER_CHUNK_SIZE>;
 
 pub use crate::{

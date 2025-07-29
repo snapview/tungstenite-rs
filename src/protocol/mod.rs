@@ -13,10 +13,14 @@ use self::{
     },
     message::{IncompleteMessage, IncompleteMessageType},
 };
+#[cfg(feature = "handshake")]
+use crate::handshake::headers::SecWebsocketExtensions;
 use crate::{
     error::{CapacityError, Error, ProtocolError, Result},
+    extensions::Extensions,
     protocol::frame::Utf8Bytes,
 };
+use bytes::Bytes;
 use log::*;
 use std::{
     io::{self, Read, Write},
@@ -90,6 +94,9 @@ pub struct WebSocketConfig {
     /// some popular libraries that are sending unmasked frames, ignoring the RFC.
     /// By default this option is set to `false`, i.e. according to RFC 6455.
     pub accept_unmasked_frames: bool,
+    /// Optional configuration for Per-Message Compression Extension.
+    #[cfg(feature = "deflate")]
+    pub compression: Option<crate::extensions::DeflateConfig>,
 }
 
 impl Default for WebSocketConfig {
@@ -101,6 +108,53 @@ impl Default for WebSocketConfig {
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
             accept_unmasked_frames: false,
+            #[cfg(feature = "deflate")]
+            compression: None,
+        }
+    }
+}
+
+#[cfg(feature = "handshake")]
+impl WebSocketConfig {
+    // Generate extension negotiation offers for configured extensions.
+    // Only `permessage-deflate` is supported at the moment.
+    pub(crate) fn generate_offers(&self) -> Option<SecWebsocketExtensions> {
+        #[cfg(feature = "deflate")]
+        {
+            self.compression
+                .map(|c| c.generate_offer())
+                .map(|compression| SecWebsocketExtensions::new(vec![compression]))
+        }
+        #[cfg(not(feature = "deflate"))]
+        {
+            None
+        }
+    }
+
+    /// Returns negotiation response based on offers and [Extensions] to manage extensions.
+    ///
+    /// This can be used with [WebSocket::from_raw_socket_with_extensions] for integration.
+    pub fn accept_offers(
+        &self,
+        #[allow(unused)] offers: &SecWebsocketExtensions,
+    ) -> Option<(SecWebsocketExtensions, Extensions)> {
+        #[cfg(feature = "deflate")]
+        {
+            // To support more extensions, store extension context in `Extensions` and
+            // concatenate negotiation responses from each extension.
+            if let Some(compression) = &self.compression {
+                if let Some((agreed, compression)) = compression.accept_offer(offers) {
+                    let extensions = Extensions { compression: Some(compression) };
+                    return Some((SecWebsocketExtensions::new(vec![agreed]), extensions));
+                }
+            }
+
+            None
+        }
+
+        #[cfg(not(feature = "deflate"))]
+        {
+            None
         }
     }
 }
@@ -180,6 +234,18 @@ impl<Stream> WebSocket<Stream> {
     }
 
     /// Convert a raw socket into a WebSocket without performing a handshake.
+    pub fn from_raw_socket_with_extensions(
+        stream: Stream,
+        role: Role,
+        config: Option<WebSocketConfig>,
+        extensions: Option<Extensions>,
+    ) -> Self {
+        let mut context = WebSocketContext::new(role, config);
+        context.extensions = extensions;
+        WebSocket { socket: stream, context }
+    }
+
+    /// Convert a raw socket into a WebSocket without performing a handshake.
     ///
     /// Call this function if you're using Tungstenite as a part of a web framework
     /// or together with an existing one. If you need an initial handshake, use
@@ -196,6 +262,22 @@ impl<Stream> WebSocket<Stream> {
         WebSocket {
             socket: stream,
             context: WebSocketContext::from_partially_read(part, role, config),
+        }
+    }
+
+    #[cfg(feature = "handshake")]
+    pub(crate) fn from_partially_read_with_extensions(
+        stream: Stream,
+        part: Vec<u8>,
+        role: Role,
+        config: Option<WebSocketConfig>,
+        extensions: Option<Extensions>,
+    ) -> Self {
+        WebSocket {
+            socket: stream,
+            context: WebSocketContext::from_partially_read_with_extensions(
+                part, role, config, extensions,
+            ),
         }
     }
 
@@ -370,6 +452,8 @@ pub struct WebSocketContext {
     unflushed_additional: bool,
     /// The configuration for the websocket session.
     config: WebSocketConfig,
+    // Container for extensions.
+    pub(crate) extensions: Option<Extensions>,
 }
 
 impl WebSocketContext {
@@ -403,6 +487,22 @@ impl WebSocketContext {
             additional_send: None,
             unflushed_additional: false,
             config,
+            extensions: None,
+        }
+    }
+
+    #[cfg(feature = "handshake")]
+    pub(crate) fn from_partially_read_with_extensions(
+        part: Vec<u8>,
+        role: Role,
+        config: Option<WebSocketConfig>,
+        extensions: Option<Extensions>,
+    ) -> Self {
+        let conf = config.unwrap_or_default();
+        WebSocketContext {
+            frame: FrameCodec::from_partially_read(part, conf.read_buffer_size),
+            extensions,
+            ..WebSocketContext::new(role, config)
         }
     }
 
@@ -496,8 +596,8 @@ impl WebSocketContext {
         }
 
         let frame = match message {
-            Message::Text(data) => Frame::message(data, OpCode::Data(OpData::Text), true),
-            Message::Binary(data) => Frame::message(data, OpCode::Data(OpData::Binary), true),
+            Message::Text(data) => self.prepare_data_frame(data.into(), OpData::Text)?,
+            Message::Binary(data) => self.prepare_data_frame(data, OpData::Binary)?,
             Message::Ping(data) => Frame::ping(data),
             Message::Pong(data) => {
                 self.set_additional(Frame::pong(data));
@@ -513,6 +613,17 @@ impl WebSocketContext {
             self.flush(stream)?;
         }
         Ok(())
+    }
+
+    fn prepare_data_frame(&mut self, data: Bytes, opdata: OpData) -> Result<Frame> {
+        debug_assert!(matches!(opdata, OpData::Text | OpData::Binary), "Invalid data frame kind");
+        let opcode = OpCode::Data(opdata);
+        let is_final = true;
+        #[cfg(feature = "deflate")]
+        if let Some(pmce) = self.extensions.as_mut().and_then(|e| e.compression.as_mut()) {
+            return Ok(Frame::compressed_message(pmce.compress(data)?, opcode, is_final));
+        }
+        Ok(Frame::message(data, opcode, is_final))
     }
 
     /// Flush writes.
@@ -621,12 +732,14 @@ impl WebSocketContext {
             // the negotiated extensions defines the meaning of such a nonzero
             // value, the receiving endpoint MUST _Fail the WebSocket
             // Connection_.
-            {
+            let is_compressed = {
                 let hdr = frame.header();
-                if hdr.rsv1 || hdr.rsv2 || hdr.rsv3 {
+                if (hdr.rsv1 && !self.has_compression()) || hdr.rsv2 || hdr.rsv3 {
                     return Err(Error::Protocol(ProtocolError::NonZeroReservedBits));
                 }
-            }
+
+                hdr.rsv1
+            };
 
             if self.role == Role::Client && frame.is_masked() {
                 // A client MUST close a connection if it detects a masked frame. (RFC 6455)
@@ -643,6 +756,10 @@ impl WebSocketContext {
                         }
                         _ if frame.payload().len() > 125 => {
                             Err(Error::Protocol(ProtocolError::ControlFrameTooBig))
+                        }
+                        // Control frames must not have compress bit.
+                        _ if is_compressed => {
+                            Err(Error::Protocol(ProtocolError::CompressedControlFrame))
                         }
                         OpCtl::Close => Ok(self.do_close(frame.into_close()?).map(Message::Close)),
                         OpCtl::Reserved(i) => {
@@ -664,29 +781,46 @@ impl WebSocketContext {
                     let fin = frame.header().is_final;
                     match data {
                         OpData::Continue => {
-                            if let Some(ref mut msg) = self.incomplete {
-                                msg.extend(frame.into_payload(), self.config.max_message_size)?;
-                            } else {
+                            if self.incomplete.is_none() {
                                 return Err(Error::Protocol(
                                     ProtocolError::UnexpectedContinueFrame,
                                 ));
                             }
-                            if fin {
-                                Ok(Some(self.incomplete.take().unwrap().complete()?))
-                            } else {
-                                Ok(None)
+
+                            if is_compressed {
+                                return Err(Error::Protocol(
+                                    ProtocolError::CompressedContinueFrame,
+                                ));
                             }
+
+                            self.extend_incomplete(frame.into_payload(), fin)
                         }
+
                         c if self.incomplete.is_some() => {
                             Err(Error::Protocol(ProtocolError::ExpectedFragment(c)))
                         }
-                        OpData::Text if fin => {
-                            check_max_size(frame.payload().len(), self.config.max_message_size)?;
-                            Ok(Some(Message::Text(frame.into_text()?)))
-                        }
-                        OpData::Binary if fin => {
-                            check_max_size(frame.payload().len(), self.config.max_message_size)?;
-                            Ok(Some(Message::Binary(frame.into_payload())))
+                        OpData::Text | OpData::Binary if fin => {
+                            let payload = frame.into_payload();
+
+                            #[cfg(feature = "deflate")]
+                            let payload = if is_compressed {
+                                // `msg.compressed()` is only true when compression is enabled so it's safe to unwrap
+                                self.extensions
+                                    .as_mut()
+                                    .and_then(|x| x.compression.as_mut())
+                                    .unwrap()
+                                    .decompress(payload.into(), fin)?
+                            } else {
+                                payload
+                            };
+
+                            check_max_size(payload.len(), self.config.max_message_size)?;
+
+                            match data {
+                                OpData::Text => Ok(Some(Message::Text(payload.try_into()?))),
+                                OpData::Binary => Ok(Some(Message::Binary(payload))),
+                                _ => panic!("Bug: message is not text nor binary"),
+                            }
                         }
                         OpData::Text | OpData::Binary => {
                             let message_type = match data {
@@ -694,11 +828,18 @@ impl WebSocketContext {
                                 OpData::Binary => IncompleteMessageType::Binary,
                                 _ => panic!("Bug: message is not text nor binary"),
                             };
-                            let mut incomplete = IncompleteMessage::new(message_type);
-                            incomplete
-                                .extend(frame.into_payload(), self.config.max_message_size)?;
-                            self.incomplete = Some(incomplete);
-                            Ok(None)
+
+                            #[cfg(feature = "deflate")]
+                            {
+                                self.incomplete =
+                                    Some(IncompleteMessage::new(message_type, is_compressed));
+                            }
+                            #[cfg(not(feature = "deflate"))]
+                            {
+                                self.incomplete = Some(IncompleteMessage::new(message_type));
+                            }
+
+                            self.extend_incomplete(frame.into_payload(), fin)
                         }
                         OpData::Reserved(i) => {
                             Err(Error::Protocol(ProtocolError::UnknownDataFrameType(i)))
@@ -714,6 +855,37 @@ impl WebSocketContext {
                 }
                 _ => Err(Error::Protocol(ProtocolError::ResetWithoutClosingHandshake)),
             }
+        }
+    }
+
+    // Inlining this seems to be a big performance win.
+    // I suspect it allows the compiler to prove self.incomplete is not None.
+    #[inline(always)]
+    fn extend_incomplete(&mut self, data: Bytes, is_final: bool) -> Result<Option<Message>> {
+        let msg = self.incomplete.as_mut().unwrap();
+
+        #[cfg(feature = "deflate")]
+        if msg.compressed() {
+            // `msg.compressed()` is only true when compression is enabled so it's safe to unwrap
+            let data = self
+                .extensions
+                .as_mut()
+                .and_then(|x| x.compression.as_mut())
+                .unwrap()
+                .decompress(data.into(), is_final)?;
+
+            msg.extend(data, self.config.max_message_size)?;
+        } else {
+            msg.extend(data, self.config.max_message_size)?;
+        }
+
+        #[cfg(not(feature = "deflate"))]
+        msg.extend(data, self.config.max_message_size)?;
+
+        if is_final {
+            Ok(Some(self.incomplete.take().unwrap().complete()?))
+        } else {
+            Ok(None)
         }
     }
 
@@ -781,6 +953,17 @@ impl WebSocketContext {
             .map_or(true, |f| f.header().opcode == OpCode::Control(OpCtl::Pong));
         if empty_or_pong {
             self.additional_send.replace(add);
+        }
+    }
+
+    fn has_compression(&self) -> bool {
+        #[cfg(feature = "deflate")]
+        {
+            self.extensions.as_ref().and_then(|c| c.compression.as_ref()).is_some()
+        }
+        #[cfg(not(feature = "deflate"))]
+        {
+            false
         }
     }
 }
