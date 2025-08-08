@@ -33,7 +33,6 @@ fn write_flush_behaviour() {
     const SEND_ME_LEN: usize = 10;
     const BATCH_ME_LEN: usize = 11;
     const WRITE_BUFFER_SIZE: usize = 600;
-
     let mut ws = WebSocket::from_raw_socket(
         MockWrite::default(),
         tungstenite::protocol::Role::Server,
