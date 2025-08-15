@@ -19,6 +19,7 @@ use super::{
 };
 use crate::{
     error::{Error, ProtocolError, Result, SubProtocolError, UrlError},
+    handshake::version_as_str,
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -112,9 +113,9 @@ pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
     let mut req = Vec::new();
     write!(
         req,
-        "GET {path} {version:?}\r\n",
+        "GET {path} {version}\r\n",
         path = request.uri().path_and_query().ok_or(Error::Url(UrlError::NoPathOrQuery))?.as_str(),
-        version = request.version()
+        version = version_as_str(request.version())?,
     )
     .unwrap();
 
