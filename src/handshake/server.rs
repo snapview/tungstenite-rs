@@ -20,6 +20,7 @@ use super::{
 };
 use crate::{
     error::{Error, ProtocolError, Result},
+    handshake::version_as_str,
     protocol::{Role, WebSocket, WebSocketConfig},
 };
 
@@ -97,8 +98,8 @@ pub fn create_response_with_body<T1, T2>(
 pub fn write_response<T>(mut w: impl io::Write, response: &HttpResponse<T>) -> Result<()> {
     writeln!(
         w,
-        "{version:?} {status}\r",
-        version = response.version(),
+        "{version} {status}\r",
+        version = version_as_str(response.version())?,
         status = response.status()
     )?;
 

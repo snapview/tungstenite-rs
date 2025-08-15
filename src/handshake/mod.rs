@@ -11,10 +11,11 @@ use std::{
     io::{Read, Write},
 };
 
+use http::Version;
 use sha1::{Digest, Sha1};
 
 use self::machine::{HandshakeMachine, RoundResult, StageResult, TryParse};
-use crate::error::Error;
+use crate::error::{Error, ProtocolError};
 
 /// A WebSocket handshake.
 #[derive(Debug)]
@@ -121,6 +122,15 @@ pub fn derive_accept_key(request_key: &[u8]) -> String {
     sha1.update(request_key);
     sha1.update(WS_GUID);
     data_encoding::BASE64.encode(&sha1.finalize())
+}
+
+fn version_as_str(ver: Version) -> crate::Result<&'static str> {
+    match ver {
+        ver if ver == Version::HTTP_09 => Ok("HTTP/0.9"),
+        ver if ver == Version::HTTP_10 => Ok("HTTP/1.0"),
+        ver if ver == Version::HTTP_11 => Ok("HTTP/1.1"),
+        _ => Err(Error::Protocol(ProtocolError::WrongHttpVersion)),
+    }
 }
 
 #[cfg(test)]
