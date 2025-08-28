@@ -163,15 +163,15 @@ pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
 
     // Now we must ensure that the headers that we've written once are not anymore present in the map.
     // If they do, then the request is invalid (some headers are duplicated there for some reason).
-    let insensitive: Vec<String> =
-        WEBSOCKET_HEADERS.iter().map(|h| h.to_ascii_lowercase()).collect();
+    let websocket_headers_contains =
+        |name| WEBSOCKET_HEADERS.iter().any(|h| h.eq_ignore_ascii_case(name));
+
     for (k, v) in headers {
         let mut name = k.as_str();
 
         // We have already written the necessary headers once (above) and removed them from the map.
         // If we encounter them again, then the request is considered invalid and error is returned.
-        // Note that we can't use `.contains()`, since `&str` does not coerce to `&String` in Rust.
-        if insensitive.iter().any(|x| x == name) {
+        if websocket_headers_contains(name) {
             return Err(Error::Protocol(ProtocolError::InvalidHeader(k.clone().into())));
         }
 
