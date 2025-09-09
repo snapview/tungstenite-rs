@@ -673,44 +673,50 @@ impl WebSocketContext {
             }
 
             OpCode::Data(data) => {
+                enum FrameType {
+                    Continue,
+                    Initial(IncompleteMessageType),
+                }
+
                 let fin = frame.header().is_final;
-                match data {
-                    OpData::Continue => {
-                        let mut msg = self
+                let frame_type = match data {
+                    OpData::Continue => Ok(FrameType::Continue),
+                    _ if self.incomplete.is_some() => Err(ProtocolError::ExpectedFragment(data)),
+                    OpData::Text => Ok(FrameType::Initial(IncompleteMessageType::Text)),
+                    OpData::Binary => Ok(FrameType::Initial(IncompleteMessageType::Binary)),
+                    OpData::Reserved(i) => Err(ProtocolError::UnknownDataFrameType(i)),
+                }?;
+
+                match frame_type {
+                    FrameType::Continue => {
+                        let msg = self
                             .incomplete
                             .as_mut()
-                            .ok_or(Error::Protocol(ProtocolError::UnexpectedContinueFrame))?;
+                            .ok_or(ProtocolError::UnexpectedContinueFrame)?;
                         msg.extend(frame.into_payload(), self.config.max_message_size)?;
+
                         if fin {
                             Ok(Some(self.incomplete.take().unwrap().complete()?))
                         } else {
                             Ok(None)
                         }
                     }
-                    c if self.incomplete.is_some() => {
-                        Err(Error::Protocol(ProtocolError::ExpectedFragment(c)))
-                    }
-                    OpData::Text if fin => {
-                        check_max_size(frame.payload().len(), self.config.max_message_size)?;
-                        Ok(Some(Message::Text(frame.into_text()?)))
-                    }
-                    OpData::Binary if fin => {
-                        check_max_size(frame.payload().len(), self.config.max_message_size)?;
-                        Ok(Some(Message::Binary(frame.into_payload())))
-                    }
-                    OpData::Text | OpData::Binary => {
-                        let message_type = match data {
-                            OpData::Text => IncompleteMessageType::Text,
-                            OpData::Binary => IncompleteMessageType::Binary,
-                            _ => panic!("Bug: message is not text nor binary"),
-                        };
-                        let mut incomplete = IncompleteMessage::new(message_type);
-                        incomplete.extend(frame.into_payload(), self.config.max_message_size)?;
-                        self.incomplete = Some(incomplete);
-                        Ok(None)
-                    }
-                    OpData::Reserved(i) => {
-                        Err(Error::Protocol(ProtocolError::UnknownDataFrameType(i)))
+                    FrameType::Initial(data_type) => {
+                        if fin {
+                            check_max_size(frame.payload().len(), self.config.max_message_size)?;
+                            Ok(Some(match data_type {
+                                IncompleteMessageType::Text => Message::Text(frame.into_text()?),
+                                IncompleteMessageType::Binary => {
+                                    Message::Binary(frame.into_payload())
+                                }
+                            }))
+                        } else {
+                            let mut incomplete = IncompleteMessage::new(data_type);
+                            incomplete
+                                .extend(frame.into_payload(), self.config.max_message_size)?;
+                            self.incomplete = Some(incomplete);
+                            Ok(None)
+                        }
                     }
                 }
             }
