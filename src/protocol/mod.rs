@@ -681,11 +681,11 @@ impl WebSocketContext {
                 let fin = frame.header().is_final;
                 match data {
                     OpData::Continue => {
-                        if let Some(ref mut msg) = self.incomplete {
-                            msg.extend(frame.into_payload(), self.config.max_message_size)?;
-                        } else {
-                            return Err(Error::Protocol(ProtocolError::UnexpectedContinueFrame));
-                        }
+                        let msg = self
+                            .incomplete
+                            .as_mut()
+                            .ok_or(Error::Protocol(ProtocolError::UnexpectedContinueFrame))?;
+                        msg.extend(frame.into_payload(), self.config.max_message_size)?;
                         if fin {
                             Ok(Some(self.incomplete.take().unwrap().complete()?))
                         } else {
