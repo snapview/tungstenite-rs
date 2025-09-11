@@ -93,13 +93,11 @@ enum IncompleteMessageCollector {
 
 impl IncompleteMessage {
     /// Create new.
-    pub fn new(message_type: IncompleteMessageType) -> Self {
+    pub fn new(message_type: MessageType) -> Self {
         IncompleteMessage {
             collector: match message_type {
-                IncompleteMessageType::Binary => IncompleteMessageCollector::Binary(Vec::new()),
-                IncompleteMessageType::Text => {
-                    IncompleteMessageCollector::Text(StringCollector::new())
-                }
+                MessageType::Binary => IncompleteMessageCollector::Binary(Vec::new()),
+                MessageType::Text => IncompleteMessageCollector::Text(StringCollector::new()),
             },
         }
     }
@@ -149,7 +147,7 @@ impl IncompleteMessage {
 }
 
 /// The type of incomplete message.
-pub enum IncompleteMessageType {
+pub enum MessageType {
     Text,
     Binary,
 }
