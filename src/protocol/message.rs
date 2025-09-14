@@ -3,150 +3,53 @@ use crate::{
     error::{CapacityError, Error, Result},
     protocol::frame::Utf8Bytes,
 };
+use bytes::{Bytes, BytesMut};
 use std::{fmt, result::Result as StdResult, str};
 
-mod string_collect {
-    use utf8::DecodeError;
-
-    use crate::error::{Error, Result};
-
-    #[derive(Debug)]
-    pub struct StringCollector {
-        data: String,
-        incomplete: Option<utf8::Incomplete>,
-    }
-
-    impl StringCollector {
-        pub fn new() -> Self {
-            StringCollector { data: String::new(), incomplete: None }
-        }
-
-        pub fn len(&self) -> usize {
-            self.data
-                .len()
-                .saturating_add(self.incomplete.map(|i| i.buffer_len as usize).unwrap_or(0))
-        }
-
-        pub fn extend<T: AsRef<[u8]>>(&mut self, tail: T) -> Result<()> {
-            let mut input: &[u8] = tail.as_ref();
-
-            if let Some(mut incomplete) = self.incomplete.take() {
-                if let Some((result, rest)) = incomplete.try_complete(input) {
-                    input = rest;
-                    match result {
-                        Ok(text) => self.data.push_str(text),
-                        Err(result_bytes) => {
-                            return Err(Error::Utf8(String::from_utf8_lossy(result_bytes).into()))
-                        }
-                    }
-                } else {
-                    input = &[];
-                    self.incomplete = Some(incomplete);
-                }
-            }
-
-            if !input.is_empty() {
-                match utf8::decode(input) {
-                    Ok(text) => {
-                        self.data.push_str(text);
-                        Ok(())
-                    }
-                    Err(DecodeError::Incomplete { valid_prefix, incomplete_suffix }) => {
-                        self.data.push_str(valid_prefix);
-                        self.incomplete = Some(incomplete_suffix);
-                        Ok(())
-                    }
-                    Err(DecodeError::Invalid { valid_prefix, invalid_sequence, .. }) => {
-                        self.data.push_str(valid_prefix);
-                        Err(Error::Utf8(String::from_utf8_lossy(invalid_sequence).into()))
-                    }
-                }
-            } else {
-                Ok(())
-            }
-        }
-
-        pub fn into_string(self) -> Result<String> {
-            if let Some(incomplete) = self.incomplete {
-                Err(Error::Utf8(format!("incomplete string: {incomplete:?}")))
-            } else {
-                Ok(self.data)
-            }
-        }
-    }
-}
-
-use self::string_collect::StringCollector;
-use bytes::Bytes;
-
 /// A struct representing the incomplete message.
+///
+/// Note: Text messages are utf8 validated on calling [`Self::complete`].
 #[derive(Debug)]
-pub struct IncompleteMessage {
-    collector: IncompleteMessageCollector,
-}
-
-#[derive(Debug)]
-enum IncompleteMessageCollector {
-    Text(StringCollector),
-    Binary(Vec<u8>),
+pub(crate) struct IncompleteMessage {
+    kind: MessageType,
+    buf: BytesMut,
 }
 
 impl IncompleteMessage {
-    /// Create new.
-    pub fn new(message_type: MessageType) -> Self {
-        IncompleteMessage {
-            collector: match message_type {
-                MessageType::Binary => IncompleteMessageCollector::Binary(Vec::new()),
-                MessageType::Text => IncompleteMessageCollector::Text(StringCollector::new()),
-            },
-        }
-    }
-
-    /// Get the current filled size of the buffer.
-    pub fn len(&self) -> usize {
-        match self.collector {
-            IncompleteMessageCollector::Text(ref t) => t.len(),
-            IncompleteMessageCollector::Binary(ref b) => b.len(),
-        }
+    pub fn new(kind: MessageType) -> Self {
+        Self { kind, buf: BytesMut::new() }
     }
 
     /// Add more data to an existing message.
-    pub fn extend<T: AsRef<[u8]>>(&mut self, tail: T, size_limit: Option<usize>) -> Result<()> {
+    pub fn extend(&mut self, tail: Bytes, size_limit: Option<usize>) -> Result<()> {
         // Always have a max size. This ensures an error in case of concatenating two buffers
-        // of more than `usize::max_value()` bytes in total.
-        let max_size = size_limit.unwrap_or_else(usize::max_value);
-        let my_size = self.len();
-        let portion_size = tail.as_ref().len();
+        // of more than `usize::MAX` bytes in total.
+        let max_size = size_limit.unwrap_or(usize::MAX);
+        let my_size = self.buf.len();
+        let portion_size = tail.len();
         // Be careful about integer overflows here.
         if my_size > max_size || portion_size > max_size - my_size {
             return Err(Error::Capacity(CapacityError::MessageTooLong {
-                size: my_size + portion_size,
+                size: my_size.saturating_add(portion_size),
                 max_size,
             }));
         }
 
-        match self.collector {
-            IncompleteMessageCollector::Binary(ref mut v) => {
-                v.extend(tail.as_ref());
-                Ok(())
-            }
-            IncompleteMessageCollector::Text(ref mut t) => t.extend(tail),
-        }
+        self.buf.extend_from_slice(&tail);
+        Ok(())
     }
 
     /// Convert an incomplete message into a complete one.
     pub fn complete(self) -> Result<Message> {
-        match self.collector {
-            IncompleteMessageCollector::Binary(v) => Ok(Message::Binary(v.into())),
-            IncompleteMessageCollector::Text(t) => {
-                let text = t.into_string()?;
-                Ok(Message::text(text))
-            }
-        }
+        Ok(match self.kind {
+            MessageType::Binary => Message::Binary(self.buf.freeze()),
+            MessageType::Text => Message::Text(self.buf.try_into()?),
+        })
     }
 }
 
 /// The type of incomplete message.
+#[derive(Debug)]
 pub enum MessageType {
     Text,
     Binary,
