@@ -1,6 +1,9 @@
-# Unreleased (0.28.0)
+# 0.28.0
 * Reduce `Error` size 136 -> **32** by boxing internals of `Error::Http`, `Error::WriteBufferFull`,
   `ProtocolError::InvalidHeader`, `TlsError::Native`, `TlsError::Rustls`.
+* Dependency update (`socket` to `0.6.0`).
+* Add `into_inner()` to the `WebSocket`, so that the user can extract the underlying stream.
+* Address the edge-case for the WebSocket request generation when `tungstenite` is built with `-Zfmt-debug=none`.
 
 # 0.27.0
 - Fix large message read performance by enforcing max `read_buffer_size` read chunks.
