@@ -17,7 +17,7 @@ use crate::{
     protocol::frame::mask::apply_mask,
     Message,
 };
-use bytes::BytesMut;
+use bytes::{BufMut, BytesMut};
 use log::*;
 use std::io::{self, Cursor, Error as IoError, ErrorKind as IoErrorKind, Read, Write};
 
@@ -233,10 +233,21 @@ impl FrameCodec {
     fn read_in(&mut self, stream: &mut impl Read) -> io::Result<usize> {
         let len = self.in_buffer.len();
         debug_assert!(self.in_buffer.capacity() > len);
-        self.in_buffer.resize(self.in_buffer.capacity().min(len + self.in_buf_max_read), 0);
-        let size = stream.read(&mut self.in_buffer[len..]);
-        self.in_buffer.truncate(len + size.as_ref().copied().unwrap_or(0));
-        size
+
+        // TODO(read_buf): When our MSRV includes stable `std::io::Read::read_buf`/`BorrowedBuf`,
+        // replace this unsafe block with a zero-unsafe read into uninitialized spare capacity.
+        let buf = unsafe {
+            let spare = self.in_buffer.spare_capacity_mut();
+            let max_read = spare.len().min(self.in_buf_max_read);
+            std::slice::from_raw_parts_mut(spare.as_mut_ptr() as *mut u8, max_read)
+        };
+        match stream.read(buf) {
+            Ok(n) => {
+                unsafe { self.in_buffer.advance_mut(n); }
+                Ok(n)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     /// Writes a frame into the `out_buffer`.
