@@ -4,6 +4,7 @@ pub mod coding;
 
 #[allow(clippy::module_inception)]
 mod frame;
+mod init_aware_buf;
 mod mask;
 mod utf8;
 
@@ -14,7 +15,7 @@ pub use self::{
 
 use crate::{
     error::{CapacityError, Error, ProtocolError, Result},
-    protocol::frame::mask::apply_mask,
+    protocol::frame::{init_aware_buf::InitAwareBuf, mask::apply_mask},
     Message,
 };
 use bytes::BytesMut;
@@ -46,7 +47,7 @@ impl<Stream> FrameSocket<Stream> {
 
     /// Extract a stream from the socket.
     pub fn into_inner(self) -> (Stream, BytesMut) {
-        (self.stream, self.codec.in_buffer)
+        (self.stream, self.codec.in_buffer.into())
     }
 
     /// Returns a shared reference to the inner stream.
@@ -103,7 +104,7 @@ where
 #[derive(Debug)]
 pub(super) struct FrameCodec {
     /// Buffer to read data from the stream.
-    in_buffer: BytesMut,
+    in_buffer: InitAwareBuf,
     in_buf_max_read: usize,
     /// Buffer to send packets to the network.
     out_buffer: Vec<u8>,
@@ -123,7 +124,7 @@ impl FrameCodec {
     /// Create a new frame codec.
     pub(super) fn new(in_buf_len: usize) -> Self {
         Self {
-            in_buffer: BytesMut::with_capacity(in_buf_len),
+            in_buffer: InitAwareBuf::with_capacity(in_buf_len),
             in_buf_max_read: in_buf_len.max(FrameHeader::MAX_SIZE),
             out_buffer: <_>::default(),
             max_out_buffer_len: usize::MAX,
@@ -137,7 +138,7 @@ impl FrameCodec {
         let mut in_buffer = BytesMut::from_iter(part);
         in_buffer.reserve(min_in_buf_len.saturating_sub(in_buffer.len()));
         Self {
-            in_buffer,
+            in_buffer: in_buffer.into(),
             in_buf_max_read: min_in_buf_len.max(FrameHeader::MAX_SIZE),
             out_buffer: <_>::default(),
             max_out_buffer_len: usize::MAX,
@@ -172,7 +173,7 @@ impl FrameCodec {
                 let mut cursor = Cursor::new(&mut self.in_buffer);
                 self.header = FrameHeader::parse(&mut cursor)?;
                 let advanced = cursor.position();
-                bytes::Buf::advance(&mut self.in_buffer, advanced as _);
+                self.in_buffer.advance(advanced as _);
 
                 if let Some((_, len)) = &self.header {
                     let len = *len as usize;
@@ -233,7 +234,7 @@ impl FrameCodec {
     fn read_in(&mut self, stream: &mut impl Read) -> io::Result<usize> {
         let len = self.in_buffer.len();
         debug_assert!(self.in_buffer.capacity() > len);
-        self.in_buffer.resize(self.in_buffer.capacity().min(len + self.in_buf_max_read), 0);
+        self.in_buffer.resize(self.in_buffer.capacity().min(len + self.in_buf_max_read));
         let size = stream.read(&mut self.in_buffer[len..]);
         self.in_buffer.truncate(len + size.as_ref().copied().unwrap_or(0));
         size
