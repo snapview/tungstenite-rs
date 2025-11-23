@@ -1,3 +1,6 @@
+# Unreleased
+* Optimise read performance particularly for larger than default `read_buffer_size`s.
+
 # 0.30.0
 
 * Reject non-compliant clients (incorrect `Sec-WebSocket-Key` length/format) on the server side.
