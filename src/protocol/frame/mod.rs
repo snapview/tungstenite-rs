@@ -135,10 +135,10 @@ impl FrameCodec {
 
     /// Create a new frame codec from partially read data.
     pub(super) fn from_partially_read(part: Vec<u8>, min_in_buf_len: usize) -> Self {
-        let mut in_buffer = BytesMut::from_iter(part);
-        in_buffer.reserve(min_in_buf_len.saturating_sub(in_buffer.len()));
+        let mut in_buffer = InitAwareBuf::from(BytesMut::from_iter(part));
+        in_buffer.reserve(min_in_buf_len.saturating_sub(in_buffer.len()), min_in_buf_len);
         Self {
-            in_buffer: in_buffer.into(),
+            in_buffer,
             in_buf_max_read: min_in_buf_len.max(FrameHeader::MAX_SIZE),
             out_buffer: <_>::default(),
             max_out_buffer_len: usize::MAX,
@@ -188,9 +188,9 @@ impl FrameCodec {
 
                     // Reserve full message length only once, even for multiple
                     // loops or if WouldBlock errors cause multiple fn calls.
-                    self.in_buffer.reserve(len);
+                    self.in_buffer.reserve(len, self.in_buf_max_read);
                 } else {
-                    self.in_buffer.reserve(FrameHeader::MAX_SIZE);
+                    self.in_buffer.reserve(FrameHeader::MAX_SIZE, self.in_buf_max_read);
                 }
             }
 
