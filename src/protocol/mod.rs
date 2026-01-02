@@ -90,6 +90,9 @@ pub struct WebSocketConfig {
     /// some popular libraries that are sending unmasked frames, ignoring the RFC.
     /// By default this option is set to `false`, i.e. according to RFC 6455.
     pub accept_unmasked_frames: bool,
+    /// When set to `true`, receiving a close message won't automatically close the connection.
+    /// By default this option is set to `false`.
+    pub manually_close: bool,
 }
 
 impl Default for WebSocketConfig {
@@ -101,6 +104,7 @@ impl Default for WebSocketConfig {
             max_message_size: Some(64 << 20),
             max_frame_size: Some(16 << 20),
             accept_unmasked_frames: false,
+            manually_close: false,
         }
     }
 }
@@ -719,8 +723,6 @@ impl WebSocketContext {
         debug!("Received close frame: {close:?}");
         match self.state {
             WebSocketState::Active => {
-                self.state = WebSocketState::ClosedByPeer;
-
                 let close = close.map(|frame| {
                     if !frame.code.is_allowed() {
                         CloseFrame {
@@ -732,9 +734,13 @@ impl WebSocketContext {
                     }
                 });
 
-                let reply = Frame::close(close.clone());
-                debug!("Replying to close with {reply:?}");
-                self.set_additional(reply);
+                if !self.config.manually_close {
+                    self.state = WebSocketState::ClosedByPeer;
+
+                    let reply = Frame::close(close.clone());
+                    debug!("Replying to close with {reply:?}");
+                    self.set_additional(reply);
+                }
 
                 Some(close)
             }
