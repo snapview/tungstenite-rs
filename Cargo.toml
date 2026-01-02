@@ -25,6 +25,7 @@ native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
 rustls-tls-native-roots = ["__rustls-tls", "rustls-native-certs"]
 rustls-tls-webpki-roots = ["__rustls-tls", "webpki-roots"]
+rustls-tls-native-platform-verifier = ["__rustls-tls", "rustls-platform-verifier"]
 __rustls-tls = ["rustls", "rustls-pki-types"]
 
 [dependencies]
@@ -61,6 +62,10 @@ version = "0.8.0"
 [dependencies.webpki-roots]
 optional = true
 version = "0.26"
+
+[dependencies.rustls-platform-verifier]
+optional = true
+version = "0.6"
 
 [dev-dependencies]
 criterion = "0.6"
