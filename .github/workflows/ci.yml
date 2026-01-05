@@ -60,7 +60,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.63.0
+          - 1.68.2
 
     steps:
       - name: Checkout sources
@@ -74,7 +74,7 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get install libssl-dev
 
-      - name: Disable env_logger dev-dependency (cargo 1.63 workaround)
+      - name: Disable env_logger dev-dependency (cargo 1.68.2 workaround)
         run: sed -i 's/env_logger/#env_logger/' Cargo.toml
 
       - name: Check
