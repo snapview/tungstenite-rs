@@ -73,7 +73,7 @@ Choose the one that is appropriate for your needs.
 By default **no TLS feature is activated**, so make sure you use one of the TLS features,
 otherwise you won't be able to communicate with the TLS endpoints.
 
-When the `proxy` feature is enabled (default), `connect` and `connect_with_config` honor
+When the `proxy` feature is enabled, `connect` and `connect_with_config` honor
 `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` (case-insensitive) for client connections.
 Supported proxy schemes are `http://`, `socks5://`, and `socks5h://`. `HTTPS_PROXY` values must
 still use the `http://` scheme (TLS-to-proxy is not supported in the blocking client).

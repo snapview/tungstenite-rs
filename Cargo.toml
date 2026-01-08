@@ -18,7 +18,7 @@ include = ["benches/**/*", "src/**/*", "examples/**/*", "LICENSE-*", "README.md"
 all-features = true
 
 [features]
-default = ["handshake", "proxy"]
+default = ["handshake"]
 handshake = ["data-encoding", "http", "httparse", "sha1"]
 proxy = ["handshake"]
 url = ["dep:url"]
