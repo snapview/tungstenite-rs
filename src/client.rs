@@ -21,6 +21,8 @@ use crate::{
     protocol::WebSocket,
     stream::{Mode, NoDelay},
 };
+#[cfg(feature = "proxy")]
+use crate::proxy;
 
 /// Connect to the given WebSocket in blocking mode.
 ///
@@ -30,6 +32,9 @@ use crate::{
 /// The URL may be either ws:// or wss://.
 /// To support wss:// URLs, you must activate the TLS feature on the crate level. Please refer to the
 /// project's [README][readme] for more information on available features.
+///
+/// When the `proxy` feature is enabled, this function honors `HTTP_PROXY`, `HTTPS_PROXY`,
+/// `ALL_PROXY`, and `NO_PROXY` (case-insensitive) for client connections.
 ///
 /// This function "just works" for those who wants a simple blocking solution
 /// similar to `std::net::TcpStream`. If you want a non-blocking or other
@@ -63,8 +68,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
             Mode::Plain => 80,
             Mode::Tls => 443,
         });
-        let addrs = (host, port).to_socket_addrs()?;
-        let mut stream = connect_to_some(addrs.as_slice(), request.uri())?;
+        let mut stream = connect_stream(request.uri(), host, port)?;
         NoDelay::set_nodelay(&mut stream, true)?;
 
         #[cfg(not(any(feature = "native-tls", feature = "__rustls-tls")))]
@@ -135,6 +139,16 @@ fn connect_to_some(addrs: &[SocketAddr], uri: &Uri) -> Result<TcpStream> {
         }
     }
     Err(Error::Url(UrlError::UnableToConnect(uri.to_string())))
+}
+
+fn connect_stream(uri: &Uri, host: &str, port: u16) -> Result<TcpStream> {
+    #[cfg(feature = "proxy")]
+    if let Some(stream) = proxy::connect_proxy_stream(uri, host, port)? {
+        return Ok(stream);
+    }
+
+    let addrs = (host, port).to_socket_addrs()?;
+    connect_to_some(addrs.as_slice(), uri)
 }
 
 /// Get the mode of the given URL.

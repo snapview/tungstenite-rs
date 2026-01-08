@@ -276,6 +276,15 @@ pub enum UrlError {
     /// The URL does not include a path/query.
     #[error("No path/query in URL")]
     NoPathOrQuery,
+    /// The proxy URL uses an unsupported scheme.
+    #[error("Proxy URL scheme not supported")]
+    UnsupportedProxyScheme,
+    /// The proxy configuration was invalid.
+    #[error("Invalid proxy configuration: {0}")]
+    InvalidProxyConfig(String),
+    /// The proxy connection failed.
+    #[error("Proxy connection failed: {0}")]
+    ProxyConnect(String),
 }
 
 /// TLS errors.

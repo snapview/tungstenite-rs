@@ -20,6 +20,7 @@ all-features = true
 [features]
 default = ["handshake"]
 handshake = ["data-encoding", "http", "httparse", "sha1"]
+proxy = ["handshake"]
 url = ["dep:url"]
 native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
@@ -112,3 +113,7 @@ required-features = ["handshake"]
 [[example]]
 name = "srv_accept_unmasked_frames"
 required-features = ["handshake"]
+
+[[example]]
+name = "proxy-client"
+required-features = ["proxy"]

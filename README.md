@@ -64,6 +64,7 @@ features are available:
 
 * `native-tls`
 * `native-tls-vendored`
+* `proxy`
 * `rustls-tls-native-roots`
 * `rustls-tls-webpki-roots`
 
@@ -71,6 +72,14 @@ Choose the one that is appropriate for your needs.
 
 By default **no TLS feature is activated**, so make sure you use one of the TLS features,
 otherwise you won't be able to communicate with the TLS endpoints.
+
+When the `proxy` feature is enabled, `connect` and `connect_with_config` honor
+`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` (case-insensitive) for client connections.
+Supported proxy schemes are `http://`, `socks5://`, and `socks5h://`. `HTTPS_PROXY` values must
+still use the `http://` scheme (TLS-to-proxy is not supported in the blocking client).
+`tokio-tungstenite` users can reuse the environment resolution via
+`tungstenite::proxy::ProxyConfig::from_env` and then apply their own async proxy stream.
+
 
 There is no support for permessage-deflate at the moment, but the PRs are welcome :wink:
 
