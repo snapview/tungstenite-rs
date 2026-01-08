@@ -80,6 +80,7 @@ still use the `http://` scheme (TLS-to-proxy is not supported in the blocking cl
 `tokio-tungstenite` users can reuse the environment resolution via
 `tungstenite::proxy::ProxyConfig::from_env` and then apply their own async proxy stream.
 
+
 There is no support for permessage-deflate at the moment, but the PRs are welcome :wink:
 
 Testing
