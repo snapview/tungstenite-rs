@@ -25,6 +25,8 @@ pub mod error;
 #[cfg(feature = "handshake")]
 pub mod handshake;
 pub mod protocol;
+#[cfg(all(feature = "proxy", feature = "handshake"))]
+pub mod proxy;
 #[cfg(feature = "handshake")]
 mod server;
 pub mod stream;
