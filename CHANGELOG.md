@@ -1,6 +1,7 @@
 # UNRELEASED
 
 * Update MSRV to `1.68.2`.
+* Add proxy support for `connect` via `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`/`NO_PROXY`, with HTTP CONNECT and SOCKS5.
 
 # 0.28.0
 * Reduce `Error` size 136 -> **32** by boxing internals of `Error::Http`, `Error::WriteBufferFull`,
