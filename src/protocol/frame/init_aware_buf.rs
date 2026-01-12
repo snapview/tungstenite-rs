@@ -45,7 +45,7 @@ impl InitAwareBuf {
         split
     }
 
-    /// Reserve capacity for `min_additional` more bytes than the current [`Self::len`].
+    /// Reserve capacity for `additional` more bytes than the current [`Self::len`].
     ///
     /// `max_additional` sets the maximum number of additional bytes zeroed as extra
     /// capacity if available after reserving in the underlying buffer. Has no effect
