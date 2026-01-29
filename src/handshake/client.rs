@@ -185,18 +185,15 @@ pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
             name = "Origin";
         }
 
-        writeln!(
-            req,
-            "{}: {}\r",
-            name,
-            v.to_str().map_err(|err| {
-                Error::Utf8(format!("{err} for header name '{name}' with value: {v:?}"))
-            })?
-        )
-        .unwrap();
+        // Write header as raw bytes to support non-ASCII values.
+        // HTTP headers are defined as octets (RFC 7230), not UTF-8 strings.
+        req.extend_from_slice(name.as_bytes());
+        req.extend_from_slice(b": ");
+        req.extend_from_slice(v.as_bytes());
+        req.extend_from_slice(b"\r\n");
     }
 
-    writeln!(req, "\r").unwrap();
+    req.extend_from_slice(b"\r\n");
     trace!("Request: {:?}", String::from_utf8_lossy(&req));
     Ok((req, key))
 }
@@ -407,5 +404,54 @@ mod tests {
     fn invalid_custom_request() {
         let request = http::Request::builder().method("GET").body(()).unwrap();
         assert!(generate_request(request).is_err());
+    }
+
+    #[test]
+    fn request_with_non_ascii_header() {
+        use http::header::HeaderValue;
+
+        let mut request = "ws://localhost/path".into_client_request().unwrap();
+
+        // Add a header with non-ASCII value (UTF-8 encoded "Montréal")
+        let non_ascii_value = HeaderValue::from_bytes(b"Montr\xc3\xa9al").unwrap();
+        request.headers_mut().insert("X-City", non_ascii_value);
+
+        // This should succeed, not fail with UTF-8 error
+        let result = generate_request(request);
+        assert!(result.is_ok(), "generate_request should accept non-ASCII header values");
+
+        let (req_bytes, _key) = result.unwrap();
+
+        // Verify the complete header with non-ASCII value is preserved in the output
+        let expected_header = b"x-city: Montr\xc3\xa9al\r\n";
+        assert!(
+            req_bytes.windows(expected_header.len()).any(|window| window == expected_header),
+            "Request should contain the complete non-ASCII header value"
+        );
+    }
+
+    #[test]
+    fn request_with_latin1_header() {
+        use http::header::HeaderValue;
+
+        let mut request = "ws://localhost/path".into_client_request().unwrap();
+
+        // Add a header with ISO-8859-1 (Latin-1) encoded value
+        // This is NOT valid UTF-8 but is valid for HTTP headers
+        let latin1_value = HeaderValue::from_bytes(b"caf\xe9").unwrap(); // "café" in Latin-1
+        request.headers_mut().insert("X-Test", latin1_value);
+
+        // This should succeed
+        let result = generate_request(request);
+        assert!(result.is_ok(), "generate_request should accept Latin-1 header values");
+
+        let (req_bytes, _key) = result.unwrap();
+
+        // Verify the raw bytes are preserved in the output
+        let expected_header = b"x-test: caf\xe9\r\n";
+        assert!(
+            req_bytes.windows(expected_header.len()).any(|window| window == expected_header),
+            "Request should preserve the raw Latin-1 bytes"
+        );
     }
 }
