@@ -1,7 +1,7 @@
 # UNRELEASED
 
 * Update MSRV to `1.68.2`.
-* Allow users to send headers with non-visible ASCII values (as long as they constitute a correct `HeaderValue').
+* Allow users to send headers with non-visible ASCII values (as long as they constitute a correct `HeaderValue`).
 
 # 0.28.0
 * Reduce `Error` size 136 -> **32** by boxing internals of `Error::Http`, `Error::WriteBufferFull`,
