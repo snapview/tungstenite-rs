@@ -1,5 +1,6 @@
 # UNRELEASED
 
+* Optimise read performance particularly for larger than default `read_buffer_size`s.
 * Update MSRV to `1.68.2`.
 * Allow users to send headers with non-visible ASCII values (as long as they constitute a correct `HeaderValue`).
 
