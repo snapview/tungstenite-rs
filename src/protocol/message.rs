@@ -3,7 +3,7 @@ use crate::{
     error::{CapacityError, Error, Result},
     protocol::frame::Utf8Bytes,
 };
-use std::{fmt, result::Result as StdResult, str};
+use std::{fmt, result::Result as StdResult, str, str::Utf8Error};
 
 mod string_collect {
     use utf8::DecodeError;
@@ -245,7 +245,7 @@ impl Message {
     }
 
     /// Attempt to consume the WebSocket message and convert it to a String.
-    pub fn into_text(self) -> Result<Utf8Bytes> {
+    pub fn into_text(self) -> StdResult<Utf8Bytes, Utf8Error> {
         match self {
             Message::Text(txt) => Ok(txt),
             Message::Binary(data) | Message::Ping(data) | Message::Pong(data) => {
@@ -259,7 +259,7 @@ impl Message {
 
     /// Attempt to get a &str from the WebSocket message,
     /// this will try to convert binary data to utf8.
-    pub fn to_text(&self) -> Result<&str> {
+    pub fn to_text(&self) -> StdResult<&str, Utf8Error> {
         match *self {
             Message::Text(ref string) => Ok(string.as_str()),
             Message::Binary(ref data) | Message::Ping(ref data) | Message::Pong(ref data) => {
