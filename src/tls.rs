@@ -70,7 +70,9 @@ mod encryption {
 
     #[cfg(feature = "__rustls-tls")]
     pub mod rustls {
-        use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+        #[cfg(not(feature = "rustls-tls-native-platform-verifier"))]
+        use rustls::RootCertStore;
+        use rustls::{ClientConfig, ClientConnection, StreamOwned};
         use rustls_pki_types::ServerName;
 
         use std::{
@@ -99,43 +101,57 @@ mod encryption {
                     let config = match tls_connector {
                         Some(config) => config,
                         None => {
-                            #[allow(unused_mut)]
-                            let mut root_store = RootCertStore::empty();
-
-                            #[cfg(feature = "rustls-tls-native-roots")]
+                            #[cfg(feature = "rustls-tls-native-platform-verifier")]
                             {
-                                let rustls_native_certs::CertificateResult {
-                                    certs, errors, ..
-                                } = rustls_native_certs::load_native_certs();
-
-                                if !errors.is_empty() {
-                                    log::warn!(
-                                        "native root CA certificate loading errors: {errors:?}"
-                                    );
-                                }
-
-                                // Not finding any native root CA certificates is not fatal if the
-                                // "rustls-tls-webpki-roots" feature is enabled.
-                                #[cfg(not(feature = "rustls-tls-webpki-roots"))]
-                                if certs.is_empty() {
-                                    return Err(std::io::Error::new(std::io::ErrorKind::NotFound, format!("no native root CA certificates found (errors: {errors:?})")).into());
-                                }
-
-                                let total_number = certs.len();
-                                let (number_added, number_ignored) =
-                                    root_store.add_parsable_certificates(certs);
-                                log::debug!("Added {number_added}/{total_number} native root certificates (ignored {number_ignored})");
-                            }
-                            #[cfg(feature = "rustls-tls-webpki-roots")]
-                            {
-                                root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+                                use rustls_platform_verifier::BuilderVerifierExt;
+                                Arc::new(
+                                    ClientConfig::builder()
+                                        .with_platform_verifier()
+                                        .map_err(TlsError::from)?
+                                        .with_no_client_auth(),
+                                )
                             }
 
-                            Arc::new(
-                                ClientConfig::builder()
-                                    .with_root_certificates(root_store)
-                                    .with_no_client_auth(),
-                            )
+                            #[cfg(not(feature = "rustls-tls-native-platform-verifier"))]
+                            {
+                                #[allow(unused_mut)]
+                                let mut root_store = RootCertStore::empty();
+
+                                #[cfg(feature = "rustls-tls-native-roots")]
+                                {
+                                    let rustls_native_certs::CertificateResult {
+                                        certs, errors, ..
+                                    } = rustls_native_certs::load_native_certs();
+
+                                    if !errors.is_empty() {
+                                        log::warn!(
+                                            "native root CA certificate loading errors: {errors:?}"
+                                        );
+                                    }
+
+                                    // Not finding any native root CA certificates is not fatal if the
+                                    // "rustls-tls-webpki-roots" feature is enabled.
+                                    #[cfg(not(feature = "rustls-tls-webpki-roots"))]
+                                    if certs.is_empty() {
+                                        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, format!("no native root CA certificates found (errors: {errors:?})")).into());
+                                    }
+
+                                    let total_number = certs.len();
+                                    let (number_added, number_ignored) =
+                                        root_store.add_parsable_certificates(certs);
+                                    log::debug!("Added {number_added}/{total_number} native root certificates (ignored {number_ignored})");
+                                }
+                                #[cfg(feature = "rustls-tls-webpki-roots")]
+                                {
+                                    root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+                                }
+
+                                Arc::new(
+                                    ClientConfig::builder()
+                                        .with_root_certificates(root_store)
+                                        .with_no_client_auth(),
+                                )
+                            }
                         }
                     };
                     let domain = ServerName::try_from(domain)
