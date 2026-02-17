@@ -162,6 +162,14 @@ pub trait Callback: Sized {
         request: &Request,
         response: Response,
     ) -> StdResult<Response, ErrorResponse>;
+
+    /// Called whenever the server read an invalid request,
+    /// e.g. the connection upgrade header is missing from the request,
+    /// then server can call this function to form a valid response
+    /// instead of just drop the connection
+    fn on_invalid_request(self, _request: &Request, error: Error) -> Result<ErrorResponse> {
+        Err(error)
+    }
 }
 
 impl<F> Callback for F
@@ -241,11 +249,21 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
                     return Err(Error::Protocol(ProtocolError::JunkAfterRequest));
                 }
 
-                let response = create_response(&result)?;
-                let callback_result = if let Some(callback) = self.callback.take() {
-                    callback.on_request(&result, response)
-                } else {
-                    Ok(response)
+                let callback_result = match create_response(&result) {
+                    Ok(response) => {
+                        if let Some(callback) = self.callback.take() {
+                            callback.on_request(&result, response)
+                        } else {
+                            Ok(response)
+                        }
+                    }
+                    Err(error) => {
+                        if let Some(callback) = self.callback.take() {
+                            Err(callback.on_invalid_request(&result, error)?)
+                        } else {
+                            return Err(error);
+                        }
+                    }
                 };
 
                 match callback_result {
