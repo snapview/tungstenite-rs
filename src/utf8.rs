@@ -1,7 +1,4 @@
-use std::cmp;
-use std::error::Error;
-use std::fmt;
-use std::str;
+use std::{cmp, error::Error, fmt, str};
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) enum DecodeError<'a> {
