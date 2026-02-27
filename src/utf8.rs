@@ -45,6 +45,12 @@ pub(crate) struct Incomplete {
     pub(crate) buffer_len: u8,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub(crate) struct Completed<'buffer, 'input> {
+    pub(crate) result: Result<&'buffer str, &'buffer [u8]>,
+    pub(crate) remaining_input: &'input [u8],
+}
+
 pub(crate) fn decode(input: &'_ [u8]) -> Result<&'_ str, DecodeError<'_>> {
     let error = match str::from_utf8(input) {
         Ok(valid) => return Ok(valid),
@@ -76,17 +82,18 @@ impl Incomplete {
         let mut buffer = [0, 0, 0, 0];
         let len = bytes.len();
         buffer[..len].copy_from_slice(bytes);
-        Incomplete { buffer: buffer, buffer_len: len as u8 }
+        Incomplete { buffer, buffer_len: len as u8 }
     }
 
     /// * `None`: still incomplete, call `try_complete` again with more input.
     ///   If no more input is available, this is invalid byte sequence.
-    /// * `Some((result, remaining_input))`: We’re done with this `Incomplete`.
-    ///   To keep decoding, pass `remaining_input` to `decode()`.
+    /// * `Some(completed)`: We’re done with this `Incomplete`,
+    ///   with either a valid chunk on invalid byte sequence in `completed.result`.
+    ///   To keep decoding, pass `completed.remaining_input` to `decode()`.
     pub(crate) fn try_complete<'input>(
         &mut self,
         input: &'input [u8],
-    ) -> Option<(Result<&str, &[u8]>, &'input [u8])> {
+    ) -> Option<Completed<'_, 'input>> {
         let (consumed, opt_result) = self.try_complete_offsets(input);
         let result = opt_result?;
         let remaining_input = &input[consumed..];
@@ -95,7 +102,7 @@ impl Incomplete {
             Ok(()) => Ok(unsafe { str::from_utf8_unchecked(result_bytes) }),
             Err(()) => Err(result_bytes),
         };
-        Some((result, remaining_input))
+        Some(Completed { result, remaining_input })
     }
 
     fn take_buffer(&mut self) -> &[u8] {

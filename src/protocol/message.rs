@@ -31,9 +31,9 @@ mod string_collect {
             let mut input: &[u8] = tail.as_ref();
 
             if let Some(mut incomplete) = self.incomplete.take() {
-                if let Some((result, rest)) = incomplete.try_complete(input) {
-                    input = rest;
-                    match result {
+                if let Some(completed) = incomplete.try_complete(input) {
+                    input = completed.remaining_input;
+                    match completed.result {
                         Ok(text) => self.data.push_str(text),
                         Err(result_bytes) => {
                             return Err(Error::Utf8(String::from_utf8_lossy(result_bytes).into()))
