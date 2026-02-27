@@ -6,14 +6,14 @@ use crate::{
 use std::{fmt, result::Result as StdResult, str};
 
 mod string_collect {
-    use utf8::DecodeError;
+    use crate::utf8::DecodeError;
 
     use crate::error::{Error, Result};
 
     #[derive(Debug)]
     pub struct StringCollector {
         data: String,
-        incomplete: Option<utf8::Incomplete>,
+        incomplete: Option<crate::utf8::Incomplete>,
     }
 
     impl StringCollector {
@@ -46,7 +46,7 @@ mod string_collect {
             }
 
             if !input.is_empty() {
-                match utf8::decode(input) {
+                match crate::utf8::decode(input) {
                     Ok(text) => {
                         self.data.push_str(text);
                         Ok(())
