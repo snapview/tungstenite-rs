@@ -1,6 +1,6 @@
 # UNRELEASED
 
-* Update MSRV to `1.68.2`.
+* Update MSRV to `1.71` due to `syn` (the dependency of `thiserror`) requiring it.
 * Allow users to send headers with non-visible ASCII values (as long as they constitute a correct `HeaderValue`).
 
 # 0.28.0
