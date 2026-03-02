@@ -30,6 +30,7 @@ mod server;
 pub mod stream;
 #[cfg(all(any(feature = "native-tls", feature = "__rustls-tls"), feature = "handshake"))]
 mod tls;
+mod utf8;
 pub mod util;
 
 const READ_BUFFER_CHUNK_SIZE: usize = 4096;
