@@ -1,4 +1,5 @@
 #![cfg(feature = "handshake")]
+#![allow(clippy::result_large_err)]
 
 use http::Uri;
 use std::{

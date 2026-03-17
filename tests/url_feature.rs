@@ -1,5 +1,6 @@
 #![cfg(feature = "handshake")]
 #![cfg(feature = "url")]
+#![allow(clippy::result_large_err)]
 
 use std::{
     assert,
