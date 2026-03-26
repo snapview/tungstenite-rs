@@ -698,7 +698,17 @@ impl WebSocketContext {
                     (Some((payload, t)), true) => {
                         check_max_size(payload.len(), self.config.max_message_size)?;
                         match t {
-                            MessageType::Text => Ok(Some(Message::Text(payload.try_into()?))),
+                            MessageType::Text => {
+                                #[cfg(not(feature = "skip_utf8_validation"))]
+                                let msg = Message::Text(payload.try_into()?);
+                                #[cfg(feature = "skip_utf8_validation")]
+                                // SAFETY: Caller asserts all text frame payloads
+                                // are valid UTF-8 via the feature flag.
+                                let msg = Message::Text(unsafe {
+                                    Utf8Bytes::from_bytes_unchecked(payload)
+                                });
+                                Ok(Some(msg))
+                            }
                             MessageType::Binary => Ok(Some(Message::Binary(payload))),
                         }
                     }

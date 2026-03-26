@@ -21,6 +21,7 @@ all-features = true
 default = ["handshake"]
 handshake = ["data-encoding", "http", "httparse", "sha1"]
 unsafe_read = []
+skip_utf8_validation = []
 url = ["dep:url"]
 native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
