@@ -921,4 +921,54 @@ mod tests {
             Err(Error::Capacity(CapacityError::MessageTooLong { size: 3, max_size: 2 }))
         ));
     }
+
+    /// Verify correctness reading text messages larger than the default
+    /// read_buffer_size (128 KiB). The payload must survive multiple
+    /// `read_in` calls and any buffer reallocation without corruption.
+    #[test]
+    fn read_large_text_message() {
+        // 1 MiB payload — 8x the default 128 KiB buffer.
+        let size = 1024 * 1024;
+        // Deterministic ASCII pattern so we can verify every byte.
+        let payload: String = (0..size).map(|i| (b'A' + (i % 26) as u8) as char).collect();
+
+        // Build an unmasked text frame with 64-bit extended length.
+        let mut frame = vec![0x81u8, 127]; // FIN=1 text, 64-bit length marker
+        frame.extend_from_slice(&(size as u64).to_be_bytes());
+        frame.extend_from_slice(payload.as_bytes());
+
+        let config =
+            WebSocketConfig::default().max_message_size(Some(size + 1)).max_frame_size(Some(size + 1));
+        let mut socket =
+            WebSocket::from_raw_socket(WriteMoc(Cursor::new(frame)), Role::Client, Some(config));
+
+        match socket.read().unwrap() {
+            Message::Text(text) => assert_eq!(text.as_str(), payload),
+            other => panic!("Expected Text, got {other:?}"),
+        }
+    }
+
+    /// Same as above but with a small read_buffer_size, forcing many
+    /// `read_in` calls to fill the payload.
+    #[test]
+    fn read_large_text_message_small_buffer() {
+        let size = 512 * 1024; // 512 KiB payload
+        let payload: String = (0..size).map(|i| (b'A' + (i % 26) as u8) as char).collect();
+
+        let mut frame = vec![0x81u8, 127];
+        frame.extend_from_slice(&(size as u64).to_be_bytes());
+        frame.extend_from_slice(payload.as_bytes());
+
+        let config = WebSocketConfig::default()
+            .read_buffer_size(4096) // 4 KiB — needs ~128 read_in calls
+            .max_message_size(Some(size + 1))
+            .max_frame_size(Some(size + 1));
+        let mut socket =
+            WebSocket::from_raw_socket(WriteMoc(Cursor::new(frame)), Role::Client, Some(config));
+
+        match socket.read().unwrap() {
+            Message::Text(text) => assert_eq!(text.as_str(), payload),
+            other => panic!("Expected Text, got {other:?}"),
+        }
+    }
 }

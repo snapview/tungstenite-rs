@@ -83,9 +83,17 @@ impl Write for SingleFrameStream {
 }
 
 /// Construct an unmasked WebSocket text frame (server → client).
+///
+/// Header sizes: ≤125 bytes → 2B, 126–65535 → 4B, >65535 → 10B.
 fn make_unmasked_text_frame(payload: &[u8]) -> Vec<u8> {
     let len = payload.len();
-    let header_size = if len <= 125 { 2 } else { 4 };
+    let header_size = if len <= 125 {
+        2
+    } else if len <= 65535 {
+        4
+    } else {
+        10
+    };
     let mut frame = Vec::with_capacity(header_size + len);
 
     // FIN=1, RSV=0, opcode=0x1 (text)
@@ -93,10 +101,14 @@ fn make_unmasked_text_frame(payload: &[u8]) -> Vec<u8> {
 
     if len <= 125 {
         frame.push(len as u8);
-    } else {
+    } else if len <= 65535 {
         // MASK=0, length marker=126 → next 2 bytes are big-endian u16 length
         frame.push(126);
         frame.extend_from_slice(&(len as u16).to_be_bytes());
+    } else {
+        // MASK=0, length marker=127 → next 8 bytes are big-endian u64 length
+        frame.push(127);
+        frame.extend_from_slice(&(len as u64).to_be_bytes());
     }
 
     frame.extend_from_slice(payload);
@@ -187,5 +199,62 @@ fn bench_latency(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_throughput, bench_latency);
+/// Correctness + performance for messages larger than the default read buffer.
+/// A 1 MiB payload with a 128 KiB buffer requires ~8 `read_in` calls,
+/// exercising buffer reallocation and multi-pass reads.
+fn bench_large_messages(c: &mut Criterion) {
+    let mut group = c.benchmark_group("read_text_large");
+
+    for payload_size in [256 * 1024, 1024 * 1024] {
+        let payload: String = (0..payload_size)
+            .map(|i| (b'A' + (i % 26) as u8) as char)
+            .collect();
+        let frame = make_unmasked_text_frame(payload.as_bytes());
+        let frame_size = frame.len();
+        let msg_count: usize = 50;
+        let all_frames: Vec<u8> = frame.repeat(msg_count);
+
+        group.throughput(Throughput::Elements(msg_count as u64));
+
+        // Use SingleFrameStream so each message triggers its own read_in
+        // calls — same as real-world per-message arrival.
+        group.bench_with_input(
+            BenchmarkId::from_parameter(format!("{}KiB", payload_size / 1024)),
+            &payload_size,
+            |b, _| {
+                let config = WebSocketConfig::default()
+                    .max_message_size(Some(payload_size + 1))
+                    .max_frame_size(Some(payload_size + 1));
+                b.iter_batched(
+                    || {
+                        let stream =
+                            SingleFrameStream::new(all_frames.clone(), frame_size);
+                        WebSocket::from_raw_socket(stream, Role::Client, Some(config))
+                    },
+                    |mut ws| {
+                        for _ in 0..msg_count {
+                            let msg = ws.read().unwrap();
+                            // Verify first and last bytes to catch corruption.
+                            match &msg {
+                                tungstenite::Message::Text(t) => {
+                                    debug_assert_eq!(t.as_bytes()[0], b'A');
+                                    debug_assert_eq!(
+                                        t.as_bytes()[payload_size - 1],
+                                        b'A' + ((payload_size - 1) % 26) as u8
+                                    );
+                                }
+                                other => panic!("Expected Text, got {other:?}"),
+                            }
+                            black_box(msg);
+                        }
+                    },
+                    criterion::BatchSize::LargeInput,
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
+criterion_group!(benches, bench_throughput, bench_latency, bench_large_messages);
 criterion_main!(benches);
