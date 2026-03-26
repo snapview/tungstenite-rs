@@ -230,10 +230,33 @@ impl FrameCodec {
     }
 
     /// Read into available `in_buffer` capacity.
+    #[cfg(not(feature = "unsafe_read"))]
     fn read_in(&mut self, stream: &mut impl Read) -> io::Result<usize> {
         let len = self.in_buffer.len();
         debug_assert!(self.in_buffer.capacity() > len);
         self.in_buffer.resize(self.in_buffer.capacity().min(len + self.in_buf_max_read), 0);
+        let size = stream.read(&mut self.in_buffer[len..]);
+        self.in_buffer.truncate(len + size.as_ref().copied().unwrap_or(0));
+        size
+    }
+
+    /// Read into available `in_buffer` capacity without zero-filling.
+    ///
+    /// Skips the `resize(_, 0)` memset by extending into uninitialized spare
+    /// capacity. On error or short read, `truncate` restores the buffer to
+    /// only the initialized portion.
+    #[cfg(feature = "unsafe_read")]
+    fn read_in(&mut self, stream: &mut impl Read) -> io::Result<usize> {
+        let len = self.in_buffer.len();
+        debug_assert!(self.in_buffer.capacity() > len);
+        let target = self.in_buffer.capacity().min(len + self.in_buf_max_read);
+        // SAFETY: target <= capacity (from min above). The bytes in len..target
+        // may be uninitialized. Read::read only writes into the slice — it must
+        // not read from it. On completion, truncate shrinks the length to only
+        // the bytes that were actually initialized by the read.
+        unsafe {
+            self.in_buffer.set_len(target);
+        }
         let size = stream.read(&mut self.in_buffer[len..]);
         self.in_buffer.truncate(len + size.as_ref().copied().unwrap_or(0));
         size

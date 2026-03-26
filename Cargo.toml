@@ -20,6 +20,7 @@ all-features = true
 [features]
 default = ["handshake"]
 handshake = ["data-encoding", "http", "httparse", "sha1"]
+unsafe_read = []
 url = ["dep:url"]
 native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
