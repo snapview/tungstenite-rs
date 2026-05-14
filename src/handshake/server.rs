@@ -7,8 +7,8 @@ use std::{
 };
 
 use http::{
-    header::HeaderName,
-    response::Builder, HeaderMap, Request as HttpRequest, Response as HttpResponse, StatusCode,
+    header::HeaderName, response::Builder, HeaderMap, Request as HttpRequest,
+    Response as HttpResponse, StatusCode,
 };
 use httparse::Status;
 use log::*;
