@@ -72,10 +72,10 @@ fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
         .get("Sec-WebSocket-Key")
         .ok_or(Error::Protocol(ProtocolError::MissingSecWebSocketKey))?;
 
-        if key.len() != 24 {
-        return Err(Error::Protocol(ProtocolError::InvalidHeader(
-            Box::new(HeaderName::from_static("sec-websocket-key")),
-        )));
+    if key.len() != 24 {
+        return Err(Error::Protocol(ProtocolError::InvalidHeader(Box::new(
+            HeaderName::from_static("sec-websocket-key"),
+        ))));
     }
 
     let builder = Response::builder()
