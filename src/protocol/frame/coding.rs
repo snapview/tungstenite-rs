@@ -261,6 +261,7 @@ impl From<u16> for CloseCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::CloseCode::*;
 
     #[test]
     fn opcode_from_u8() {
@@ -287,5 +288,79 @@ mod tests {
         let byte: u16 = text.into();
         assert_eq!(byte, 1001u16);
         assert_eq!(u16::from(text), 1001u16);
+    }
+
+    #[test]
+    fn opcode_round_trip_reserved_data() {
+        for byte in 3..=7 {
+            let code = OpCode::from(byte);
+            assert_eq!(u8::from(code), byte);
+            assert!(matches!(code, OpCode::Data(Data::Reserved(b)) if b == byte));
+        }
+    }
+
+    #[test]
+    fn opcode_round_trip_reserved_control() {
+        for byte in 11..=15 {
+            let code = OpCode::from(byte);
+            assert_eq!(u8::from(code), byte);
+            assert!(matches!(code, OpCode::Control(Control::Reserved(b)) if b == byte));
+        }
+    }
+
+    #[test]
+    fn opcode_data_control_boundary() {
+        assert_eq!(OpCode::from(7), OpCode::Data(Data::Reserved(7)));
+        assert_eq!(OpCode::from(8), OpCode::Control(Control::Close));
+        assert_eq!(OpCode::from(10), OpCode::Control(Control::Pong));
+    }
+
+    #[test]
+    #[should_panic(expected = "Bug: OpCode out of range")]
+    fn opcode_invalid_panics() {
+        let _ = OpCode::from(16);
+    }
+
+    #[test]
+    fn closecode_from_u16_bands() {
+        assert_eq!(CloseCode::from(0), Bad(0));
+        assert_eq!(CloseCode::from(1), Bad(1));
+        assert_eq!(CloseCode::from(999), Bad(999));
+        assert_eq!(CloseCode::from(1000), Normal);
+        assert_eq!(CloseCode::from(1004), Bad(1004));
+        assert_eq!(CloseCode::from(1014), Bad(1014));
+        assert_eq!(CloseCode::from(1015), Tls);
+        assert_eq!(CloseCode::from(1016), Reserved(1016));
+        assert_eq!(CloseCode::from(2999), Reserved(2999));
+        assert_eq!(CloseCode::from(3000), Iana(3000));
+        assert_eq!(CloseCode::from(3999), Iana(3999));
+        assert_eq!(CloseCode::from(4000), Library(4000));
+        assert_eq!(CloseCode::from(4999), Library(4999));
+        assert_eq!(CloseCode::from(5000), Bad(5000));
+    }
+
+    #[test]
+    fn closecode_round_trip_bands() {
+        let cases = [
+            (Bad(0), 0),
+            (Bad(1), 1),
+            (Bad(999), 999),
+            (Normal, 1000),
+            (Bad(1004), 1004),
+            (Bad(1014), 1014),
+            (Tls, 1015),
+            (Reserved(1016), 1016),
+            (Reserved(2999), 2999),
+            (Iana(3000), 3000),
+            (Iana(3999), 3999),
+            (Library(4000), 4000),
+            (Library(4999), 4999),
+            (Bad(5000), 5000),
+        ];
+        for (code, expected_raw) in cases {
+            let raw: u16 = code.into();
+            assert_eq!(raw, expected_raw);
+            assert_eq!(CloseCode::from(raw), code);
+        }
     }
 }
