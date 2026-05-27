@@ -373,7 +373,7 @@ mod tests {
         let mut sock = FrameSocket::new(raw);
         assert!(matches!(
             sock.read(None),
-            Err(Error::Capacity(CapacityError::MessageTooLong { .. }))
+            Err(Error::Capacity(CapacityError::MessageTooLong { size: 5, max_size: usize::MAX }))
         ));
     }
 }
