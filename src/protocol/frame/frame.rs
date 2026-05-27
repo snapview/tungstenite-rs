@@ -171,7 +171,17 @@ impl FrameHeader {
                 match cursor.read_exact(&mut buffer[start..]) {
                     Err(ref err) if err.kind() == ErrorKind::UnexpectedEof => return Ok(None),
                     Err(err) => return Err(err.into()),
-                    Ok(()) => u64::from_be_bytes(buffer),
+                    Ok(()) => {
+                        let length = u64::from_be_bytes(buffer);
+                        // The minimal number of bytes MUST be used to encode the
+                        // length (RFC 6455 §5.2), so a longer form than necessary
+                        // is a protocol violation.
+                        let min = if length_length == 2 { 126 } else { 65536 };
+                        if length < min {
+                            return Err(Error::Protocol(ProtocolError::NonMinimalLengthEncoding));
+                        }
+                        length
+                    }
                 }
             } else {
                 u64::from(length_byte)
@@ -472,6 +482,29 @@ mod tests {
         raw.read_to_end(&mut payload).unwrap();
         let frame = Frame::from_payload(header, payload.into());
         assert_eq!(frame.into_payload(), &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07][..]);
+    }
+
+    #[test]
+    fn reject_non_minimal_u16_length() {
+        // RFC 6455 §5.2: a 5-byte payload must use the 7-bit length form,
+        // not the 16-bit form.
+        let mut raw: Cursor<Vec<u8>> =
+            Cursor::new(vec![0x82, 0x7e, 0x00, 0x05, 0x01, 0x02, 0x03, 0x04, 0x05]);
+        assert!(matches!(
+            FrameHeader::parse(&mut raw),
+            Err(Error::Protocol(ProtocolError::NonMinimalLengthEncoding))
+        ));
+    }
+
+    #[test]
+    fn reject_non_minimal_u64_length() {
+        // A length that fits the 16-bit form must not use the 64-bit form.
+        let mut raw: Cursor<Vec<u8>> =
+            Cursor::new(vec![0x82, 0x7f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7d]);
+        assert!(matches!(
+            FrameHeader::parse(&mut raw),
+            Err(Error::Protocol(ProtocolError::NonMinimalLengthEncoding))
+        ));
     }
 
     #[test]

@@ -256,6 +256,9 @@ pub enum ProtocolError {
     /// The payload for the closing frame is invalid.
     #[error("Invalid close sequence")]
     InvalidCloseSequence,
+    /// The payload length was not encoded with the minimal number of bytes (RFC 6455 §5.2).
+    #[error("Frame payload length not minimally encoded")]
+    NonMinimalLengthEncoding,
 }
 
 /// Indicates the specific type/cause of URL error.
