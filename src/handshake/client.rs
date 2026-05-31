@@ -245,7 +245,7 @@ impl VerifyData {
         if !headers
             .get("Connection")
             .and_then(|h| h.to_str().ok())
-            .map(|h| h.eq_ignore_ascii_case("Upgrade"))
+            .map(|h| h.split([' ', ',']).any(|p| p.eq_ignore_ascii_case("Upgrade")))
             .unwrap_or(false)
         {
             return Err(Error::Protocol(ProtocolError::MissingConnectionUpgradeHeader));
@@ -390,6 +390,25 @@ mod tests {
         let (request, key) = generate_request(request).unwrap();
         let correct = construct_expected("localhost:9001", &key);
         assert_eq!(&request[..], &correct[..]);
+    }
+
+    #[test]
+    fn verify_response_connection_header_token_list() {
+        use super::{super::derive_accept_key, VerifyData};
+
+        let key = generate_key();
+        let accept_key = derive_accept_key(key.as_bytes());
+        let verify = VerifyData { accept_key: accept_key.clone(), subprotocols: None };
+
+        let response = http::Response::builder()
+            .status(http::StatusCode::SWITCHING_PROTOCOLS)
+            .header("Upgrade", "websocket")
+            .header("Connection", "keep-alive, Upgrade")
+            .header("Sec-WebSocket-Accept", accept_key)
+            .body(None)
+            .unwrap();
+
+        assert!(verify.verify_response(response).is_ok());
     }
 
     #[test]
