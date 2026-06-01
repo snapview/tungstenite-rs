@@ -233,7 +233,7 @@ impl VerifyData {
         if !headers
             .get("Upgrade")
             .and_then(|h| h.to_str().ok())
-            .map(|h| h.eq_ignore_ascii_case("websocket"))
+            .map(|h| h.split([' ', ',']).any(|p| p.eq_ignore_ascii_case("websocket")))
             .unwrap_or(false)
         {
             return Err(Error::Protocol(ProtocolError::MissingUpgradeWebSocketHeader));
@@ -453,5 +453,22 @@ mod tests {
             req_bytes.windows(expected_header.len()).any(|window| window == expected_header),
             "Request should preserve the raw Latin-1 bytes"
         );
+    }
+
+    #[test]
+    fn verify_response_upgrade_token_list() {
+        let key = "dGhlIHNhbXBsZSBub25jZQ==";
+        let accept_key = crate::handshake::derive_accept_key(key.as_bytes());
+        let verify = super::VerifyData { accept_key: accept_key.clone(), subprotocols: None };
+
+        let response = http::Response::builder()
+            .status(http::StatusCode::SWITCHING_PROTOCOLS)
+            .header("Connection", "Upgrade")
+            .header("Upgrade", "websocket, h2c")
+            .header("Sec-WebSocket-Accept", accept_key)
+            .body(Option::<Vec<u8>>::None)
+            .unwrap();
+
+        assert!(verify.verify_response(response).is_ok());
     }
 }

@@ -57,7 +57,7 @@ fn create_parts<T>(request: &HttpRequest<T>) -> Result<Builder> {
         .headers()
         .get("Upgrade")
         .and_then(|h| h.to_str().ok())
-        .map(|h| h.eq_ignore_ascii_case("websocket"))
+        .map(|h| h.split([' ', ',']).any(|p| p.eq_ignore_ascii_case("websocket")))
         .unwrap_or(false)
     {
         return Err(Error::Protocol(ProtocolError::MissingUpgradeWebSocketHeader));
@@ -386,6 +386,20 @@ mod tests {
     #[test]
     fn test_valid_websocket_key() {
         let req = request_with_key("dGhlIHNhbXBsZSBub25jZQ==");
+        assert!(create_response(&req).is_ok());
+    }
+
+    #[test]
+    fn request_upgrade_token_list() {
+        const DATA: &[u8] = b"\
+            GET /script.ws HTTP/1.1\r\n\
+            Host: foo.com\r\n\
+            Connection: upgrade\r\n\
+            Upgrade: websocket, h2c\r\n\
+            Sec-WebSocket-Version: 13\r\n\
+            Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+            \r\n";
+        let (_, req) = Request::try_parse(DATA).unwrap().unwrap();
         assert!(create_response(&req).is_ok());
     }
 }
