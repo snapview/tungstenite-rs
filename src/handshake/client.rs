@@ -262,7 +262,14 @@ impl VerifyData {
         // that was not present in the client's handshake (the server has
         // indicated an extension not requested by the client), the client
         // MUST _Fail the WebSocket Connection_. (RFC 6455)
-        // TODO
+        //
+        // No extensions are offered in the generated client handshake, so any
+        // extension echoed back by the server was not requested.
+        if headers.contains_key("Sec-WebSocket-Extensions") {
+            return Err(Error::Protocol(ProtocolError::InvalidHeader(
+                HeaderName::from_static("sec-websocket-extensions").into(),
+            )));
+        }
 
         // 6.  If the response includes a |Sec-WebSocket-Protocol| header field
         // and this header field indicates the use of a subprotocol that was
@@ -390,6 +397,34 @@ mod tests {
         let (request, key) = generate_request(request).unwrap();
         let correct = construct_expected("localhost:9001", &key);
         assert_eq!(&request[..], &correct[..]);
+    }
+
+    #[test]
+    fn unrequested_extension_rejected() {
+        use super::VerifyData;
+        use crate::error::{Error, ProtocolError};
+
+        let response = |with_ext: bool| {
+            let mut b = http::Response::builder()
+                .status(http::StatusCode::SWITCHING_PROTOCOLS)
+                .header("Upgrade", "websocket")
+                .header("Connection", "Upgrade")
+                .header("Sec-WebSocket-Accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=");
+            if with_ext {
+                b = b.header("Sec-WebSocket-Extensions", "permessage-deflate");
+            }
+            b.body(None).unwrap()
+        };
+        let verify = || VerifyData {
+            accept_key: "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=".to_string(),
+            subprotocols: None,
+        };
+
+        assert!(verify().verify_response(response(false)).is_ok());
+        assert!(matches!(
+            verify().verify_response(response(true)),
+            Err(Error::Protocol(ProtocolError::InvalidHeader(_)))
+        ));
     }
 
     #[test]
