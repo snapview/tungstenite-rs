@@ -197,6 +197,14 @@ impl FrameHeader {
             _ => (),
         }
 
+        // All control frames MUST have a payload length of 125 bytes or less
+        // (RFC 6455, section 5.5). Reject an oversized control frame from its
+        // declared length here, before the codec reserves and buffers the
+        // payload (up to `max_frame_size`).
+        if matches!(opcode, OpCode::Control(_)) && length > 125 {
+            return Err(Error::Protocol(ProtocolError::ControlFrameTooBig));
+        }
+
         let hdr = FrameHeader { is_final, rsv1, rsv2, rsv3, opcode, mask };
 
         Ok(Some((hdr, length)))
@@ -472,6 +480,17 @@ mod tests {
         raw.read_to_end(&mut payload).unwrap();
         let frame = Frame::from_payload(header, payload.into());
         assert_eq!(frame.into_payload(), &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07][..]);
+    }
+
+    #[test]
+    fn parse_rejects_oversized_control_frame() {
+        // Ping (opcode 0x9) with a declared payload length of 126, which exceeds
+        // the 125-byte limit for control frames (RFC 6455 section 5.5).
+        let mut raw: Cursor<Vec<u8>> = Cursor::new(vec![0x89, 0x7e, 0x00, 0x7e]);
+        assert!(matches!(
+            FrameHeader::parse(&mut raw),
+            Err(Error::Protocol(ProtocolError::ControlFrameTooBig))
+        ));
     }
 
     #[test]
