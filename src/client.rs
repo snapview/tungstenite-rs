@@ -98,7 +98,13 @@ pub fn connect_with_config<Req: IntoClientRequest>(
                     if !is_same_origin(&uri, &new_uri) {
                         // Drop credentials when redirected to a different origin, otherwise
                         // a server can point us at an arbitrary host and harvest them.
-                        for header in ["authorization", "cookie", "proxy-authorization"] {
+                        for header in [
+                            "authorization",
+                            "cookie",
+                            "cookie2",
+                            "proxy-authorization",
+                            "www-authenticate",
+                        ] {
                             parts.headers.remove(header);
                         }
                     }
