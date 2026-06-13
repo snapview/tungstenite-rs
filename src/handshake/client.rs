@@ -329,8 +329,9 @@ impl<'h, 'b: 'h> FromHttparse<httparse::Response<'h, 'b>> for Response {
 pub fn generate_key() -> String {
     // a base64-encoded (see Section 4 of [RFC4648]) value that,
     // when decoded, is 16 bytes in length (RFC 6455)
-    let r: [u8; 16] = rand::random();
-    data_encoding::BASE64.encode(&r)
+    let mut key = [0u8; 16];
+    getrandom::fill(&mut key).expect("websocket handshake key requires system randomness");
+    data_encoding::BASE64.encode(&key)
 }
 
 #[cfg(test)]
