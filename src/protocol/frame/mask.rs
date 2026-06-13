@@ -1,7 +1,9 @@
 /// Generate a random frame mask.
 #[inline]
 pub fn generate_mask() -> [u8; 4] {
-    rand::random()
+    let mut mask = [0u8; 4];
+    getrandom::fill(&mut mask).expect("websocket mask generation requires system randomness");
+    mask
 }
 
 /// Mask/unmask a frame.
