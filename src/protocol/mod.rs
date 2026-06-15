@@ -216,6 +216,18 @@ impl<Stream> WebSocket<Stream> {
     /// response (or where some frames have already been read and a tail
     /// remains). Those buffered bytes precede anything still unread on the
     /// returned stream.
+    ///
+    /// # Frame boundary
+    ///
+    /// This is lossless only at a frame boundary: before any message has been
+    /// read, or after whole messages have been read. If a frame is only
+    /// partially read — its header has been parsed but the payload has not
+    /// fully arrived, e.g. after a mid-frame
+    /// [`WouldBlock`](std::io::ErrorKind::WouldBlock) — the already-parsed
+    /// header bytes have been consumed from the read buffer and cannot be
+    /// recovered; only the partial payload would be returned. The intended use,
+    /// taking over the raw stream right after the handshake, is always at a
+    /// frame boundary. Debug builds assert this precondition.
     pub fn into_inner_with_read_buffer(self) -> (Stream, Bytes) {
         (self.socket, self.context.into_read_buffer())
     }
@@ -452,6 +464,11 @@ impl WebSocketContext {
     /// them recover any buffered-but-unconsumed bytes (e.g. frame bytes the peer
     /// coalesced into the same read as the handshake response) before taking the
     /// raw stream over.
+    ///
+    /// Like [`WebSocket::into_inner_with_read_buffer`], this is lossless only at
+    /// a frame boundary; if a frame is only partially read, its already-parsed
+    /// header bytes are not recoverable and only the partial payload is
+    /// returned.
     pub fn into_read_buffer(self) -> Bytes {
         self.frame.into_read_buffer().freeze()
     }
@@ -975,5 +992,36 @@ mod tests {
         assert_eq!(ws.read().unwrap(), Message::Binary(vec![0x41].into()));
         let (_stream, buffer) = ws.into_inner_with_read_buffer();
         assert_eq!(&buffer[..], &[0x82, 0x01, 0x42]);
+    }
+
+    // The lossless guarantee holds only at a frame boundary. With a header
+    // parsed but its payload incomplete, the header bytes have already left the
+    // read buffer; recovering it then would silently drop them, so debug builds
+    // assert against the call. Only meaningful with debug assertions enabled.
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "partial frame")]
+    fn into_inner_with_read_buffer_panics_mid_frame_in_debug() {
+        // A read end that always reports "no data yet", so a frame can be left
+        // half-read (header parsed, payload incomplete) deterministically.
+        struct WouldBlockRead;
+        impl io::Read for WouldBlockRead {
+            fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
+                Err(io::Error::new(io::ErrorKind::WouldBlock, "would block"))
+            }
+        }
+
+        // Header for a 5-byte binary frame, but only 2 payload bytes buffered;
+        // the stream then yields WouldBlock, leaving a parsed header whose
+        // payload is incomplete.
+        let partial = vec![0x82, 0x05, 0x01, 0x02];
+        let mut ws =
+            WebSocket::from_partially_read(WriteMoc(WouldBlockRead), partial, Role::Client, None);
+        assert!(matches!(
+            ws.read(),
+            Err(Error::Io(ref e)) if e.kind() == io::ErrorKind::WouldBlock
+        ));
+        // Mid-frame: must not silently return a buffer missing the header bytes.
+        let _ = ws.into_inner_with_read_buffer();
     }
 }

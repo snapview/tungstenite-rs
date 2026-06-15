@@ -148,7 +148,19 @@ impl FrameCodec {
 
     /// Consume the codec, returning the bytes that were read from the stream
     /// into the read buffer but not yet consumed as a frame.
+    ///
+    /// Lossless only at a frame boundary. If a partial frame is in flight (a
+    /// header has been parsed but its payload has not fully arrived, e.g. after
+    /// a mid-frame `WouldBlock`), the header bytes have already been consumed
+    /// out of the read buffer and are not recoverable here — the returned
+    /// buffer then holds only the partial payload. Debug builds assert against
+    /// this misuse.
     pub(super) fn into_read_buffer(self) -> BytesMut {
+        debug_assert!(
+            self.header.is_none(),
+            "into_read_buffer called with a partial frame in flight; the parsed \
+             header bytes have already been consumed and cannot be recovered",
+        );
         self.in_buffer
     }
 
