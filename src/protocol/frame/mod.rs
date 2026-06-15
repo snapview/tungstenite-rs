@@ -146,6 +146,12 @@ impl FrameCodec {
         }
     }
 
+    /// Consume the codec, returning the bytes that were read from the stream
+    /// into the read buffer but not yet consumed as a frame.
+    pub(super) fn into_read_buffer(self) -> BytesMut {
+        self.in_buffer
+    }
+
     /// Sets a maximum size for the out buffer.
     pub(super) fn set_max_out_buffer_len(&mut self, max: usize) {
         self.max_out_buffer_len = max;

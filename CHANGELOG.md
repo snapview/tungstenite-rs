@@ -1,6 +1,7 @@
 # UNRELEASED
 
 * Reject non-compliant clients (incorrect `Sec-WebSocket-Key` length/format) on the server side.
+* Add `WebSocket::into_inner_with_read_buffer()` (and `WebSocketContext::into_read_buffer()`) so that a caller taking over the raw stream after the handshake can recover bytes the peer coalesced into the same read as the handshake response, which `into_inner()` discards.
 
 # 0.29.0
 
