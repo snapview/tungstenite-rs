@@ -85,7 +85,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
         builder.body(()).expect("Failed to create `Request`")
     }
 
-    let (parts, _) = request.into_client_request()?.into_parts();
+    let (mut parts, _) = request.into_client_request()?.into_parts();
     let mut uri = parts.uri.clone();
 
     for attempt in 0..=max_redirects {
@@ -94,7 +94,21 @@ pub fn connect_with_config<Req: IntoClientRequest>(
         match try_client_handshake(request, config) {
             Err(Error::Http(res)) if res.status().is_redirection() && attempt < max_redirects => {
                 if let Some(location) = res.headers().get("Location") {
-                    uri = location.to_str()?.parse::<Uri>()?;
+                    let new_uri = location.to_str()?.parse::<Uri>()?;
+                    if !is_same_origin(&uri, &new_uri) {
+                        // Drop credentials when redirected to a different origin, otherwise
+                        // a server can point us at an arbitrary host and harvest them.
+                        for header in [
+                            "authorization",
+                            "cookie",
+                            "cookie2",
+                            "proxy-authorization",
+                            "www-authenticate",
+                        ] {
+                            parts.headers.remove(header);
+                        }
+                    }
+                    uri = new_uri;
                     debug!("Redirecting to {uri:?}");
                     continue;
                 } else {
@@ -125,6 +139,19 @@ pub fn connect<Req: IntoClientRequest>(
     request: Req,
 ) -> Result<(WebSocket<MaybeTlsStream<TcpStream>>, Response)> {
     connect_with_config(request, None, 3)
+}
+
+/// Whether two URIs share the same origin (scheme, host and effective port).
+fn is_same_origin(a: &Uri, b: &Uri) -> bool {
+    fn port(uri: &Uri) -> Option<u16> {
+        uri.port_u16().or_else(|| match uri.scheme_str() {
+            Some("ws") => Some(80),
+            Some("wss") => Some(443),
+            _ => None,
+        })
+    }
+    let host = |uri: &Uri| uri.host().map(str::to_ascii_lowercase);
+    a.scheme_str() == b.scheme_str() && host(a) == host(b) && port(a) == port(b)
 }
 
 fn connect_to_some(addrs: &[SocketAddr], uri: &Uri) -> Result<TcpStream> {
@@ -339,5 +366,24 @@ impl IntoClientRequest for ClientRequestBuilder {
             headers.append("Sec-WebSocket-Protocol", protocols);
         }
         Ok(request)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_same_origin;
+    use http::Uri;
+
+    #[test]
+    fn same_origin() {
+        let p = |s: &str| s.parse::<Uri>().unwrap();
+        assert!(is_same_origin(&p("ws://example.com/a"), &p("ws://example.com/b")));
+        assert!(is_same_origin(&p("ws://example.com/a"), &p("ws://EXAMPLE.com/b")));
+        assert!(is_same_origin(&p("ws://example.com:80/a"), &p("ws://example.com/b")));
+        assert!(is_same_origin(&p("wss://example.com:443/a"), &p("wss://example.com/b")));
+
+        assert!(!is_same_origin(&p("ws://example.com/a"), &p("ws://other.com/a")));
+        assert!(!is_same_origin(&p("ws://example.com/a"), &p("wss://example.com/a")));
+        assert!(!is_same_origin(&p("ws://example.com:80/a"), &p("ws://example.com:81/a")));
     }
 }

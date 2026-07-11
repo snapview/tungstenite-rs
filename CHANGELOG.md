@@ -1,3 +1,7 @@
+# UNRELEASED
+
+* Drop sensitive headers (`Authorization`, `Cookie`, `Proxy-Authorization`, ...) when `connect` follows a redirect to a different origin.
+
 # 0.30.0
 
 * Reject non-compliant clients (incorrect `Sec-WebSocket-Key` length/format) on the server side.
