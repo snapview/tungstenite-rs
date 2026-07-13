@@ -35,7 +35,7 @@ mod encryption {
 
         use crate::{
             error::TlsError,
-            stream::{MaybeTlsStream, Mode},
+            stream::{MaybeTlsStream, Mode, NativeTlsStream},
             Error, Result,
         };
 
@@ -55,13 +55,15 @@ mod encryption {
                     let connector = try_connector.map_err(TlsError::from)?;
                     let connected = connector.connect(domain, socket);
                     match connected {
-                        Err(e) => match e {
-                            TlsHandshakeError::Failure(f) => Err(Error::Tls(f.into())),
-                            TlsHandshakeError::WouldBlock(_) => {
-                                panic!("Bug: TLS handshake not blocked")
-                            }
-                        },
-                        Ok(s) => Ok(MaybeTlsStream::NativeTls(s)),
+                        Ok(s) => Ok(MaybeTlsStream::NativeTls(NativeTlsStream::ready(s))),
+                        Err(TlsHandshakeError::Failure(f)) => Err(Error::Tls(f.into())),
+                        // A non-blocking transport can interrupt the handshake.
+                        // Preserve the mid-handshake state so it can be resumed
+                        // on the next I/O attempt (symmetric to the rustls
+                        // backend) instead of panicking. See issue #450.
+                        Err(TlsHandshakeError::WouldBlock(mid)) => {
+                            Ok(MaybeTlsStream::NativeTls(NativeTlsStream::handshaking(mid)))
+                        }
                     }
                 }
             }

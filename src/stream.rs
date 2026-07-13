@@ -14,7 +14,7 @@ use std::{
 use std::net::TcpStream;
 
 #[cfg(feature = "native-tls")]
-use native_tls_crate::TlsStream;
+use native_tls_crate::{HandshakeError as NativeHandshakeError, MidHandshakeTlsStream, TlsStream};
 #[cfg(feature = "__rustls-tls")]
 use rustls::StreamOwned;
 
@@ -46,6 +46,152 @@ impl<S: Read + Write + NoDelay> NoDelay for TlsStream<S> {
     }
 }
 
+/// A `native-tls` stream that may still be completing its TLS handshake.
+///
+/// The `native-tls` `TlsConnector::connect` drives the TLS handshake eagerly,
+/// so on a non-blocking transport it can return before the handshake is
+/// finished. This wrapper stores that mid-handshake state and transparently
+/// resumes it on the next read or write, mirroring the way the `rustls` backend
+/// defers its handshake until the first I/O operation. Keeping the two backends
+/// symmetric means an interrupted handshake surfaces as
+/// [`HandshakeError::Interrupted`](crate::HandshakeError::Interrupted) instead
+/// of panicking (see <https://github.com/snapview/tungstenite-rs/issues/450>).
+#[cfg(feature = "native-tls")]
+pub struct NativeTlsStream<S: Read + Write> {
+    state: NativeTlsState<S>,
+}
+
+#[cfg(feature = "native-tls")]
+#[allow(clippy::large_enum_variant)]
+enum NativeTlsState<S: Read + Write> {
+    /// The TLS handshake is still in progress; it is resumed on the next I/O.
+    Handshaking(MidHandshakeTlsStream<S>),
+    /// The TLS handshake has completed; I/O is delegated to the stream.
+    Ready(TlsStream<S>),
+    /// Transient placeholder used while resuming the handshake, and the terminal
+    /// state after a fatal handshake error. Any I/O in this state fails.
+    Invalid,
+}
+
+#[cfg(feature = "native-tls")]
+impl<S: Read + Write> NativeTlsStream<S> {
+    /// Wrap an already-completed `native-tls` stream.
+    pub(crate) fn ready(stream: TlsStream<S>) -> Self {
+        Self { state: NativeTlsState::Ready(stream) }
+    }
+
+    /// Wrap a `native-tls` stream whose handshake was interrupted (would block).
+    pub(crate) fn handshaking(stream: MidHandshakeTlsStream<S>) -> Self {
+        Self { state: NativeTlsState::Handshaking(stream) }
+    }
+
+    /// Returns a reference to the underlying `native-tls` stream, or `None` if
+    /// the TLS handshake has not finished yet.
+    pub fn get_ref(&self) -> Option<&TlsStream<S>> {
+        match &self.state {
+            NativeTlsState::Ready(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// Returns a mutable reference to the underlying `native-tls` stream, or
+    /// `None` if the TLS handshake has not finished yet.
+    pub fn get_mut(&mut self) -> Option<&mut TlsStream<S>> {
+        match &mut self.state {
+            NativeTlsState::Ready(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// Consumes the wrapper, returning the underlying `native-tls` stream, or
+    /// `None` if the TLS handshake has not finished yet.
+    pub fn into_inner(self) -> Option<TlsStream<S>> {
+        match self.state {
+            NativeTlsState::Ready(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// Drive the handshake to completion if it is still pending. Returns `Ok`
+    /// once the stream is ready for I/O. If the handshake would block, the
+    /// mid-handshake state is kept so the operation can be retried later.
+    fn resume(&mut self) -> IoResult<()> {
+        if let NativeTlsState::Ready(_) = self.state {
+            return Ok(());
+        }
+        match std::mem::replace(&mut self.state, NativeTlsState::Invalid) {
+            NativeTlsState::Handshaking(mid) => match mid.handshake() {
+                Ok(stream) => {
+                    self.state = NativeTlsState::Ready(stream);
+                    Ok(())
+                }
+                Err(NativeHandshakeError::WouldBlock(mid)) => {
+                    self.state = NativeTlsState::Handshaking(mid);
+                    Err(std::io::ErrorKind::WouldBlock.into())
+                }
+                Err(NativeHandshakeError::Failure(err)) => Err(std::io::Error::other(err)),
+            },
+            // `Ready` is handled above, so only `Invalid` reaches this arm.
+            _ => Err(std::io::Error::other("native-tls stream used after a failed handshake")),
+        }
+    }
+}
+
+#[cfg(feature = "native-tls")]
+impl<S: Read + Write + Debug> Debug for NativeTlsStream<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.state {
+            NativeTlsState::Handshaking(_) => {
+                f.debug_tuple("NativeTlsStream::Handshaking").finish()
+            }
+            NativeTlsState::Ready(s) => f.debug_tuple("NativeTlsStream::Ready").field(s).finish(),
+            NativeTlsState::Invalid => f.debug_tuple("NativeTlsStream::Invalid").finish(),
+        }
+    }
+}
+
+#[cfg(feature = "native-tls")]
+impl<S: Read + Write> Read for NativeTlsStream<S> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+        self.resume()?;
+        match &mut self.state {
+            NativeTlsState::Ready(s) => s.read(buf),
+            // `resume` only returns `Ok` when the stream is `Ready`.
+            _ => Err(std::io::ErrorKind::WouldBlock.into()),
+        }
+    }
+}
+
+#[cfg(feature = "native-tls")]
+impl<S: Read + Write> Write for NativeTlsStream<S> {
+    fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
+        self.resume()?;
+        match &mut self.state {
+            NativeTlsState::Ready(s) => s.write(buf),
+            _ => Err(std::io::ErrorKind::WouldBlock.into()),
+        }
+    }
+
+    fn flush(&mut self) -> IoResult<()> {
+        self.resume()?;
+        match &mut self.state {
+            NativeTlsState::Ready(s) => s.flush(),
+            _ => Err(std::io::ErrorKind::WouldBlock.into()),
+        }
+    }
+}
+
+#[cfg(feature = "native-tls")]
+impl<S: Read + Write + NoDelay> NoDelay for NativeTlsStream<S> {
+    fn set_nodelay(&mut self, nodelay: bool) -> IoResult<()> {
+        match &mut self.state {
+            NativeTlsState::Handshaking(mid) => mid.get_mut().set_nodelay(nodelay),
+            NativeTlsState::Ready(s) => s.get_mut().set_nodelay(nodelay),
+            NativeTlsState::Invalid => Ok(()),
+        }
+    }
+}
+
 #[cfg(feature = "__rustls-tls")]
 impl<S, SD, T> NoDelay for StreamOwned<S, T>
 where
@@ -66,7 +212,7 @@ pub enum MaybeTlsStream<S: Read + Write> {
     Plain(S),
     #[cfg(feature = "native-tls")]
     /// Encrypted socket stream using `native-tls`.
-    NativeTls(native_tls_crate::TlsStream<S>),
+    NativeTls(NativeTlsStream<S>),
     #[cfg(feature = "__rustls-tls")]
     /// Encrypted socket stream using `rustls`.
     Rustls(rustls::StreamOwned<rustls::ClientConnection, S>),
