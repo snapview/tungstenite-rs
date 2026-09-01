@@ -4,7 +4,22 @@ use std::{
 };
 
 use log::*;
-use tungstenite::{accept, handshake::HandshakeRole, Error, HandshakeError, Message, Result};
+use tungstenite::{
+    accept_with_config, handshake::HandshakeRole, protocol::WebSocketConfig, Error, HandshakeError,
+    Message, Result,
+};
+
+// Passing `None` to `accept_with_config` is exactly `accept`, so the feature-off build
+// negotiates what it always did.
+#[cfg(feature = "deflate")]
+fn deflate_config() -> Option<WebSocketConfig> {
+    Some(WebSocketConfig::default().enable_deflate())
+}
+
+#[cfg(not(feature = "deflate"))]
+fn deflate_config() -> Option<WebSocketConfig> {
+    None
+}
 
 fn must_not_block<Role: HandshakeRole>(err: HandshakeError<Role>) -> Error {
     match err {
@@ -14,7 +29,7 @@ fn must_not_block<Role: HandshakeRole>(err: HandshakeError<Role>) -> Error {
 }
 
 fn handle_client(stream: TcpStream) -> Result<()> {
-    let mut socket = accept(stream).map_err(must_not_block)?;
+    let mut socket = accept_with_config(stream, deflate_config()).map_err(must_not_block)?;
     info!("Running test");
     loop {
         match socket.read()? {

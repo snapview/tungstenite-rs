@@ -267,6 +267,49 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
 
                 match callback_result {
                     Ok(response) => {
+                        #[cfg(feature = "deflate")]
+                        let mut response = response;
+                        #[cfg(feature = "deflate")]
+                        if self.config.as_ref().is_some_and(|config| config.deflate.is_some()) {
+                            // Built-in permessage-deflate is appended as the sole extension:
+                            // the 101 must not also attest a selection this socket has no
+                            // codec for. The callback keeps the field when deflate is off.
+                            if response
+                                .headers()
+                                .contains_key(http::header::SEC_WEBSOCKET_EXTENSIONS)
+                            {
+                                return Err(Error::Protocol(ProtocolError::InvalidHeader(
+                                    http::header::SEC_WEBSOCKET_EXTENSIONS.clone().into(),
+                                )));
+                            }
+                            let offers = result
+                                .headers()
+                                .get_all(http::header::SEC_WEBSOCKET_EXTENSIONS)
+                                .iter()
+                                .cloned()
+                                .collect::<Vec<_>>();
+                            let (config, agreed) = self
+                                .config
+                                .take()
+                                .expect("configured deflate has a websocket config")
+                                .accept_deflate_offers(&offers);
+                            self.config = Some(config);
+                            if let Some(agreed) = agreed {
+                                response
+                                    .headers_mut()
+                                    .append(http::header::SEC_WEBSOCKET_EXTENSIONS, agreed);
+                            }
+                        } else if crate::protocol::deflate::headers_select_deflate(
+                            response.headers(),
+                        )? {
+                            // A callback cannot advertise permessage-deflate while it is
+                            // disabled here: the socket would have no codec for the state
+                            // the 101 claims.
+                            return Err(Error::Protocol(ProtocolError::InvalidHeader(
+                                http::header::SEC_WEBSOCKET_EXTENSIONS.clone().into(),
+                            )));
+                        }
+
                         let mut output = vec![];
                         write_response(&mut output, &response)?;
                         ProcessingResult::Continue(HandshakeMachine::start_write(stream, output))
@@ -313,6 +356,255 @@ impl<S: Read + Write, C: Callback> HandshakeRole for ServerHandshake<S, C> {
 mod tests {
     use super::{super::machine::TryParse, create_response, Request};
     use crate::error::{Error, ProtocolError};
+
+    #[cfg(feature = "deflate")]
+    mod deflate {
+        use super::*;
+
+        /// A duplex over a fixed request, so `accept_hdr_with_config` runs without a
+        /// socket.
+        #[derive(Debug)]
+        struct MockStream {
+            read: std::io::Cursor<Vec<u8>>,
+            written: Vec<u8>,
+        }
+
+        impl std::io::Read for MockStream {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                std::io::Read::read(&mut self.read, buf)
+            }
+        }
+
+        impl std::io::Write for MockStream {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                self.written.extend_from_slice(buf);
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        /// A callback that adds an extension header the client never offered.
+        struct InjectDeflate(&'static str);
+
+        impl super::super::Callback for InjectDeflate {
+            fn on_request(
+                self,
+                _request: &Request,
+                mut response: super::super::Response,
+            ) -> std::result::Result<super::super::Response, super::super::ErrorResponse>
+            {
+                response.headers_mut().insert(
+                    http::header::SEC_WEBSOCKET_EXTENSIONS,
+                    http::HeaderValue::from_static(self.0),
+                );
+                Ok(response)
+            }
+        }
+
+        /// The callback runs before negotiation, so it cannot *remove* an agreed
+        /// header -- that direction is impossible by construction. It can still
+        /// **inject** one, and only the explicit check catches that.
+        ///
+        /// Without it the `101` advertises compression while `accept_deflate_offers`
+        /// correctly installs none, because the request offered nothing: the wire and
+        /// the codec disagree with nothing red.
+        ///
+        /// The unrelated name is refused for a second reason: automatic
+        /// permessage-deflate is appended as the sole selection, so the `101` never
+        /// attests an extension this socket has no codec for.
+        #[test]
+        fn a_callback_injecting_an_extension_header_fails_the_handshake() {
+            let request = "GET /script.ws HTTP/1.1\r\n\
+                 Host: foo.com\r\n\
+                 Connection: upgrade\r\n\
+                 Upgrade: websocket\r\n\
+                 Sec-WebSocket-Version: 13\r\n\
+                 Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+                 \r\n";
+            for injected in ["permessage-deflate", "PerMessage-Deflate", "x-example"] {
+                let stream = MockStream {
+                    read: std::io::Cursor::new(request.as_bytes().to_vec()),
+                    written: Vec::new(),
+                };
+                let err = crate::accept_hdr_with_config(
+                    stream,
+                    InjectDeflate(injected),
+                    Some(crate::protocol::WebSocketConfig::default().enable_deflate()),
+                )
+                .expect_err("an injected extension header must fail the handshake");
+
+                assert!(
+                    format!("{err:?}").to_lowercase().contains("sec-websocket-extensions"),
+                    "{injected}: must name the header it rejected -- {err:?}"
+                );
+            }
+        }
+
+        /// Even when compression is disabled locally, a callback cannot advertise
+        /// PMD: the returned socket has no codec and would reject the first RSV1
+        /// frame sent under the apparently successful negotiation.
+        #[test]
+        fn a_callback_cannot_advertise_deflate_when_it_is_not_configured() {
+            let request = "GET /script.ws HTTP/1.1\r\n\
+                 Host: foo.com\r\n\
+                 Connection: upgrade\r\n\
+                 Upgrade: websocket\r\n\
+                 Sec-WebSocket-Version: 13\r\n\
+                 Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+                 Sec-WebSocket-Extensions: permessage-deflate\r\n\
+                 \r\n";
+            let stream = MockStream {
+                read: std::io::Cursor::new(request.as_bytes().to_vec()),
+                written: Vec::new(),
+            };
+
+            let err =
+                crate::accept_hdr_with_config(stream, InjectDeflate("permessage-deflate"), None)
+                    .expect_err("a response cannot advertise a codec the socket did not install");
+
+            assert!(matches!(
+                err,
+                crate::handshake::HandshakeError::Failure(Error::Protocol(
+                    ProtocolError::InvalidHeader(_)
+                ))
+            ));
+        }
+
+        /// The control: the identical callback and config, injecting nothing, must
+        /// complete. Otherwise the row above could pass because this path always
+        /// fails.
+        #[test]
+        fn control_the_same_path_without_injection_completes() {
+            let request = "GET /script.ws HTTP/1.1\r\n\
+                 Host: foo.com\r\n\
+                 Connection: upgrade\r\n\
+                 Upgrade: websocket\r\n\
+                 Sec-WebSocket-Version: 13\r\n\
+                 Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+                 \r\n";
+            let stream = MockStream {
+                read: std::io::Cursor::new(request.as_bytes().to_vec()),
+                written: Vec::new(),
+            };
+            let socket = crate::accept_with_config(
+                stream,
+                Some(crate::protocol::WebSocketConfig::default().enable_deflate()),
+            )
+            .expect("no injection, so the handshake completes");
+            let response = String::from_utf8_lossy(&socket.get_ref().written).to_ascii_lowercase();
+            assert!(response.contains("101 switching protocols"), "{response}");
+            assert!(
+                !response.contains("sec-websocket-extensions"),
+                "nothing was offered, so nothing is echoed: {response}"
+            );
+        }
+
+        /// The pairing the soft cap exists for: this crate's own client offers
+        /// `client_max_window_bits` with no value, so a reduced-cap server binds it and
+        /// reserves 2^11 bytes to decompress with. Against a client that omits the parameter
+        /// the cap cannot bind at all -- RFC 7692 §7.2.2 forces a 32 KiB decoder there, which
+        /// `a_reduced_cap_prefers_a_binding_offer_over_an_earlier_fallback` still covers.
+        #[test]
+        fn a_reduced_cap_server_binds_this_crates_own_offer() {
+            use crate::protocol::{deflate::Settings, Role, WebSocketConfig};
+
+            let offers = [Settings::default().offer()];
+            let (config, response) = WebSocketConfig::default()
+                .enable_deflate()
+                .deflate_max_window_bits(Role::Client, 11)
+                .accept_deflate_offers(&offers);
+
+            assert_eq!(response.unwrap(), "permessage-deflate; client_max_window_bits=11");
+            let agreed = config.deflate.expect("compression stays enabled");
+            assert_eq!(agreed.client_max_window_bits, 11);
+        }
+
+        /// Under a reduced cap the server prefers an alternative that lets the response bind
+        /// the peer, and falls back to a full-window one only when the whole list holds none.
+        /// RFC 7692 §7.2.2 calls the offered parameter a hint for building the response, and
+        /// §7.1.3 lets the server pick any supported offer, so wire order yields inside that
+        /// preference -- but never between two offers of the same class, nor at the default cap.
+        #[test]
+        fn a_reduced_cap_prefers_a_binding_offer_over_an_earlier_fallback() {
+            use crate::protocol::{deflate::Settings, Role, WebSocketConfig};
+
+            fn accept(cap: u8, offers: &[&str]) -> (Option<Settings>, Option<http::HeaderValue>) {
+                let offers: Vec<http::HeaderValue> =
+                    offers.iter().map(|offer| offer.parse().unwrap()).collect();
+                let (config, response) = WebSocketConfig::default()
+                    .enable_deflate()
+                    .deflate_max_window_bits(Role::Client, cap)
+                    .accept_deflate_offers(&offers);
+                (config.deflate, response)
+            }
+
+            // Offer four is the first that can bind -- two full-window ahead, one narrower behind.
+            let (agreed, response) = accept(
+                11,
+                &[
+                    "permessage-deflate",
+                    "permessage-deflate; server_max_window_bits=12",
+                    "permessage-deflate; client_max_window_bits=11; future=3",
+                    "permessage-deflate; client_no_context_takeover; client_max_window_bits=11",
+                    "permessage-deflate; client_max_window_bits=10",
+                ],
+            );
+            assert_eq!(
+                response.unwrap(),
+                "permessage-deflate; client_no_context_takeover; client_max_window_bits=11"
+            );
+            let agreed = agreed.unwrap();
+            assert!(agreed.client_no_context_takeover);
+            assert_eq!(agreed.client_max_window_bits, 11);
+
+            let (agreed, response) = accept(
+                11,
+                &["permessage-deflate", "permessage-deflate; server_no_context_takeover"],
+            );
+            assert_eq!(response.unwrap(), "permessage-deflate");
+            assert_eq!(agreed.unwrap().client_max_window_bits, 15);
+
+            // At cap 15 nothing outranks anything, so the first wins though the second would bind.
+            let (agreed, response) = accept(
+                15,
+                &["permessage-deflate", "permessage-deflate; client_max_window_bits=10"],
+            );
+            assert_eq!(response.unwrap(), "permessage-deflate");
+            assert_eq!(agreed.unwrap().client_max_window_bits, 15);
+
+            for (offer, expected) in [
+                ("permessage-deflate; client_max_window_bits", 11),
+                ("permessage-deflate; client_max_window_bits=12", 11),
+                ("permessage-deflate; client_max_window_bits=10", 10),
+            ] {
+                let (agreed, response) = accept(11, &[offer]);
+                assert_eq!(
+                    response.unwrap(),
+                    format!("permessage-deflate; client_max_window_bits={expected}")
+                );
+                assert_eq!(agreed.unwrap().client_max_window_bits, expected);
+            }
+
+            let split = [
+                "x-example; value=\"a,b;c\"".parse().unwrap(),
+                "permessage-deflate".parse().unwrap(),
+            ];
+            let (config, response) =
+                WebSocketConfig::default().enable_deflate().accept_deflate_offers(&split);
+            assert_eq!(response.unwrap(), "permessage-deflate");
+            assert!(config.deflate.is_some());
+
+            let mixed_raw =
+                [http::HeaderValue::from_bytes(b"x-example; value=\x80, PerMessage-Deflate")
+                    .unwrap()];
+            let (config, response) =
+                WebSocketConfig::default().enable_deflate().accept_deflate_offers(&mixed_raw);
+            assert_eq!(response.unwrap(), "permessage-deflate");
+            assert!(config.deflate.is_some());
+        }
+    }
 
     fn request_with_key(key: &str) -> Request {
         let data = format!(

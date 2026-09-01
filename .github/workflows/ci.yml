@@ -51,7 +51,12 @@ jobs:
         run: cargo hack check --feature-powerset --all-targets
 
       - name: Test
-        run: cargo test --release
+        run: cargo test --release --all-features
+
+      - name: Check documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --all-features --no-deps
 
   test-msvr:
     name: Test MSRV
@@ -83,6 +88,8 @@ jobs:
   autobahn:
     name: Autobahn tests
     runs-on: ubuntu-latest
+    # A hang detector, not a capacity claim.
+    timeout-minutes: 30
 
     strategy:
       matrix:
