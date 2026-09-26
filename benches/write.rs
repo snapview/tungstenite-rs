@@ -41,6 +41,24 @@ impl io::Write for MockWrite {
     }
 }
 
+/// `Write` impl that accepts at most 16 KiB per call, like a socket with a small send buffer.
+struct ChunkedWrite;
+
+impl io::Read for ChunkedWrite {
+    fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+        Err(io::Error::new(io::ErrorKind::WouldBlock, "reads not supported"))
+    }
+}
+impl io::Write for ChunkedWrite {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        Ok(buf.len().min(16 * 1024))
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 fn spin(duration: Duration) {
     let a = Instant::now();
     while a.elapsed() < duration {
@@ -71,6 +89,12 @@ fn benchmark(c: &mut Criterion) {
 
     c.bench_function("write+mask 100k small messages then flush (client)", |b| {
         write_100k_then_flush(Role::Client, b);
+    });
+
+    c.bench_function("send 1 MiB message in 16 KiB writes (server)", |b| {
+        let mut ws = WebSocket::from_raw_socket(ChunkedWrite, Role::Server, None);
+        let msg = Message::binary(vec![7; 1024 * 1024]);
+        b.iter(|| ws.send(msg.clone()).unwrap());
     });
 }
 
