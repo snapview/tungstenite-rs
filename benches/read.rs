@@ -4,7 +4,7 @@ use std::{
     io::{self, Read, Write},
     sync::{Arc, Mutex},
 };
-use tungstenite::{protocol::Role, Message, WebSocket};
+use tungstenite::{protocol::Role, Error, Message, WebSocket};
 
 /// Mock stream with no artificial delays.
 #[derive(Default, Clone)]
@@ -25,6 +25,34 @@ impl Read for MockIo {
 impl Write for MockIo {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.lock().unwrap().write(buf)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Mock stream that returns one small text frame, then `WouldBlock`, and so on.
+/// Like a quiet connection that wakes the reader for every message.
+#[derive(Default)]
+struct OneFrameThenWouldBlock {
+    blocked: bool,
+}
+
+impl Read for OneFrameThenWouldBlock {
+    fn read(&mut self, to: &mut [u8]) -> io::Result<usize> {
+        const TEXT_FRAME: &[u8] = b"\x81\x05hello";
+        self.blocked = !self.blocked;
+        if !self.blocked {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
+        to[..TEXT_FRAME.len()].copy_from_slice(TEXT_FRAME);
+        Ok(TEXT_FRAME.len())
+    }
+}
+
+impl Write for OneFrameThenWouldBlock {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        Ok(buf.len())
     }
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
@@ -85,6 +113,18 @@ fn benchmark(c: &mut Criterion) {
 
     c.bench_function("read 100k small messages (client)", |b| {
         read_100k(Role::Client, b);
+    });
+
+    c.bench_function("read 1 small message then WouldBlock (client)", |b| {
+        let stream = OneFrameThenWouldBlock::default();
+        let mut ws = WebSocket::from_raw_socket(stream, Role::Client, None);
+        b.iter(|| {
+            assert!(matches!(ws.read(), Ok(Message::Text(_))));
+            match ws.read() {
+                Err(Error::Io(e)) if e.kind() == io::ErrorKind::WouldBlock => {}
+                other => panic!("Unexpected {other:?}"),
+            }
+        });
     });
 }
 
