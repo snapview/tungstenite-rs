@@ -7,6 +7,7 @@ use crate::{
     handshake::client::Response,
     protocol::WebSocketConfig,
     stream::MaybeTlsStream,
+    util::strip_ipv6_brackets,
     ClientHandshake, Error, HandshakeError, Result, WebSocket,
 };
 
@@ -205,7 +206,9 @@ where
 
     #[cfg(any(feature = "native-tls", feature = "__rustls-tls"))]
     let domain = match request.uri().host() {
-        Some(d) => Ok(d.to_string()),
+        // Strip IPv6 brackets: neither TLS backend's server name type
+        // accepts them, same as `client::connect`'s own dial path.
+        Some(d) => Ok(strip_ipv6_brackets(d).to_string()),
         None => Err(Error::Url(UrlError::NoHostName)),
     }?;
 

@@ -20,6 +20,7 @@ use crate::{
     handshake::{client::ClientHandshake, HandshakeError},
     protocol::WebSocket,
     stream::{Mode, NoDelay},
+    util::strip_ipv6_brackets,
 };
 
 /// Connect to the given WebSocket in blocking mode.
@@ -58,7 +59,7 @@ pub fn connect_with_config<Req: IntoClientRequest>(
         }
 
         let host = request.uri().host().ok_or(Error::Url(UrlError::NoHostName))?;
-        let host = if host.starts_with('[') { &host[1..host.len() - 1] } else { host };
+        let host = strip_ipv6_brackets(host);
         let port = uri.port_u16().unwrap_or(match mode {
             Mode::Plain => 80,
             Mode::Tls => 443,
