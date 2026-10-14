@@ -114,7 +114,7 @@ impl IncompleteMessage {
     pub fn extend<T: AsRef<[u8]>>(&mut self, tail: T, size_limit: Option<usize>) -> Result<()> {
         // Always have a max size. This ensures an error in case of concatenating two buffers
         // of more than `usize::max_value()` bytes in total.
-        let max_size = size_limit.unwrap_or_else(usize::max_value);
+        let max_size = size_limit.unwrap_or(usize::MAX);
         let my_size = self.len();
         let portion_size = tail.as_ref().len();
         // Be careful about integer overflows here.
