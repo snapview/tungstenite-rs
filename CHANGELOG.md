@@ -1,5 +1,5 @@
 # Unreleased
-* Optimise read performance particularly for larger than default `read_buffer_size`s.
+* Optimise read performance for larger than default `read_buffer_size`s or idle/wake up read scenarios.
 
 # 0.30.0
 
