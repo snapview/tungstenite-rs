@@ -165,7 +165,7 @@ impl FrameCodec {
         unmask: bool,
         accept_unmasked: bool,
     ) -> Result<Option<Frame>> {
-        let max_size = max_size.unwrap_or_else(usize::max_value);
+        let max_size = max_size.unwrap_or(usize::MAX);
 
         let mut payload = loop {
             if self.header.is_none() {
