@@ -17,7 +17,7 @@ use crate::{
     protocol::frame::mask::apply_mask,
     Message,
 };
-use bytes::BytesMut;
+use bytes::{Buf, BytesMut};
 use log::*;
 use std::io::{self, Cursor, Error as IoError, ErrorKind as IoErrorKind, Read, Write};
 
@@ -106,7 +106,7 @@ pub(super) struct FrameCodec {
     in_buffer: BytesMut,
     in_buf_max_read: usize,
     /// Buffer to send packets to the network.
-    out_buffer: Vec<u8>,
+    out_buffer: BytesMut,
     /// Capacity limit for `out_buffer`.
     max_out_buffer_len: usize,
     /// Buffer target length to reach before writing to the stream
@@ -258,7 +258,7 @@ impl FrameCodec {
         trace!("writing frame {frame}");
 
         self.out_buffer.reserve(frame.len());
-        frame.format_into_buf(&mut self.out_buffer).expect("Bug: can't write to vector");
+        frame.format_into_buf(&mut self.out_buffer);
 
         if self.out_buffer.len() > self.out_buffer_write_len {
             self.write_out_buffer(stream)
@@ -284,7 +284,7 @@ impl FrameCodec {
                 )
                 .into());
             }
-            self.out_buffer.drain(0..len);
+            self.out_buffer.advance(len);
         }
 
         Ok(())

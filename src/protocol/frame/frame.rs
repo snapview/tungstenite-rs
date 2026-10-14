@@ -17,7 +17,7 @@ use crate::{
     error::{Error, ProtocolError, Result},
     protocol::frame::Utf8Bytes,
 };
-use bytes::{Bytes, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -121,6 +121,35 @@ impl FrameHeader {
         }
 
         Ok(())
+    }
+
+    fn format_buf(&self, length: u64, output: &mut impl BufMut) {
+        let code: u8 = self.opcode.into();
+
+        output.put_u8({
+            code | if self.is_final { 0x80 } else { 0 }
+                | if self.rsv1 { 0x40 } else { 0 }
+                | if self.rsv2 { 0x20 } else { 0 }
+                | if self.rsv3 { 0x10 } else { 0 }
+        });
+
+        let lenfmt = LengthFormat::for_length(length);
+
+        output.put_u8(lenfmt.length_byte() | if self.mask.is_some() { 0x80 } else { 0 });
+
+        match lenfmt {
+            LengthFormat::U8(_) => (),
+            LengthFormat::U16 => {
+                output.put_u16(length as u16);
+            }
+            LengthFormat::U64 => {
+                output.put_u64(length);
+            }
+        }
+
+        if let Some(ref mask) = self.mask {
+            output.put(&mask[..]);
+        }
     }
 
     /// Generate a random frame mask and store this in the header.
@@ -359,8 +388,8 @@ impl Frame {
         Ok(())
     }
 
-    pub(crate) fn format_into_buf(mut self, buf: &mut Vec<u8>) -> Result<()> {
-        self.header.format(self.payload.len() as u64, buf)?;
+    pub(crate) fn format_into_buf(mut self, buf: &mut BytesMut) {
+        self.header.format_buf(self.payload.len() as u64, buf);
 
         let len = buf.len();
         buf.extend_from_slice(&self.payload);
@@ -368,8 +397,6 @@ impl Frame {
         if let Some(mask) = self.header.mask.take() {
             apply_mask(&mut buf[len..], mask);
         }
-
-        Ok(())
     }
 }
 
@@ -485,8 +512,8 @@ mod tests {
     #[test]
     fn format_into_buf() {
         let frame = Frame::ping(vec![0x01, 0x02]);
-        let mut buf = Vec::with_capacity(frame.len());
-        frame.format_into_buf(&mut buf).unwrap();
+        let mut buf = BytesMut::with_capacity(frame.len());
+        frame.format_into_buf(&mut buf);
         assert_eq!(buf, vec![0x89, 0x02, 0x01, 0x02]);
     }
 
