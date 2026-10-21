@@ -284,7 +284,13 @@ impl FrameCodec {
                 )
                 .into());
             }
-            self.out_buffer.advance(len);
+            // `advance` also gives up the written capacity, which a later `reserve` must
+            // reclaim. A full write clears instead, so the next frame starts at the same place.
+            if len == self.out_buffer.len() {
+                self.out_buffer.clear();
+            } else {
+                self.out_buffer.advance(len);
+            }
         }
 
         Ok(())
