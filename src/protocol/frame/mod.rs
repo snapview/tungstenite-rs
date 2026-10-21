@@ -300,7 +300,10 @@ impl FrameCodec {
 #[cfg(test)]
 mod tests {
 
-    use crate::error::{CapacityError, Error, Result};
+    use crate::{
+        error::{CapacityError, Error},
+        util::NonBlockingResult,
+    };
 
     use super::{
         coding::{Data, OpCode},
@@ -379,15 +382,6 @@ mod tests {
 
     #[test]
     fn write_frames_in_partial_writes() {
-        /// Returns whether `res` is a `WouldBlock` error, panics on other errors.
-        fn would_block(res: Result<()>) -> bool {
-            match res {
-                Ok(()) => false,
-                Err(Error::Io(err)) if err.kind() == io::ErrorKind::WouldBlock => true,
-                Err(err) => panic!("{err}"),
-            }
-        }
-
         let frames = || {
             (0..4).map(|i| {
                 Frame::message(vec![i; 10 + 40 * i as usize], OpCode::Data(Data::Binary), true)
@@ -401,10 +395,10 @@ mod tests {
         // Queue each frame while earlier ones are still partly written.
         let mut sock = FrameSocket::new(TrickleWrite::default());
         for frame in frames() {
-            would_block(sock.write(frame));
-            would_block(sock.flush());
+            sock.write(frame).no_block().unwrap();
+            sock.flush().no_block().unwrap();
         }
-        while would_block(sock.flush()) {}
+        while sock.flush().no_block().unwrap().is_none() {}
 
         assert_eq!(sock.into_inner().0.wire, expected);
     }
