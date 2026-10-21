@@ -92,34 +92,9 @@ impl FrameHeader {
 
     /// Format a header for given payload size.
     pub fn format(&self, length: u64, output: &mut impl Write) -> Result<()> {
-        let code: u8 = self.opcode.into();
-
-        let one = {
-            code | if self.is_final { 0x80 } else { 0 }
-                | if self.rsv1 { 0x40 } else { 0 }
-                | if self.rsv2 { 0x20 } else { 0 }
-                | if self.rsv3 { 0x10 } else { 0 }
-        };
-
-        let lenfmt = LengthFormat::for_length(length);
-
-        let two = { lenfmt.length_byte() | if self.mask.is_some() { 0x80 } else { 0 } };
-
-        output.write_all(&[one, two])?;
-        match lenfmt {
-            LengthFormat::U8(_) => (),
-            LengthFormat::U16 => {
-                output.write_all(&(length as u16).to_be_bytes())?;
-            }
-            LengthFormat::U64 => {
-                output.write_all(&length.to_be_bytes())?;
-            }
-        }
-
-        if let Some(ref mask) = self.mask {
-            output.write_all(mask)?;
-        }
-
+        let mut buf = [0; Self::MAX_SIZE];
+        self.format_buf(length, &mut &mut buf[..]);
+        output.write_all(&buf[..self.len(length)])?;
         Ok(())
     }
 
