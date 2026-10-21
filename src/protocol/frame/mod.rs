@@ -17,9 +17,9 @@ use crate::{
     protocol::frame::mask::apply_mask,
     Message,
 };
-use bytes::BytesMut;
+use bytes::{Buf, BytesMut};
 use log::*;
-use std::io::{self, Cursor, Error as IoError, ErrorKind as IoErrorKind, Read, Write};
+use std::io::{self, Error as IoError, ErrorKind as IoErrorKind, Read, Write};
 
 /// Read buffer size used for `FrameSocket`.
 const READ_BUF_LEN: usize = 128 * 1024;
@@ -167,38 +167,41 @@ impl FrameCodec {
     ) -> Result<Option<Frame>> {
         let max_size = max_size.unwrap_or_else(usize::max_value);
 
-        let mut payload = loop {
-            if self.header.is_none() {
-                let mut cursor = Cursor::new(&mut self.in_buffer);
-                self.header = FrameHeader::parse(&mut cursor)?;
-                let advanced = cursor.position();
-                bytes::Buf::advance(&mut self.in_buffer, advanced as _);
-
-                if let Some((_, len)) = &self.header {
-                    // Enforce frame size limit early. Compare in u64 before
-                    // narrowing so a length above usize::MAX can't wrap on
-                    // 32-bit/wasm32 targets and slip past the check.
-                    if *len > max_size as u64 {
-                        return Err(Error::Capacity(CapacityError::MessageTooLong {
-                            size: *len as usize,
-                            max_size,
-                        }));
-                    }
-                    let len = *len as usize;
-
-                    // Reserve full message length only once, even for multiple
-                    // loops or if WouldBlock errors cause multiple fn calls.
-                    self.in_buffer.reserve(len);
-                } else {
-                    self.in_buffer.reserve(FrameHeader::MAX_SIZE);
-                }
-            }
-
-            if let Some((_, len)) = &self.header {
-                let len = *len as usize;
+        let (mut header, mut payload) = loop {
+            if let Some((_, len)) = self.header {
+                let len = len as usize;
                 if len <= self.in_buffer.len() {
-                    break self.in_buffer.split_to(len);
+                    let (header, _) = self.header.take().expect("Bug: no frame header");
+                    break (header, self.in_buffer.split_to(len));
                 }
+            } else if let Some((header, len, header_len)) =
+                FrameHeader::parse_internal(&self.in_buffer)?
+            {
+                self.in_buffer.advance(header_len);
+
+                // Enforce frame size limit early. Compare in u64 before
+                // narrowing so a length above usize::MAX can't wrap on
+                // 32-bit/wasm32 targets and slip past the check.
+                if len > max_size as u64 {
+                    // Keep the header, so that a later read does not parse the payload as one.
+                    self.header = Some((header, len));
+                    return Err(Error::Capacity(CapacityError::MessageTooLong {
+                        size: len as usize,
+                        max_size,
+                    }));
+                }
+
+                // The whole payload is already buffered, so the header needs no state.
+                if len as usize <= self.in_buffer.len() {
+                    break (header, self.in_buffer.split_to(len as usize));
+                }
+
+                // Reserve full message length only once, even for multiple
+                // loops or if WouldBlock errors cause multiple fn calls.
+                self.in_buffer.reserve(len as usize);
+                self.header = Some((header, len));
+            } else {
+                self.in_buffer.reserve(FrameHeader::MAX_SIZE);
             }
 
             // Not enough data in buffer.
@@ -207,9 +210,6 @@ impl FrameCodec {
                 return Ok(None);
             }
         };
-
-        let (mut header, length) = self.header.take().expect("Bug: no frame header");
-        debug_assert_eq!(payload.len() as u64, length);
 
         if unmask {
             if let Some(mask) = header.mask.take() {
@@ -225,9 +225,7 @@ impl FrameCodec {
             }
         }
 
-        let frame = Frame::from_payload(header, payload.freeze());
-        trace!("received frame {frame}");
-        Ok(Some(frame))
+        Ok(Some(Frame::from_payload(header, payload.freeze())))
     }
 
     /// Read into available `in_buffer` capacity.
@@ -362,6 +360,15 @@ mod tests {
             sock.read(Some(5)),
             Err(Error::Capacity(CapacityError::MessageTooLong { size: 7, max_size: 5 }))
         ));
+    }
+
+    #[test]
+    fn read_after_size_limit_hit_returns_the_same_frame() {
+        let raw = Cursor::new(vec![0x82, 0x07, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
+        let mut sock = FrameSocket::new(raw);
+        assert!(sock.read(Some(5)).is_err());
+        let frame = sock.read(Some(7)).unwrap().unwrap();
+        assert_eq!(frame.into_payload(), &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07][..]);
     }
 
     #[test]
