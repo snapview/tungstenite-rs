@@ -148,7 +148,7 @@ impl FrameHeader {
         }
 
         if let Some(ref mask) = self.mask {
-            output.put(&mask[..]);
+            output.put_slice(mask);
         }
     }
 
