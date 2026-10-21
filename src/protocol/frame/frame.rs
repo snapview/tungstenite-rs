@@ -164,6 +164,7 @@ impl FrameHeader {
     /// Internal parse engine.
     /// Returns `None` if insufficient data.
     /// Payload size is returned along with the header.
+    #[inline]
     fn parse_internal(cursor: &mut impl Read) -> Result<Option<(Self, u64)>> {
         let (first, second) = {
             let mut head = [0u8; 2];
