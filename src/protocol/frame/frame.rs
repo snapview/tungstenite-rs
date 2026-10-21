@@ -2,7 +2,7 @@ use log::*;
 use std::{
     default::Default,
     fmt,
-    io::{Cursor, ErrorKind, Read, Write},
+    io::{Cursor, Write},
     mem,
     result::Result as StdResult,
     str::Utf8Error,
@@ -17,7 +17,7 @@ use crate::{
     error::{Error, ProtocolError, Result},
     protocol::frame::Utf8Bytes,
 };
-use bytes::{Bytes, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -74,14 +74,11 @@ impl FrameHeader {
     /// Returns `None` if insufficient data and does not consume anything in this case.
     /// Payload size is returned along with the header.
     pub fn parse(cursor: &mut Cursor<impl AsRef<[u8]>>) -> Result<Option<(Self, u64)>> {
-        let initial = cursor.position();
-        match Self::parse_internal(cursor) {
-            ret @ Ok(None) => {
-                cursor.set_position(initial);
-                ret
-            }
-            ret => ret,
-        }
+        let Some((header, length, header_len)) = Self::parse_internal(cursor.chunk())? else {
+            return Ok(None);
+        };
+        cursor.advance(header_len);
+        Ok(Some((header, length)))
     }
 
     /// Get the size of the header formatted with given payload length.
@@ -134,17 +131,13 @@ impl FrameHeader {
 impl FrameHeader {
     /// Internal parse engine.
     /// Returns `None` if insufficient data.
-    /// Payload size is returned along with the header.
-    fn parse_internal(cursor: &mut impl Read) -> Result<Option<(Self, u64)>> {
-        let (first, second) = {
-            let mut head = [0u8; 2];
-            if cursor.read(&mut head)? != 2 {
-                return Ok(None);
-            }
-            trace!("Parsed headers {head:?}");
-            (head[0], head[1])
+    /// Payload size and header size are returned along with the header.
+    #[inline]
+    pub(super) fn parse_internal(buf: &[u8]) -> Result<Option<(Self, u64, usize)>> {
+        let [first, second, ref rest @ ..] = *buf else {
+            return Ok(None);
         };
-
+        trace!("Parsed headers {:?}", [first, second]);
         trace!("First: {first:b}");
         trace!("Second: {second:b}");
 
@@ -160,33 +153,25 @@ impl FrameHeader {
         let masked = second & 0x80 != 0;
         trace!("Masked: {masked:?}");
 
-        let length = {
-            let length_byte = second & 0x7F;
-            let length_length = LengthFormat::for_byte(length_byte).extra_bytes();
-            if length_length > 0 {
-                const SIZE: usize = mem::size_of::<u64>();
-                assert!(length_length <= SIZE, "length exceeded size of u64");
-                let start = SIZE - length_length;
-                let mut buffer = [0; SIZE];
-                match cursor.read_exact(&mut buffer[start..]) {
-                    Err(ref err) if err.kind() == ErrorKind::UnexpectedEof => return Ok(None),
-                    Err(err) => return Err(err.into()),
-                    Ok(()) => u64::from_be_bytes(buffer),
-                }
-            } else {
-                u64::from(length_byte)
-            }
+        let (length, rest) = match LengthFormat::for_byte(second) {
+            LengthFormat::U8(length) => (u64::from(length), rest),
+            LengthFormat::U16 => match rest.split_first_chunk() {
+                Some((length, rest)) => (u64::from(u16::from_be_bytes(*length)), rest),
+                None => return Ok(None),
+            },
+            LengthFormat::U64 => match rest.split_first_chunk() {
+                Some((length, rest)) => (u64::from_be_bytes(*length), rest),
+                None => return Ok(None),
+            },
         };
 
-        let mask = if masked {
-            let mut mask_bytes = [0u8; 4];
-            if cursor.read(&mut mask_bytes)? != 4 {
+        let (mask, rest) = if masked {
+            let Some((mask, rest)) = rest.split_first_chunk() else {
                 return Ok(None);
-            } else {
-                Some(mask_bytes)
-            }
+            };
+            (Some(*mask), rest)
         } else {
-            None
+            (None, rest)
         };
 
         // Disallow bad opcode
@@ -199,7 +184,7 @@ impl FrameHeader {
 
         let hdr = FrameHeader { is_final, rsv1, rsv2, rsv3, opcode, mask };
 
-        Ok(Some((hdr, length)))
+        Ok(Some((hdr, length, buf.len() - rest.len())))
     }
 }
 
@@ -460,7 +445,7 @@ mod tests {
     use super::*;
 
     use super::super::coding::{Data, OpCode};
-    use std::io::Cursor;
+    use std::io::{Cursor, Read};
 
     #[test]
     fn parse() {
@@ -472,6 +457,26 @@ mod tests {
         raw.read_to_end(&mut payload).unwrap();
         let frame = Frame::from_payload(header, payload.into());
         assert_eq!(frame.into_payload(), &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07][..]);
+    }
+
+    #[test]
+    fn parse_waits_for_the_whole_header() {
+        // Masked, 16-bit length 256: 2 + 2 + 4 header bytes.
+        let masked = [0x82, 0xFE, 0x01, 0x00, 1, 2, 3, 4];
+        // Unmasked, 64-bit length 65536: 2 + 8 header bytes.
+        let long = [0x82, 0x7F, 0, 0, 0, 0, 0, 1, 0, 0];
+        for (raw, mask, length) in
+            [(&masked[..], Some([1, 2, 3, 4]), 256), (&long[..], None, 65536)]
+        {
+            for end in 0..raw.len() {
+                let mut cursor = Cursor::new(&raw[..end]);
+                assert!(FrameHeader::parse(&mut cursor).unwrap().is_none());
+                assert_eq!(cursor.position(), 0);
+            }
+            let mut cursor = Cursor::new(raw);
+            let (header, len) = FrameHeader::parse(&mut cursor).unwrap().unwrap();
+            assert_eq!((header.mask, len, cursor.position()), (mask, length, raw.len() as u64));
+        }
     }
 
     #[test]
