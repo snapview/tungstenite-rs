@@ -225,9 +225,7 @@ impl FrameCodec {
             }
         }
 
-        let frame = Frame::from_payload(header, payload.freeze());
-        trace!("received frame {frame}");
-        Ok(Some(frame))
+        Ok(Some(Frame::from_payload(header, payload.freeze())))
     }
 
     /// Read into available `in_buffer` capacity.
