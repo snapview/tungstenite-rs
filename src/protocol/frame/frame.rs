@@ -519,6 +519,24 @@ mod tests {
     }
 
     #[test]
+    fn format_into_buf_writes_the_same_bytes_as_format() {
+        for len in [0, 125, 126, 65_535, 65_536] {
+            for masked in [false, true] {
+                let mut frame = Frame::message(vec![7; len], OpCode::Data(Data::Binary), true);
+                if masked {
+                    frame.set_random_mask();
+                }
+                let mut expected = Vec::new();
+                frame.clone().format(&mut expected).unwrap();
+
+                let mut buf = BytesMut::new();
+                frame.format_into_buf(&mut buf);
+                assert_eq!(buf, expected, "payload of {len} bytes, masked: {masked}");
+            }
+        }
+    }
+
+    #[test]
     fn display() {
         let f = Frame::message(Bytes::from_static(b"hi there"), OpCode::Data(Data::Text), true);
         let view = format!("{f}");
