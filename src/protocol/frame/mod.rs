@@ -284,7 +284,13 @@ impl FrameCodec {
                 )
                 .into());
             }
-            self.out_buffer.advance(len);
+            // `advance` also gives up the written capacity, which a later `reserve` must
+            // reclaim. A full write clears instead, so the next frame starts at the same place.
+            if len == self.out_buffer.len() {
+                self.out_buffer.clear();
+            } else {
+                self.out_buffer.advance(len);
+            }
         }
 
         Ok(())
@@ -294,11 +300,17 @@ impl FrameCodec {
 #[cfg(test)]
 mod tests {
 
-    use crate::error::{CapacityError, Error};
+    use crate::{
+        error::{CapacityError, Error},
+        util::NonBlockingResult,
+    };
 
-    use super::{Frame, FrameSocket};
+    use super::{
+        coding::{Data, OpCode},
+        Frame, FrameSocket,
+    };
 
-    use std::io::Cursor;
+    use std::io::{self, Cursor};
 
     #[test]
     fn read_frames() {
@@ -343,6 +355,52 @@ mod tests {
 
         let (buf, _) = sock.into_inner();
         assert_eq!(buf, vec![0x89, 0x02, 0x04, 0x05, 0x8a, 0x01, 0x01]);
+    }
+
+    /// Accepts at most 7 bytes per write and fails every other write with `WouldBlock`.
+    #[derive(Default)]
+    struct TrickleWrite {
+        wire: Vec<u8>,
+        block: bool,
+    }
+
+    impl io::Write for TrickleWrite {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.block = !self.block;
+            if self.block {
+                return Err(io::ErrorKind::WouldBlock.into());
+            }
+            let len = buf.len().min(7);
+            self.wire.extend_from_slice(&buf[..len]);
+            Ok(len)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn write_frames_in_partial_writes() {
+        let frames = || {
+            (0..4).map(|i| {
+                Frame::message(vec![i; 10 + 40 * i as usize], OpCode::Data(Data::Binary), true)
+            })
+        };
+        let mut expected = Vec::new();
+        for frame in frames() {
+            frame.format(&mut expected).unwrap();
+        }
+
+        // Queue each frame while earlier ones are still partly written.
+        let mut sock = FrameSocket::new(TrickleWrite::default());
+        for frame in frames() {
+            sock.write(frame).no_block().unwrap();
+            sock.flush().no_block().unwrap();
+        }
+        while sock.flush().no_block().unwrap().is_none() {}
+
+        assert_eq!(sock.into_inner().0.wire, expected);
     }
 
     #[test]
