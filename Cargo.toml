@@ -20,6 +20,7 @@ all-features = true
 [features]
 default = ["handshake"]
 handshake = ["data-encoding", "http", "httparse", "sha1"]
+deflate = ["handshake", "dep:flate2"]
 url = ["dep:url"]
 native-tls = ["native-tls-crate"]
 native-tls-vendored = ["native-tls", "native-tls-crate/vendored"]
@@ -37,6 +38,12 @@ rand = "0.10.2"
 sha1 = { version = "0.11.0", optional = true }
 thiserror = "2.0.7"
 url = { version = "2.1.0", optional = true }
+
+[dependencies.flate2]
+optional = true
+version = "1.0.31"
+default-features = false
+features = ["zlib-rs"]
 
 [dependencies.native-tls-crate]
 optional = true
