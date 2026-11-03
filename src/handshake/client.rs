@@ -400,6 +400,22 @@ mod tests {
     }
 
     #[test]
+    fn response_rejects_non_ascii_connection_header_value() {
+        let mut response = response_with_connection_headers(&[]);
+        response
+            .headers_mut()
+            .append("Connection", http::HeaderValue::from_bytes(b"\xff").unwrap());
+
+        let error = verify_data()
+            .verify_response(response)
+            .expect_err("a non-ASCII Connection field value must be rejected");
+        assert!(matches!(
+            error,
+            crate::Error::Protocol(crate::error::ProtocolError::MissingConnectionUpgradeHeader)
+        ));
+    }
+
+    #[test]
     fn random_keys() {
         let k1 = generate_key();
         println!("Generated random key 1: {k1}");
