@@ -9,7 +9,8 @@
     unused_must_use,
     unused_mut,
     unused_imports,
-    unused_import_braces
+    unused_import_braces,
+    unsafe_code
 )]
 // This can be removed when `error::Error::Http`, `handshake::HandshakeError::Interrupted` and
 // `handshake::server::ErrorResponse` are boxed.
