@@ -17,7 +17,7 @@ use crate::{
     protocol::frame::mask::apply_mask,
     Message,
 };
-use bytes::BytesMut;
+use bytes::{Buf, BytesMut};
 use log::*;
 use std::io::{self, Cursor, Error as IoError, ErrorKind as IoErrorKind, Read, Write};
 
@@ -106,7 +106,7 @@ pub(super) struct FrameCodec {
     in_buffer: BytesMut,
     in_buf_max_read: usize,
     /// Buffer to send packets to the network.
-    out_buffer: Vec<u8>,
+    out_buffer: BytesMut,
     /// Capacity limit for `out_buffer`.
     max_out_buffer_len: usize,
     /// Buffer target length to reach before writing to the stream
@@ -165,7 +165,7 @@ impl FrameCodec {
         unmask: bool,
         accept_unmasked: bool,
     ) -> Result<Option<Frame>> {
-        let max_size = max_size.unwrap_or_else(usize::max_value);
+        let max_size = max_size.unwrap_or(usize::MAX);
 
         let mut payload = loop {
             if self.header.is_none() {
@@ -258,7 +258,7 @@ impl FrameCodec {
         trace!("writing frame {frame}");
 
         self.out_buffer.reserve(frame.len());
-        frame.format_into_buf(&mut self.out_buffer).expect("Bug: can't write to vector");
+        frame.format_into_buf(&mut self.out_buffer);
 
         if self.out_buffer.len() > self.out_buffer_write_len {
             self.write_out_buffer(stream)
@@ -284,7 +284,13 @@ impl FrameCodec {
                 )
                 .into());
             }
-            self.out_buffer.drain(0..len);
+            // `advance` also gives up the written capacity, which a later `reserve` must
+            // reclaim. A full write clears instead, so the next frame starts at the same place.
+            if len == self.out_buffer.len() {
+                self.out_buffer.clear();
+            } else {
+                self.out_buffer.advance(len);
+            }
         }
 
         Ok(())
@@ -294,11 +300,17 @@ impl FrameCodec {
 #[cfg(test)]
 mod tests {
 
-    use crate::error::{CapacityError, Error};
+    use crate::{
+        error::{CapacityError, Error},
+        util::NonBlockingResult,
+    };
 
-    use super::{Frame, FrameSocket};
+    use super::{
+        coding::{Data, OpCode},
+        Frame, FrameSocket,
+    };
 
-    use std::io::Cursor;
+    use std::io::{self, Cursor};
 
     #[test]
     fn read_frames() {
@@ -343,6 +355,52 @@ mod tests {
 
         let (buf, _) = sock.into_inner();
         assert_eq!(buf, vec![0x89, 0x02, 0x04, 0x05, 0x8a, 0x01, 0x01]);
+    }
+
+    /// Accepts at most 7 bytes per write and fails every other write with `WouldBlock`.
+    #[derive(Default)]
+    struct TrickleWrite {
+        wire: Vec<u8>,
+        block: bool,
+    }
+
+    impl io::Write for TrickleWrite {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.block = !self.block;
+            if self.block {
+                return Err(io::ErrorKind::WouldBlock.into());
+            }
+            let len = buf.len().min(7);
+            self.wire.extend_from_slice(&buf[..len]);
+            Ok(len)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn write_frames_in_partial_writes() {
+        let frames = || {
+            (0..4).map(|i| {
+                Frame::message(vec![i; 10 + 40 * i as usize], OpCode::Data(Data::Binary), true)
+            })
+        };
+        let mut expected = Vec::new();
+        for frame in frames() {
+            frame.format(&mut expected).unwrap();
+        }
+
+        // Queue each frame while earlier ones are still partly written.
+        let mut sock = FrameSocket::new(TrickleWrite::default());
+        for frame in frames() {
+            sock.write(frame).no_block().unwrap();
+            sock.flush().no_block().unwrap();
+        }
+        while sock.flush().no_block().unwrap().is_none() {}
+
+        assert_eq!(sock.into_inner().0.wire, expected);
     }
 
     #[test]

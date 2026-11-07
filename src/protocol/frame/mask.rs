@@ -1,7 +1,8 @@
 /// Generate a random frame mask.
 #[inline]
 pub fn generate_mask() -> [u8; 4] {
-    rand::random()
+    // `rand::random::<[u8; 4]>()` would draw a whole `u32` for each byte.
+    rand::random::<u32>().to_ne_bytes()
 }
 
 /// Mask/unmask a frame.
