@@ -17,7 +17,7 @@ use crate::{
     error::{Error, ProtocolError, Result},
     protocol::frame::Utf8Bytes,
 };
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 /// A struct representing the close command.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -89,35 +89,39 @@ impl FrameHeader {
 
     /// Format a header for given payload size.
     pub fn format(&self, length: u64, output: &mut impl Write) -> Result<()> {
+        let mut buf = [0; Self::MAX_SIZE];
+        self.format_buf(length, &mut &mut buf[..]);
+        output.write_all(&buf[..self.len(length)])?;
+        Ok(())
+    }
+
+    fn format_buf(&self, length: u64, output: &mut impl BufMut) {
         let code: u8 = self.opcode.into();
 
-        let one = {
+        output.put_u8({
             code | if self.is_final { 0x80 } else { 0 }
                 | if self.rsv1 { 0x40 } else { 0 }
                 | if self.rsv2 { 0x20 } else { 0 }
                 | if self.rsv3 { 0x10 } else { 0 }
-        };
+        });
 
         let lenfmt = LengthFormat::for_length(length);
 
-        let two = { lenfmt.length_byte() | if self.mask.is_some() { 0x80 } else { 0 } };
+        output.put_u8(lenfmt.length_byte() | if self.mask.is_some() { 0x80 } else { 0 });
 
-        output.write_all(&[one, two])?;
         match lenfmt {
             LengthFormat::U8(_) => (),
             LengthFormat::U16 => {
-                output.write_all(&(length as u16).to_be_bytes())?;
+                output.put_u16(length as u16);
             }
             LengthFormat::U64 => {
-                output.write_all(&length.to_be_bytes())?;
+                output.put_u64(length);
             }
         }
 
         if let Some(ref mask) = self.mask {
-            output.write_all(mask)?;
+            output.put_slice(mask);
         }
-
-        Ok(())
     }
 
     /// Generate a random frame mask and store this in the header.
@@ -344,8 +348,8 @@ impl Frame {
         Ok(())
     }
 
-    pub(crate) fn format_into_buf(mut self, buf: &mut Vec<u8>) -> Result<()> {
-        self.header.format(self.payload.len() as u64, buf)?;
+    pub(crate) fn format_into_buf(mut self, buf: &mut BytesMut) {
+        self.header.format_buf(self.payload.len() as u64, buf);
 
         let len = buf.len();
         buf.extend_from_slice(&self.payload);
@@ -353,8 +357,6 @@ impl Frame {
         if let Some(mask) = self.header.mask.take() {
             apply_mask(&mut buf[len..], mask);
         }
-
-        Ok(())
     }
 }
 
@@ -490,9 +492,27 @@ mod tests {
     #[test]
     fn format_into_buf() {
         let frame = Frame::ping(vec![0x01, 0x02]);
-        let mut buf = Vec::with_capacity(frame.len());
-        frame.format_into_buf(&mut buf).unwrap();
+        let mut buf = BytesMut::with_capacity(frame.len());
+        frame.format_into_buf(&mut buf);
         assert_eq!(buf, vec![0x89, 0x02, 0x01, 0x02]);
+    }
+
+    #[test]
+    fn format_into_buf_writes_the_same_bytes_as_format() {
+        for len in [0, 125, 126, 65_535, 65_536] {
+            for masked in [false, true] {
+                let mut frame = Frame::message(vec![7; len], OpCode::Data(Data::Binary), true);
+                if masked {
+                    frame.set_random_mask();
+                }
+                let mut expected = Vec::new();
+                frame.clone().format(&mut expected).unwrap();
+
+                let mut buf = BytesMut::new();
+                frame.format_into_buf(&mut buf);
+                assert_eq!(buf, expected, "payload of {len} bytes, masked: {masked}");
+            }
+        }
     }
 
     #[test]
