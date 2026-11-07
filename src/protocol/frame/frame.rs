@@ -141,9 +141,7 @@ impl FrameHeader {
         let [first, second, ref rest @ ..] = *buf else {
             return Ok(None);
         };
-        trace!("Parsed headers {:?}", [first, second]);
-        trace!("First: {first:b}");
-        trace!("Second: {second:b}");
+        trace!("Parsed headers {first:08b} {second:08b}");
 
         let is_final = first & 0x80 != 0;
 
