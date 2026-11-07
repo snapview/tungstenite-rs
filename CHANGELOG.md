@@ -1,3 +1,7 @@
+# Unreleased (0.30.1)
+* Optimise write performance particularly for partial buffer writes.
+* Add inlining hints to improve read performance.
+
 # 0.30.0
 
 * Reject non-compliant clients (incorrect `Sec-WebSocket-Key` length/format) on the server side.
