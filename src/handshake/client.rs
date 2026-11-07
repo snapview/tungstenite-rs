@@ -111,13 +111,10 @@ impl<S: Read + Write> HandshakeRole for ClientHandshake<S> {
 /// Verifies and generates a client WebSocket request from the original request and extracts a WebSocket key from it.
 pub fn generate_request(mut request: Request) -> Result<(Vec<u8>, String)> {
     let mut req = Vec::new();
-    write!(
-        req,
-        "GET {path} {version}\r\n",
-        path = request.uri().path_and_query().ok_or(Error::Url(UrlError::NoPathOrQuery))?.as_str(),
-        version = version_as_str(request.version())?,
-    )
-    .unwrap();
+    let path = request.uri().path_and_query().ok_or(Error::Url(UrlError::NoPathOrQuery))?.as_str();
+    let root = if path.starts_with('?') { "/" } else { "" };
+    write!(req, "GET {root}{path} {version}\r\n", version = version_as_str(request.version())?,)
+        .unwrap();
 
     // Headers that must be present in a correct request.
     const KEY_HEADERNAME: &str = "Sec-WebSocket-Key";
