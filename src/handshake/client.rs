@@ -242,12 +242,7 @@ impl VerifyData {
         // |Connection| header field doesn't contain a token that is an
         // ASCII case-insensitive match for the value "Upgrade", the client
         // MUST _Fail the WebSocket Connection_. (RFC 6455)
-        if !headers
-            .get("Connection")
-            .and_then(|h| h.to_str().ok())
-            .map(|h| h.eq_ignore_ascii_case("Upgrade"))
-            .unwrap_or(false)
-        {
+        if !header_contains_token(headers, "Connection", "Upgrade") {
             return Err(Error::Protocol(ProtocolError::MissingConnectionUpgradeHeader));
         }
         // 4.  If the response lacks a |Sec-WebSocket-Accept| header field or
@@ -295,6 +290,20 @@ impl VerifyData {
     }
 }
 
+/// Checks whether one or more HTTP list-valued header fields contain a token.
+fn header_contains_token(headers: &HeaderMap, name: &str, token: &str) -> bool {
+    let values = headers.get_all(name);
+    let mut found = false;
+    for value in values {
+        let Ok(value) = value.to_str() else {
+            return false;
+        };
+        found |=
+            value.split(',').any(|item| item.trim_matches([' ', '\t']).eq_ignore_ascii_case(token));
+    }
+    found
+}
+
 impl TryParse for Response {
     fn try_parse(buf: &[u8]) -> Result<Option<(usize, Self)>> {
         let mut hbuffer = [httparse::EMPTY_HEADER; MAX_HEADERS];
@@ -335,8 +344,76 @@ pub fn generate_key() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::machine::TryParse, generate_key, generate_request, Response};
+    use super::{
+        super::machine::TryParse, derive_accept_key, generate_key, generate_request, Response,
+        VerifyData,
+    };
     use crate::client::IntoClientRequest;
+
+    fn response_with_connection_headers(values: &[&str]) -> Response {
+        let mut response = Response::new(None);
+        *response.status_mut() = http::StatusCode::SWITCHING_PROTOCOLS;
+        response.headers_mut().insert("Upgrade", http::HeaderValue::from_static("websocket"));
+        response.headers_mut().insert(
+            "Sec-WebSocket-Accept",
+            http::HeaderValue::from_str(&derive_accept_key(b"sample key")).unwrap(),
+        );
+        for value in values {
+            response
+                .headers_mut()
+                .append("Connection", http::HeaderValue::from_str(value).unwrap());
+        }
+        response
+    }
+
+    fn verify_data() -> VerifyData {
+        VerifyData { accept_key: derive_accept_key(b"sample key"), subprotocols: None }
+    }
+
+    #[test]
+    fn response_accepts_upgrade_token_in_connection_list() {
+        for value in ["keep-alive, Upgrade", "keep-alive,\tupgrade", "Upgrade, close"] {
+            verify_data()
+                .verify_response(response_with_connection_headers(&[value]))
+                .unwrap_or_else(|error| {
+                    panic!("expected Connection token list {value:?} to pass: {error}")
+                });
+        }
+    }
+
+    #[test]
+    fn response_accepts_upgrade_token_across_repeated_connection_fields() {
+        verify_data()
+            .verify_response(response_with_connection_headers(&["keep-alive", "Upgrade"]))
+            .expect("Upgrade token in a repeated Connection field should pass");
+    }
+
+    #[test]
+    fn response_rejects_connection_list_without_upgrade_token() {
+        let error = verify_data()
+            .verify_response(response_with_connection_headers(&["keep-alive, NotUpgrade"]))
+            .expect_err("a substring that is not the Upgrade token must be rejected");
+        assert!(matches!(
+            error,
+            crate::Error::Protocol(crate::error::ProtocolError::MissingConnectionUpgradeHeader)
+        ));
+    }
+
+    #[test]
+    fn response_rejects_non_ascii_connection_header_value() {
+        let mut response = response_with_connection_headers(&[]);
+        response
+            .headers_mut()
+            .append("Connection", http::HeaderValue::from_bytes(b"\xff").unwrap());
+
+        let error = verify_data()
+            .verify_response(response)
+            .expect_err("a non-ASCII Connection field value must be rejected");
+        assert!(matches!(
+            error,
+            crate::Error::Protocol(crate::error::ProtocolError::MissingConnectionUpgradeHeader)
+        ));
+    }
 
     #[test]
     fn random_keys() {
