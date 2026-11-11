@@ -248,6 +248,7 @@ impl From<u16> for CloseCode {
             1011 => Error,
             1012 => Restart,
             1013 => Again,
+            1014 => Iana(code),
             1015 => Tls,
             1..=999 => Bad(code),
             1016..=2999 => Reserved(code),
@@ -261,6 +262,16 @@ impl From<u16> for CloseCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn registered_bad_gateway_close_code_is_allowed_and_round_trips() {
+        let code = CloseCode::from(1014);
+        assert!(code.is_allowed());
+        assert_eq!(u16::from(code), 1014);
+        for forbidden in [1004, 1005, 1006, 1015, 1016, 2999, 5000] {
+            assert!(!CloseCode::from(forbidden).is_allowed());
+        }
+    }
 
     #[test]
     fn opcode_from_u8() {
