@@ -1,8 +1,22 @@
 use log::*;
 
-use tungstenite::{connect, Error, Message, Result};
+use tungstenite::{
+    client::connect_with_config, connect, protocol::WebSocketConfig, Error, Message, Result,
+};
 
 const AGENT: &str = "Tungstenite";
+
+// Passing `None` to `connect_with_config` is exactly `connect`, so the feature-off build
+// negotiates what it always did.
+#[cfg(feature = "deflate")]
+fn deflate_config() -> Option<WebSocketConfig> {
+    Some(WebSocketConfig::default().enable_deflate())
+}
+
+#[cfg(not(feature = "deflate"))]
+fn deflate_config() -> Option<WebSocketConfig> {
+    None
+}
 
 fn get_case_count() -> Result<u32> {
     let (mut socket, _) = connect("ws://localhost:9001/getCaseCount")?;
@@ -20,7 +34,9 @@ fn update_reports() -> Result<()> {
 fn run_test(case: u32) -> Result<()> {
     info!("Running test case {case}");
     let case_url = format!("ws://localhost:9001/runCase?case={case}&agent={AGENT}");
-    let (mut socket, _) = connect(case_url)?;
+    // Only the case connections carry the extension. The control endpoints stay on the stock
+    // `connect` so a negotiation defect cannot masquerade as a lost case count.
+    let (mut socket, _) = connect_with_config(case_url, deflate_config(), 3)?;
     loop {
         match socket.read()? {
             msg @ Message::Text(_) | msg @ Message::Binary(_) => {
