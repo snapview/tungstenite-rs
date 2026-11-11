@@ -606,13 +606,23 @@ impl WebSocketContext {
         self.flush(stream)
     }
 
+    /// The largest frame payload that can belong to a message within the limits.
+    ///
+    /// A data frame is never longer than its message, and a control frame is at most 125 bytes.
+    /// `read_frame` reserves the payload length of a header before the payload arrives, so the
+    /// message limit must bound a frame there too.
+    fn max_frame_size(&self) -> Option<usize> {
+        let max_message_frame = self.config.max_message_size.map(|size| size.max(125));
+        self.config.max_frame_size.into_iter().chain(max_message_frame).min()
+    }
+
     /// Try to decode one message frame. May return None.
     fn read_message_frame(&mut self, stream: &mut impl Read) -> Result<Option<Message>> {
         let frame = match self
             .frame
             .read_frame(
                 stream,
-                self.config.max_frame_size,
+                self.max_frame_size(),
                 matches!(self.role, Role::Server),
                 self.config.accept_unmasked_frames,
             )
@@ -910,5 +920,28 @@ mod tests {
             socket.read(),
             Err(Error::Capacity(CapacityError::MessageTooLong { size: 3, max_size: 2 }))
         ));
+    }
+
+    #[test]
+    fn size_limiting_frame_header_without_frame_limit() {
+        // A binary frame that declares a 1 GiB payload and sends none of it.
+        let incoming = Cursor::new(vec![0x82, 0x7f, 0, 0, 0, 0, 0x40, 0, 0, 0]);
+        let limit = WebSocketConfig::default().max_frame_size(None);
+        let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
+
+        assert!(matches!(
+            socket.read(),
+            Err(Error::Capacity(CapacityError::MessageTooLong { size, max_size }))
+                if size == 1 << 30 && max_size == 64 << 20
+        ));
+    }
+
+    #[test]
+    fn size_limiting_keeps_ping_longer_than_message_limit() {
+        let incoming = Cursor::new(vec![0x89, 0x05, 0x01, 0x02, 0x03, 0x04, 0x05]);
+        let limit = WebSocketConfig { max_message_size: Some(2), ..WebSocketConfig::default() };
+        let mut socket = WebSocket::from_raw_socket(WriteMoc(incoming), Role::Client, Some(limit));
+
+        assert_eq!(socket.read().unwrap(), Message::Ping(vec![1, 2, 3, 4, 5].into()));
     }
 }
