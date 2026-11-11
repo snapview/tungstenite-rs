@@ -62,57 +62,41 @@ where
 /// it isn't bracketed. Neither a socket address lookup nor a TLS server
 /// name accepts the bracketed form, so both `client::connect` and the TLS
 /// connectors need this.
+#[cfg(feature = "handshake")]
 pub(crate) fn strip_ipv6_brackets(host: &str) -> &str {
     host.strip_prefix('[').and_then(|host| host.strip_suffix(']')).unwrap_or(host)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "handshake"))]
 mod tests {
     use super::*;
 
     #[test]
-    fn a_bracketed_ipv6_literal_is_unbracketed() {
-        assert_eq!(strip_ipv6_brackets("[::1]"), "::1");
-        assert_eq!(strip_ipv6_brackets("[2001:db8::1]"), "2001:db8::1");
-    }
+    fn strip_ipv6_brackets_cases() {
+        let cases = [
+            // Bracketed IPv6 literals are unbracketed.
+            ("[::1]", "::1"),
+            ("[2001:db8::1]", "2001:db8::1"),
+            // Only the delimiters are stripped, never the content, so an
+            // embedded dotted-quad is no different from any other IPv6 text.
+            ("[::ffff:192.168.1.1]", "::ffff:192.168.1.1"),
+            // RFC 6874 zone IDs are unbracketed like any other host, but the
+            // result is still not accepted by `Ipv6Addr::from_str` or as a
+            // TLS server name. This function does not change that.
+            ("[fe80::1%25eth0]", "fe80::1%25eth0"),
+            // Hosts that are not bracketed are unaffected.
+            ("192.168.1.1", "192.168.1.1"),
+            ("example.com", "example.com"),
+            // Only a matching pair is stripped; a malformed host is left for
+            // whatever reads it next (DNS resolution, TLS server name) to reject.
+            ("[::1", "[::1"),
+            ("::1]", "::1]"),
+        ];
 
-    #[test]
-    fn an_ipv4_mapped_ipv6_literal_is_unbracketed_the_same_way() {
-        // This function only strips the delimiters; it never inspects
-        // what's between them, so an embedded dotted-quad is no
-        // different from any other IPv6 text form.
-        assert_eq!(strip_ipv6_brackets("[::ffff:192.168.1.1]"), "::ffff:192.168.1.1");
-    }
+        for (host, expected) in cases {
+            assert_eq!(strip_ipv6_brackets(host), expected, "host: {host:?}");
+        }
 
-    #[test]
-    fn a_zone_id_is_carried_through_unbracketed_but_not_made_valid() {
-        // RFC 6874 zone IDs (link-local scope, e.g. "%eth0") are stripped
-        // of their brackets the same as any other host, but the result
-        // still isn't accepted by Ipv6Addr::from_str or a TLS server
-        // name. Neither has ever supported scope IDs, bracketed or not,
-        // and this function doesn't change that. Not a problem worth
-        // solving here: a certificate can't attest to a link-local scope
-        // in the first place, so no real TLS server needs one.
-        assert_eq!(strip_ipv6_brackets("[fe80::1%25eth0]"), "fe80::1%25eth0");
         assert!("fe80::1%25eth0".parse::<std::net::Ipv6Addr>().is_err());
-    }
-
-    #[test]
-    fn an_ipv4_address_is_unaffected() {
-        assert_eq!(strip_ipv6_brackets("192.168.1.1"), "192.168.1.1");
-    }
-
-    #[test]
-    fn a_dns_name_is_unaffected() {
-        assert_eq!(strip_ipv6_brackets("example.com"), "example.com");
-    }
-
-    #[test]
-    fn an_unmatched_bracket_is_left_alone_rather_than_mis_sliced() {
-        // Only strips a matching pair; a malformed host is left for
-        // whatever reads it next (DNS resolution, a TLS server name) to
-        // reject on its own terms.
-        assert_eq!(strip_ipv6_brackets("[::1"), "[::1");
-        assert_eq!(strip_ipv6_brackets("::1]"), "::1]");
     }
 }
