@@ -254,7 +254,19 @@ impl FrameCodec {
         if frame.len() + self.out_buffer.len() > self.max_out_buffer_len {
             return Err(Error::WriteBufferFull(Message::Frame(frame).into()));
         }
+        self.buffer_frame_ignoring_limit(stream, frame)
+    }
 
+    /// Like [`Self::buffer_frame`], but also queues a frame that goes over
+    /// `max_out_buffer_len`.
+    pub(super) fn buffer_frame_ignoring_limit<Stream>(
+        &mut self,
+        stream: &mut Stream,
+        frame: Frame,
+    ) -> Result<()>
+    where
+        Stream: Write,
+    {
         trace!("writing frame {frame}");
 
         self.out_buffer.reserve(frame.len());
