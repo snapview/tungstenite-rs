@@ -6,6 +6,10 @@ use std::fmt::Display;
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
 pub struct Utf8Bytes(Bytes);
 
+// The only `unsafe` in the crate: `Utf8Bytes` keeps its bytes valid UTF-8 at all times.
+// The field is private and never mutated, and every constructor takes a `str`, checks
+// the bytes with `str::from_utf8`, or is `from_bytes_unchecked`, whose caller promises it.
+#[allow(unsafe_code)]
 impl Utf8Bytes {
     /// Creates from a static str.
     #[inline]
@@ -16,7 +20,7 @@ impl Utf8Bytes {
     /// Returns as a string slice.
     #[inline]
     pub fn as_str(&self) -> &str {
-        // SAFETY: is valid uft8
+        // SAFETY: the bytes are valid UTF-8, see the invariant above.
         unsafe { str::from_utf8_unchecked(&self.0) }
     }
 

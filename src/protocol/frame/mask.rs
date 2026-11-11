@@ -24,22 +24,14 @@ fn apply_mask_fallback(buf: &mut [u8], mask: [u8; 4]) {
 pub fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
     let mask_u32 = u32::from_ne_bytes(mask);
 
-    let (prefix, words, suffix) = unsafe { buf.align_to_mut::<u32>() };
-    apply_mask_fallback(prefix, mask);
-    let head = prefix.len() & 3;
-    let mask_u32 = if head > 0 {
-        if cfg!(target_endian = "big") {
-            mask_u32.rotate_left(8 * head as u32)
-        } else {
-            mask_u32.rotate_right(8 * head as u32)
-        }
-    } else {
-        mask_u32
-    };
-    for word in words.iter_mut() {
-        *word ^= mask_u32;
+    // Every chunk starts at a multiple of 4, so it lines up with the mask as is.
+    // The compiler vectorizes this loop; unaligned loads cost nothing extra here.
+    let mut words = buf.chunks_exact_mut(4);
+    for word in &mut words {
+        let masked = u32::from_ne_bytes([word[0], word[1], word[2], word[3]]) ^ mask_u32;
+        word.copy_from_slice(&masked.to_ne_bytes());
     }
-    apply_mask_fallback(suffix, mask_u32.to_ne_bytes());
+    apply_mask_fallback(words.into_remainder(), mask);
 }
 
 #[cfg(test)]
