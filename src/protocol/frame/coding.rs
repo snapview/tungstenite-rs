@@ -248,6 +248,7 @@ impl From<u16> for CloseCode {
             1011 => Error,
             1012 => Restart,
             1013 => Again,
+            // 1014 is Bad Gateway in the IANA WebSocket Close Code registry (it postdates RFC 6455).
             1014 => Iana(code),
             1015 => Tls,
             1..=999 => Bad(code),
