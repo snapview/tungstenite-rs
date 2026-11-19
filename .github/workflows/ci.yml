@@ -53,6 +53,12 @@ jobs:
       - name: Test
         run: cargo test --release
 
+      - name: Test without rand (the MaskSource build)
+        run: cargo test --release --no-default-features --test mask_source
+
+      - name: No rand in the no-default-features graph
+        run: "! cargo tree --no-default-features -e normal -i rand 2>&1 | grep -q '^rand v'"
+
   test-msvr:
     name: Test MSRV
     runs-on: ubuntu-latest

@@ -4,12 +4,17 @@ pub mod frame;
 
 mod message;
 
-pub use self::{frame::CloseFrame, message::Message};
+pub use self::{
+    frame::{CloseFrame, MaskSource},
+    message::Message,
+};
 
+#[cfg(feature = "rand")]
+use self::frame::generate_mask;
 use self::{
     frame::{
         coding::{CloseCode, Control as OpCtl, Data as OpData, OpCode},
-        Frame, FrameCodec,
+        mask_from, Frame, FrameCodec,
     },
     message::{IncompleteMessage, MessageType},
 };
@@ -19,6 +24,7 @@ use crate::{
 };
 use log::*;
 use std::{
+    fmt,
     io::{self, Read, Write},
     mem::replace,
 };
@@ -213,6 +219,12 @@ impl<Stream> WebSocket<Stream> {
         &mut self.socket
     }
 
+    /// Install the source this socket draws a client's frame masks from; see
+    /// [`WebSocketContext::set_mask_source`].
+    pub fn set_mask_source(&mut self, source: impl MaskSource + 'static) {
+        self.context.set_mask_source(source);
+    }
+
     /// Change the configuration.
     ///
     /// # Panics
@@ -375,6 +387,17 @@ pub struct WebSocketContext {
     unflushed_additional: bool,
     /// The configuration for the websocket session.
     config: WebSocketConfig,
+    /// Where a client's frame masks come from; `None` is the crate's `rand` (feature `rand`).
+    mask_source: Option<MaskSourceBox>,
+}
+
+/// The installed [`MaskSource`], boxed (a newtype so the context stays `Debug`).
+struct MaskSourceBox(Box<dyn MaskSource>);
+
+impl fmt::Debug for MaskSourceBox {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("MaskSource")
+    }
 }
 
 impl WebSocketContext {
@@ -396,6 +419,14 @@ impl WebSocketContext {
         Self::_new(role, FrameCodec::from_partially_read(part, conf.read_buffer_size), conf)
     }
 
+    /// Install the source this context draws a client's frame masks from (RFC 6455 section 5.3), replacing the
+    /// crate's `rand`. Only a [`Role::Client`] context masks; a server context never calls it. Without the `rand`
+    /// feature this is the only source, and a client send before one is installed fails with
+    /// [`ProtocolError::MissingMaskSource`].
+    pub fn set_mask_source(&mut self, source: impl MaskSource + 'static) {
+        self.mask_source = Some(MaskSourceBox(Box::new(source)));
+    }
+
     fn _new(role: Role, mut frame: FrameCodec, config: WebSocketConfig) -> Self {
         config.assert_valid();
         frame.set_max_out_buffer_len(config.max_write_buffer_size);
@@ -408,6 +439,7 @@ impl WebSocketContext {
             additional_send: None,
             unflushed_additional: false,
             config,
+            mask_source: None,
         }
     }
 
@@ -761,7 +793,14 @@ impl WebSocketContext {
             Role::Client => {
                 // 5.  If the data is being sent by the client, the frame(s) MUST be
                 // masked as defined in Section 5.3. (RFC 6455)
-                frame.set_random_mask();
+                let mask = match self.mask_source.as_mut() {
+                    Some(source) => mask_from(source.0.as_mut())?,
+                    #[cfg(feature = "rand")]
+                    None => generate_mask(),
+                    #[cfg(not(feature = "rand"))]
+                    None => return Err(Error::Protocol(ProtocolError::MissingMaskSource)),
+                };
+                frame.set_mask(mask);
             }
         }
 
