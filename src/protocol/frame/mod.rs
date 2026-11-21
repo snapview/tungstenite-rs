@@ -157,6 +157,10 @@ impl FrameCodec {
         self.out_buffer_write_len = len;
     }
 
+    pub(super) fn can_buffer(&self, wire_size: usize) -> bool {
+        wire_size.saturating_add(self.out_buffer.len()) <= self.max_out_buffer_len
+    }
+
     /// Read a frame from the provided stream.
     pub(super) fn read_frame(
         &mut self,
@@ -251,7 +255,7 @@ impl FrameCodec {
     where
         Stream: Write,
     {
-        if frame.len() + self.out_buffer.len() > self.max_out_buffer_len {
+        if !self.can_buffer(frame.len()) {
             return Err(Error::WriteBufferFull(Message::Frame(frame).into()));
         }
 
