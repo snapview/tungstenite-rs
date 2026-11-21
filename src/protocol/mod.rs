@@ -301,6 +301,8 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     /// - [`Error::Io`] is returned if the underlying connection returns an error
     ///   (consider these fatal except for WouldBlock).
     /// - [`Error::Capacity`] if your message size is bigger than the configured max message size.
+    /// - [`ProtocolError::ControlFrameTooBig`] if a ping or pong payload is over 125 bytes,
+    ///   or a close reason is over 123 bytes. Nothing is sent and the connection stays open.
     pub fn write(&mut self, message: Message) -> Result<()> {
         self.context.write(&mut self.socket, message)
     }
@@ -334,6 +336,9 @@ impl<Stream: Read + Write> WebSocket<Stream> {
     ///
     /// It is thus safe to drop the underlying connection as soon as [Error::ConnectionClosed]
     /// is returned from [`read`](Self::read) or [`flush`](Self::flush).
+    ///
+    /// A close reason over 123 bytes returns [`ProtocolError::ControlFrameTooBig`].
+    /// Nothing is sent and the connection stays open.
     pub fn close(&mut self, code: Option<CloseFrame>) -> Result<()> {
         self.context.close(&mut self.socket, code)
     }
@@ -501,6 +506,9 @@ impl WebSocketContext {
         }
 
         let frame = match message {
+            Message::Ping(data) | Message::Pong(data) if data.len() > 125 => {
+                return Err(Error::Protocol(ProtocolError::ControlFrameTooBig));
+            }
             Message::Text(data) => Frame::message(data, OpCode::Data(OpData::Text), true),
             Message::Binary(data) => Frame::message(data, OpCode::Data(OpData::Binary), true),
             Message::Ping(data) => Frame::ping(data),
@@ -599,9 +607,11 @@ impl WebSocketContext {
         Stream: Read + Write,
     {
         if let WebSocketState::Active = self.state {
+            if code.as_ref().is_some_and(|c| c.reason.len() > 123) {
+                return Err(Error::Protocol(ProtocolError::ControlFrameTooBig));
+            }
             self.state = WebSocketState::ClosedByUs;
-            let frame = Frame::close(code);
-            self._write(stream, Some(frame))?;
+            self._write(stream, Some(Frame::close(code)))?;
         }
         self.flush(stream)
     }
