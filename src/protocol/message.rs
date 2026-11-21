@@ -161,11 +161,11 @@ pub enum Message {
     Binary(Bytes),
     /// A ping message with the specified payload
     ///
-    /// The payload here must have a length less than 125 bytes
+    /// The payload must be 125 bytes or less.
     Ping(Bytes),
     /// A pong message with the specified payload
     ///
-    /// The payload here must have a length less than 125 bytes
+    /// The payload must be 125 bytes or less.
     Pong(Bytes),
     /// A close message with the optional close frame.
     Close(Option<CloseFrame>),

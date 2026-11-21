@@ -188,9 +188,11 @@ pub enum CloseCode {
 }
 
 impl CloseCode {
-    /// Check if this CloseCode is allowed.
+    /// Check if this CloseCode is allowed in a close frame: 1000-1003, 1007-1013, or 3000-4999.
+    ///
+    /// The check uses the numeric code, so `Library(1005)` is not allowed.
     pub fn is_allowed(self) -> bool {
-        !matches!(self, Bad(_) | Reserved(_) | Status | Abnormal | Tls)
+        !matches!(CloseCode::from(u16::from(self)), Bad(_) | Reserved(_) | Status | Abnormal | Tls)
     }
 }
 
