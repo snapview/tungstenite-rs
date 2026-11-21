@@ -1,6 +1,7 @@
 # Unreleased (0.30.1)
 * Optimise write performance particularly for partial buffer writes.
 * Add inlining hints to improve read performance.
+* `Display for Frame` writes the payload hex straight to the formatter instead of building a payload-sized `String` first.
 
 # 0.30.0
 

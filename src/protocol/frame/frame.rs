@@ -6,7 +6,6 @@ use std::{
     mem,
     result::Result as StdResult,
     str::Utf8Error,
-    string::String,
 };
 
 use super::{
@@ -378,8 +377,6 @@ impl Frame {
 
 impl fmt::Display for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::fmt::Write;
-
         write!(
             f,
             "
@@ -389,8 +386,7 @@ reserved: {} {} {}
 opcode: {}
 length: {}
 payload length: {}
-payload: 0x{}
-            ",
+payload: 0x",
             self.header.is_final,
             self.header.rsv1,
             self.header.rsv2,
@@ -399,11 +395,11 @@ payload: 0x{}
             // self.mask.map(|mask| format!("{:?}", mask)).unwrap_or("NONE".into()),
             self.len(),
             self.payload.len(),
-            self.payload.iter().fold(String::new(), |mut output, byte| {
-                _ = write!(output, "{byte:02x}");
-                output
-            })
-        )
+        )?;
+        for byte in &self.payload {
+            write!(f, "{byte:02x}")?;
+        }
+        write!(f, "\n            ")
     }
 }
 
