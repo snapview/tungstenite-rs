@@ -7,8 +7,12 @@ mod frame;
 mod mask;
 mod utf8;
 
+#[cfg(feature = "rand")]
+pub(crate) use self::mask::generate_mask;
+pub(crate) use self::mask::mask_from;
 pub use self::{
     frame::{CloseFrame, Frame, FrameHeader},
+    mask::MaskSource,
     utf8::Utf8Bytes,
 };
 

@@ -200,6 +200,9 @@ pub enum ProtocolError {
     /// Garbage data encountered after client request.
     #[error("Junk after client request")]
     JunkAfterRequest,
+    /// A client context was asked to send with no `MaskSource` installed and no `rand` feature to fall back on.
+    #[error("No mask source installed for a client frame")]
+    MissingMaskSource,
     /// Custom responses must be unsuccessful.
     #[error("Custom response must not be successful")]
     CustomResponseSuccessful,

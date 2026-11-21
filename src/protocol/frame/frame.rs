@@ -11,7 +11,7 @@ use std::{
 
 use super::{
     coding::{CloseCode, Control, Data, OpCode},
-    mask::{apply_mask, generate_mask},
+    mask::apply_mask,
 };
 use crate::{
     error::{Error, ProtocolError, Result},
@@ -127,11 +127,11 @@ impl FrameHeader {
         }
     }
 
-    /// Generate a random frame mask and store this in the header.
+    /// Store `mask` in the header.
     ///
-    /// Of course this does not change frame contents. It just generates a mask.
-    pub(crate) fn set_random_mask(&mut self) {
-        self.mask = Some(generate_mask());
+    /// Of course this does not change frame contents.
+    pub(crate) fn set_mask(&mut self, mask: [u8; 4]) {
+        self.mask = Some(mask);
     }
 }
 
@@ -254,13 +254,13 @@ impl Frame {
         self.header.mask.is_some()
     }
 
-    /// Generate a random mask for the frame.
+    /// Set the mask for the frame.
     ///
-    /// This just generates a mask, payload is not changed. The actual masking is performed
+    /// This just stores the mask, payload is not changed. The actual masking is performed
     /// either on `format()` or on `apply_mask()` call.
     #[inline]
-    pub(crate) fn set_random_mask(&mut self) {
-        self.header.set_random_mask();
+    pub(crate) fn set_mask(&mut self, mask: [u8; 4]) {
+        self.header.set_mask(mask);
     }
 
     /// Consume the frame into its payload as string.
@@ -499,7 +499,7 @@ mod tests {
             for masked in [false, true] {
                 let mut frame = Frame::message(vec![7; len], OpCode::Data(Data::Binary), true);
                 if masked {
-                    frame.set_random_mask();
+                    frame.set_mask([0x12, 0x34, 0x56, 0x78]);
                 }
                 let mut expected = Vec::new();
                 frame.clone().format(&mut expected).unwrap();

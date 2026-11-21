@@ -1,3 +1,6 @@
+# Unreleased (next minor)
+* Add `protocol::MaskSource` and `WebSocket`/`WebSocketContext::set_mask_source`: a client draws its frame masks from the installed source. New default feature `rand` (implied by `handshake`); without it the crate links no `rand` and a client send with no source installed fails with `ProtocolError::MissingMaskSource` (a new variant, so this is not a patch release).
+
 # Unreleased (0.30.1)
 * Optimise write performance particularly for partial buffer writes.
 * Add inlining hints to improve read performance.
