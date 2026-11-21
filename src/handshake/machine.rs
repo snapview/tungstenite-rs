@@ -73,6 +73,13 @@ impl<Stream: Read + Write> HandshakeMachine<Stream> {
             HandshakeState::Writing(mut buf) => {
                 assert!(buf.has_remaining());
                 if let Some(size) = self.stream.write(Buf::chunk(&buf)).no_block()? {
+                    if size == 0 {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::WriteZero,
+                            "Failed to write handshake data: connection closed by peer",
+                        )
+                        .into());
+                    }
                     assert!(size > 0);
                     buf.advance(size);
                     Ok(if buf.has_remaining() {
