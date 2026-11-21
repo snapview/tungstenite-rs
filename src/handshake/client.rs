@@ -390,6 +390,26 @@ mod tests {
     }
 
     #[test]
+    fn request_formatting_with_query_and_optional_path() {
+        for scheme in ["ws", "wss"] {
+            for (suffix, target) in [
+                ("?token=value", "/?token=value"),
+                ("?", "/?"),
+                ("?a=%2F&b=c+d", "/?a=%2F&b=c+d"),
+                ("", "/"),
+                ("/?token=value", "/?token=value"),
+                ("/path?token=value", "/path?token=value"),
+            ] {
+                let uri = format!("{scheme}://example.com{suffix}");
+                let request = uri.as_str().into_client_request().unwrap();
+                let (request, _) = generate_request(request).unwrap();
+                let request_line = request.split(|byte| *byte == b'\r').next().unwrap();
+                assert_eq!(request_line, format!("GET {target} HTTP/1.1").as_bytes(), "{uri}");
+            }
+        }
+    }
+
+    #[test]
     fn response_parsing() {
         const DATA: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
         let (_, resp) = Response::try_parse(DATA).unwrap().unwrap();
